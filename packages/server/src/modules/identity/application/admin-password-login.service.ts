@@ -39,7 +39,7 @@ export interface AdminPasswordLoginResult {
   challengeId: string;
   challengeToken: string;
   expiresAt: Date;
-  nextStep: 'mfa';
+  nextStep: 'mfa' | 'mfa-setup';
 }
 
 type AuthenticationDecision =
@@ -239,13 +239,18 @@ export class AdminPasswordLoginService<TTransaction> {
         transaction,
       );
 
+      const hasActiveTotpMethod = await this.repository.hasActiveTotpMethod(
+        current.id,
+        transaction,
+      );
+
       return {
         kind: 'accepted',
         result: Object.freeze({
           challengeId: challenge.id,
           challengeToken: challenge.token,
           expiresAt,
-          nextStep: 'mfa',
+          nextStep: hasActiveTotpMethod ? 'mfa' : 'mfa-setup',
         }),
       } satisfies AuthenticationDecision;
     });

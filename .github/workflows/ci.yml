@@ -63,6 +63,14 @@ jobs:
       CORS_ORIGINS: http://localhost:3000
       TRUST_PROXY: 'false'
       AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
       DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
       REDIS_URL: redis://localhost:6379/0
       MINIO_ENDPOINT: http://localhost:9000
@@ -151,13 +159,13 @@ jobs:
           printf '%s' "$owner_password" > /tmp/atlas-owner-password
           chmod 600 /tmp/atlas-owner-password
 
-      - name: Verify Admin Password Login API
+      - name: Verify Admin Password and TOTP MFA API
         run: |
           pnpm build:packages
           pnpm --filter @atlas/api build
           pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
           api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password /tmp/atlas-login-request.json /tmp/atlas-login-response.json' EXIT
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
 
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
@@ -172,43 +180,5 @@ jobs:
             sleep 1
           done
 
-          OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" node <<'NODE' > /tmp/atlas-login-request.json
-          process.stdout.write(JSON.stringify({
-            email: 'owner-ci@atlas.test',
-            password: process.env.OWNER_PASSWORD,
-          }));
-          NODE
-          chmod 600 /tmp/atlas-login-request.json
-
-          status_code="$(curl -sS \
-            -o /tmp/atlas-login-response.json \
-            -w '%{http_code}' \
-            -H 'content-type: application/json' \
-            --data-binary @/tmp/atlas-login-request.json \
-            http://localhost:4000/api/admin/v1/auth/login)"
-
-          if [ "$status_code" != '202' ]; then
-            cat /tmp/atlas-api.log
-            cat /tmp/atlas-login-response.json
-            exit 1
-          fi
-
-          node <<'NODE'
-          const fs = require('node:fs');
-          const response = JSON.parse(fs.readFileSync('/tmp/atlas-login-response.json', 'utf8'));
-          const data = response.data;
-
-          if (
-            !data ||
-            typeof data.challengeId !== 'string' ||
-            typeof data.challengeToken !== 'string' ||
-            typeof data.expiresAt !== 'string' ||
-            data.nextStep !== 'mfa'
-          ) {
-            throw new Error('Admin Password Login API returned an invalid response.');
-          }
-
-          if (!data.challengeToken.startsWith(`atlas_mfa_${data.challengeId}.`)) {
-            throw new Error('Admin Password Login API returned an invalid challenge token.');
-          }
-          NODE
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/admin-auth-e2e.mjs

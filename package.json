@@ -15,6 +15,7 @@
     "dev:worker": "pnpm build:packages && pnpm --filter @atlas/worker dev",
     "build": "turbo run build",
     "build:packages": "pnpm --filter './packages/**' build",
+    "build:server": "pnpm --filter @atlas/server build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -28,12 +29,12 @@
     "stack:up": "pnpm infra:up && docker compose --profile app up -d --build admin-web api worker nginx",
     "stack:down": "docker compose --profile app down",
     "stack:logs": "docker compose --profile app logs -f",
-    "admin:bootstrap-owner": "pnpm --filter @atlas/server build && pnpm --filter @atlas/database admin:bootstrap-owner",
+    "admin:bootstrap-owner": "pnpm build:server && pnpm --filter @atlas/database admin:bootstrap-owner",
     "db:migration:create": "pnpm --filter @atlas/database migration:create",
-    "db:migration:generate": "pnpm --filter @atlas/database migration:generate",
-    "db:migration:run": "pnpm --filter @atlas/database migration:run",
-    "db:migration:revert": "pnpm --filter @atlas/database migration:revert",
-    "db:migration:show": "pnpm --filter @atlas/database migration:show"
+    "db:migration:generate": "pnpm build:server && pnpm --filter @atlas/database migration:generate",
+    "db:migration:run": "pnpm build:server && pnpm --filter @atlas/database migration:run",
+    "db:migration:revert": "pnpm build:server && pnpm --filter @atlas/database migration:revert",
+    "db:migration:show": "pnpm build:server && pnpm --filter @atlas/database migration:show"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",

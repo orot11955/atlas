@@ -10,21 +10,15 @@ import {
 import type { AdminPasswordLoginService } from '@atlas/server';
 
 import { ADMIN_PASSWORD_LOGIN_SERVICE } from './admin-auth.tokens';
+import { resolveClientAddress, type ClientRequest } from './client-address';
 import { AdminPasswordLoginDto } from './dto/admin-password-login.dto';
-
-interface ClientRequest {
-  ip?: string;
-  socket?: {
-    remoteAddress?: string;
-  };
-}
 
 interface AdminPasswordLoginResponse {
   data: {
     challengeId: string;
     challengeToken: string;
     expiresAt: string;
-    nextStep: 'mfa';
+    nextStep: 'mfa' | 'mfa-setup';
   };
 }
 
@@ -45,7 +39,7 @@ export class AdminAuthController {
     description: 'Password verified and an MFA challenge was issued.',
   })
   @ApiUnauthorizedResponse({ description: 'Email or password is invalid.' })
-  @ApiTooManyRequestsResponse({ description: 'Login rate limit or account lock is active.' })
+  @ApiTooManyRequestsResponse({ description: 'The Redis login rate limit is active.' })
   public async login(
     @Body() body: AdminPasswordLoginDto,
     @Req() request: ClientRequest,
@@ -65,8 +59,4 @@ export class AdminAuthController {
       },
     };
   }
-}
-
-function resolveClientAddress(request: ClientRequest): string {
-  return request.ip ?? request.socket?.remoteAddress ?? 'unknown';
 }

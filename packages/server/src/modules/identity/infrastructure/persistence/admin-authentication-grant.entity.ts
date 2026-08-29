@@ -1,14 +1,19 @@
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-@Entity({ name: 'admin_login_challenges' })
-@Index('uq_admin_login_challenges_token_digest', ['tokenDigest'], { unique: true })
-@Index('idx_admin_login_challenges_account_expires_at', ['adminAccountId', 'expiresAt'])
-export class AdminLoginChallengeEntity {
+@Entity({ name: 'admin_authentication_grants' })
+@Index('uq_admin_authentication_grants_token_digest', ['tokenDigest'], {
+  unique: true,
+})
+@Index('idx_admin_authentication_grants_account_expires_at', ['adminAccountId', 'expiresAt'])
+export class AdminAuthenticationGrantEntity {
   @PrimaryColumn({ type: 'uuid' })
   public id!: string;
 
   @Column({ name: 'admin_account_id', type: 'uuid' })
   public adminAccountId!: string;
+
+  @Column({ name: 'source_challenge_id', type: 'uuid' })
+  public sourceChallengeId!: string;
 
   @Column({ name: 'token_digest', type: 'char', length: 64 })
   public tokenDigest!: string;
@@ -16,14 +21,8 @@ export class AdminLoginChallengeEntity {
   @Column({ name: 'ip_fingerprint', type: 'char', length: 64 })
   public ipFingerprint!: string;
 
-  @Column({ name: 'request_id', type: 'varchar', length: 128 })
-  public requestId!: string;
-
   @Column({ name: 'expires_at', type: 'timestamptz' })
   public expiresAt!: Date;
-
-  @Column({ name: 'mfa_failure_count', type: 'integer', default: 0 })
-  public mfaFailureCount!: number;
 
   @Column({ name: 'consumed_at', type: 'timestamptz', nullable: true })
   public consumedAt!: Date | null;

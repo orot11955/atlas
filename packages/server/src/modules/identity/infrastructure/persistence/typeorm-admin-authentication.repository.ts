@@ -1,5 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
+import { AdminMfaMethodStatus, AdminMfaMethodType } from '../../domain/admin-mfa';
 import type {
   AdminAuthenticationAccount,
   AdminAuthenticationRepositoryPort,
@@ -10,6 +11,7 @@ import type {
 import { AdminAccountEntity } from './admin-account.entity';
 import { AdminLoginAttemptEntity } from './admin-login-attempt.entity';
 import { AdminLoginChallengeEntity } from './admin-login-challenge.entity';
+import { AdminMfaMethodEntity } from './admin-mfa-method.entity';
 
 export class TypeOrmAdminAuthenticationRepository implements AdminAuthenticationRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
@@ -32,6 +34,22 @@ export class TypeOrmAdminAuthenticationRepository implements AdminAuthentication
     });
 
     return entity ? toAuthenticationAccount(entity) : undefined;
+  }
+
+  public async hasActiveTotpMethod(
+    accountId: string,
+    transaction?: EntityManager,
+  ): Promise<boolean> {
+    const manager = transaction ?? this.dataSource.manager;
+    const count = await manager.getRepository(AdminMfaMethodEntity).count({
+      where: {
+        adminAccountId: accountId,
+        methodType: AdminMfaMethodType.TOTP,
+        status: AdminMfaMethodStatus.ACTIVE,
+      },
+    });
+
+    return count > 0;
   }
 
   public async updateLoginState(
@@ -91,6 +109,7 @@ export class TypeOrmAdminAuthenticationRepository implements AdminAuthentication
       ipFingerprint: challenge.ipFingerprint,
       requestId: challenge.requestId,
       expiresAt: challenge.expiresAt,
+      mfaFailureCount: challenge.mfaFailureCount ?? 0,
       consumedAt: challenge.consumedAt ?? null,
       invalidatedAt: challenge.invalidatedAt ?? null,
       createdAt: challenge.createdAt,

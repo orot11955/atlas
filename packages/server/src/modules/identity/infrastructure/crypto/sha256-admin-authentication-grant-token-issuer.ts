@@ -2,15 +2,15 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { createUuidV7 } from '../../../../core/ids';
 import type {
-  AdminLoginChallengeTokenIssuerPort,
-  IssuedAdminLoginChallengeToken,
-} from '../../ports/admin-login-challenge-token-issuer.port';
+  AdminAuthenticationGrantTokenIssuerPort,
+  IssuedAdminAuthenticationGrantToken,
+} from '../../ports/admin-authentication-grant-token-issuer.port';
 
-export class Sha256AdminLoginChallengeTokenIssuer implements AdminLoginChallengeTokenIssuerPort {
-  public issue(issuedAt: Date): Readonly<IssuedAdminLoginChallengeToken> {
+export class Sha256AdminAuthenticationGrantTokenIssuer implements AdminAuthenticationGrantTokenIssuerPort {
+  public issue(issuedAt: Date): Readonly<IssuedAdminAuthenticationGrantToken> {
     const id = createUuidV7(issuedAt.getTime());
     const secret = randomBytes(32).toString('base64url');
-    const token = `atlas_mfa_${id}.${secret}`;
+    const token = `atlas_auth_${id}.${secret}`;
 
     return Object.freeze({
       id,

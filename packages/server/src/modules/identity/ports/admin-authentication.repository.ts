@@ -37,6 +37,7 @@ export interface AdminLoginChallengeRecord {
   ipFingerprint: string;
   requestId: string;
   expiresAt: Date;
+  mfaFailureCount?: number;
   consumedAt?: Date;
   invalidatedAt?: Date;
   createdAt: Date;
@@ -48,6 +49,7 @@ export interface AdminAuthenticationRepositoryPort<TTransaction = unknown> {
     accountId: string,
     transaction: TTransaction,
   ): Promise<AdminAuthenticationAccount | undefined>;
+  hasActiveTotpMethod(accountId: string, transaction?: TTransaction): Promise<boolean>;
   updateLoginState(
     accountId: string,
     state: UpdateAdminLoginStateInput,
