@@ -5,8 +5,17 @@ import path from 'node:path';
 
 import { DataSource } from 'typeorm';
 
+import {
+  AdminAccountEntity,
+  AdminAuthenticationGrantEntity,
+  AdminLoginAttemptEntity,
+  AdminLoginChallengeEntity,
+  AdminMfaMethodEntity,
+  AdminRecoveryCodeEntity,
+  AuditLogEntity,
+} from '@atlas/server';
+
 const packageRoot = path.resolve(__dirname, '..');
-const repositoryRoot = path.resolve(packageRoot, '../..');
 const compiledRuntime = path.basename(__dirname) === 'dist';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -23,10 +32,13 @@ export const atlasDataSource = new DataSource({
   logging: process.env.NODE_ENV === 'development',
   migrationsTableName: 'atlas_migrations',
   entities: [
-    path.join(
-      repositoryRoot,
-      compiledRuntime ? 'packages/server/dist/**/*.entity.js' : 'packages/server/src/**/*.entity.ts',
-    ),
+    AuditLogEntity,
+    AdminAccountEntity,
+    AdminLoginAttemptEntity,
+    AdminLoginChallengeEntity,
+    AdminMfaMethodEntity,
+    AdminRecoveryCodeEntity,
+    AdminAuthenticationGrantEntity,
   ],
   migrations: [
     path.join(
