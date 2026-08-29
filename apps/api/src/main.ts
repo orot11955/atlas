@@ -8,6 +8,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { parseOriginList, type ApiEnvironment } from '@atlas/config';
 
 import { AppModule } from './app.module';
+import { ProblemDetailsFilter } from './filters/problem-details.filter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
@@ -23,11 +24,16 @@ async function bootstrap(): Promise<void> {
     credentials: true,
     origin: parseOriginList(config.get('CORS_ORIGINS', { infer: true })),
   });
+  app.useGlobalFilters(new ProblemDetailsFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
       whitelist: true,
       forbidNonWhitelisted: true,
+      validationError: {
+        target: false,
+        value: false,
+      },
     }),
   );
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -7,6 +7,7 @@ import { apiEnvironmentSchema, type ApiEnvironment } from '@atlas/config';
 import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { RequestContextMiddleware } from './middleware/request-context.middleware';
 
 @Module({
   imports: [
@@ -32,4 +33,11 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  public configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes({
+      path: '{*splat}',
+      method: RequestMethod.ALL,
+    });
+  }
+}

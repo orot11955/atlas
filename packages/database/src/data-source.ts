@@ -22,8 +22,8 @@ export const atlasDataSource = new DataSource({
   logging: process.env.NODE_ENV === 'development',
   migrationsTableName: 'atlas_migrations',
   entities: [
-    path.join(repositoryRoot, 'apps/api/src/**/*.entity.ts'),
-    path.join(repositoryRoot, 'apps/api/dist/**/*.entity.js'),
+    path.join(repositoryRoot, 'packages/server/src/**/*.entity.ts'),
+    path.join(repositoryRoot, 'packages/server/dist/**/*.entity.js'),
   ],
   migrations: [
     path.join(packageRoot, 'src/migrations/*.ts'),
