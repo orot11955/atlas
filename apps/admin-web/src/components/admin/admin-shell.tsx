@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 
-import { LogoutButton } from '../../features/auth/logout-button';
 import type { AdminSession } from '../../features/auth/auth-types';
+import { LogoutButton } from '../../features/auth/logout-button';
+import { SiteSwitcher } from '../../features/sites/site-switcher';
 import { AdminNavigation } from './admin-navigation';
 
 export function AdminShell({
@@ -41,6 +42,7 @@ export function AdminShell({
             <p className="topbar-eyebrow">PERSONAL OPERATIONS</p>
             <strong>Atlas 관리자 패널</strong>
           </div>
+          <SiteSwitcher />
           <div className="session-clock">
             <span>Session 만료</span>
             <strong>{formatDate(session.absoluteExpiresAt)}</strong>

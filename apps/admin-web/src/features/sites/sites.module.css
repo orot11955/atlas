@@ -1,0 +1,301 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pageHeader h1,
+.panel h2,
+.card h2 {
+  margin: 0;
+}
+
+.pageHeader p,
+.panel p,
+.card p {
+  color: #9ea7b5;
+  line-height: 1.65;
+}
+
+.headerActions {
+  display: flex;
+  gap: 10px;
+}
+
+.primaryLink,
+.secondaryLink,
+.button,
+.dangerButton {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryLink,
+.button {
+  border: 1px solid #ffb13b;
+  background: #ffb13b;
+  color: #17110a;
+}
+
+.secondaryLink {
+  border: 1px solid #343b45;
+  background: #171b21;
+  color: #f4f7fb;
+}
+
+.dangerButton {
+  border: 1px solid rgba(245, 124, 124, 0.52);
+  background: rgba(245, 124, 124, 0.08);
+  color: #ff9f9f;
+}
+
+.primaryLink:focus-visible,
+.secondaryLink:focus-visible,
+.button:focus-visible,
+.dangerButton:focus-visible,
+.switcher select:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid #ffb13b;
+  outline-offset: 2px;
+}
+
+.button:disabled,
+.dangerButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.panel,
+.card,
+.empty {
+  border: 1px solid #252a31;
+  border-radius: 18px;
+  background: rgba(20, 23, 28, 0.88);
+}
+
+.panel {
+  padding: 24px;
+}
+
+.workspaceGrid,
+.formGrid,
+.siteGrid,
+.metaGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.workspaceGrid {
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, 2fr);
+}
+
+.formGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.siteGrid {
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+}
+
+.metaGrid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 18px 0 0;
+}
+
+.metaGrid div {
+  display: grid;
+  gap: 4px;
+}
+
+.metaGrid dt {
+  color: #7f8997;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metaGrid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.card {
+  display: grid;
+  min-height: 250px;
+  align-content: space-between;
+  gap: 20px;
+  padding: 22px;
+}
+
+.cardHeader,
+.toolbar,
+.statusActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.siteKey,
+.muted,
+.domainState {
+  color: #8b94a2;
+  font-size: 0.85rem;
+}
+
+.statusPill,
+.typePill,
+.domainPill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid #353d47;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.statusPill[data-status='active'] {
+  border-color: rgba(113, 213, 155, 0.45);
+  color: #71d59b;
+}
+
+.statusPill[data-status='maintenance'] {
+  border-color: rgba(255, 177, 59, 0.45);
+  color: #ffb13b;
+}
+
+.statusPill[data-status='disabled'],
+.statusPill[data-status='archived'] {
+  color: #9ea7b5;
+}
+
+.typePill,
+.domainPill {
+  color: #b9c3d0;
+}
+
+.form {
+  display: grid;
+  gap: 18px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: #cfd5dd;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.field input,
+.field select,
+.field textarea,
+.switcher select {
+  width: 100%;
+  border: 1px solid #343b45;
+  border-radius: 10px;
+  background: #111419;
+  color: #f4f7fb;
+  font: inherit;
+}
+
+.field input,
+.field select,
+.switcher select {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.field textarea {
+  min-height: 110px;
+  resize: vertical;
+  padding: 12px;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.feedback {
+  min-height: 24px;
+}
+
+.error {
+  color: #f99;
+}
+
+.message {
+  color: #71d59b;
+}
+
+.empty {
+  padding: 48px 24px;
+  color: #9ea7b5;
+  text-align: center;
+}
+
+.switcher {
+  display: grid;
+  min-width: 210px;
+  gap: 5px;
+}
+
+.switcher label {
+  color: #7f8997;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.switcherEmpty {
+  color: #9ea7b5;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+@media (max-width: 860px) {
+  .pageHeader,
+  .cardHeader,
+  .toolbar,
+  .statusActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspaceGrid,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullWidth {
+    grid-column: auto;
+  }
+
+  .switcher {
+    min-width: 0;
+  }
+}

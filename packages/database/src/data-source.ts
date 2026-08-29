@@ -14,6 +14,10 @@ import {
   AdminRecoveryCodeEntity,
   AdminSessionEntity,
   AuditLogEntity,
+  SiteDomainEntity,
+  SiteEntity,
+  SiteSettingsEntity,
+  WorkspaceEntity,
 } from '@atlas/server';
 
 const packageRoot = path.resolve(__dirname, '..');
@@ -41,6 +45,10 @@ export const atlasDataSource = new DataSource({
     AdminRecoveryCodeEntity,
     AdminAuthenticationGrantEntity,
     AdminSessionEntity,
+    WorkspaceEntity,
+    SiteEntity,
+    SiteDomainEntity,
+    SiteSettingsEntity,
   ],
   migrations: [
     path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),

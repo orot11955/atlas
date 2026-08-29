@@ -3,6 +3,8 @@ import { createHmac } from 'node:crypto';
 const baseUrl = process.env.ATLAS_API_BASE_URL ?? 'http://localhost:4000/api';
 const email = process.env.ATLAS_OWNER_EMAIL ?? 'owner-ci@atlas.test';
 const password = process.env.ATLAS_OWNER_PASSWORD;
+const sessionCookieName = process.env.AUTH_SESSION_COOKIE_NAME ?? 'atlas_admin_session';
+const csrfCookieName = process.env.AUTH_CSRF_COOKIE_NAME ?? 'atlas_admin_csrf';
 
 if (!password) {
   throw new Error('ATLAS_OWNER_PASSWORD is required.');
@@ -12,114 +14,366 @@ const initialLogin = await login();
 assertEqual(initialLogin.nextStep, 'mfa-setup', 'initial login nextStep');
 assertChallenge(initialLogin);
 
-const enrollment = await post(
-  '/admin/v1/auth/mfa/totp/enrollment',
-  challengeBody(initialLogin),
-  200,
-);
+const enrollment = await request('/admin/v1/auth/mfa/totp/enrollment', {
+  method: 'POST',
+  body: challengeBody(initialLogin),
+  expectedStatus: 200,
+});
 
 if (
-  typeof enrollment.methodId !== 'string' ||
-  typeof enrollment.secret !== 'string' ||
-  typeof enrollment.provisioningUri !== 'string' ||
-  enrollment.algorithm !== 'SHA1' ||
-  enrollment.digits !== 6 ||
-  enrollment.period !== 30
+  typeof enrollment.data.methodId !== 'string' ||
+  typeof enrollment.data.secret !== 'string' ||
+  typeof enrollment.data.provisioningUri !== 'string' ||
+  enrollment.data.algorithm !== 'SHA1' ||
+  enrollment.data.digits !== 6 ||
+  enrollment.data.period !== 30
 ) {
   throw new Error('TOTP enrollment response is invalid.');
 }
 
-const previousStepCode = generateTotpCode(enrollment.secret, Math.floor(Date.now() / 30_000) - 1);
-const confirmation = await post(
-  '/admin/v1/auth/mfa/totp/confirm',
-  {
+const previousStepCode = generateTotpCode(
+  enrollment.data.secret,
+  Math.floor(Date.now() / 30_000) - 1,
+);
+const confirmation = await request('/admin/v1/auth/mfa/totp/confirm', {
+  method: 'POST',
+  body: {
     ...challengeBody(initialLogin),
     code: previousStepCode,
   },
-  202,
-);
+  expectedStatus: 202,
+});
 
-assertGrant(confirmation);
+assertGrant(confirmation.data);
 
-if (!Array.isArray(confirmation.recoveryCodes) || confirmation.recoveryCodes.length < 1) {
+if (!Array.isArray(confirmation.data.recoveryCodes) || confirmation.data.recoveryCodes.length < 1) {
   throw new Error('TOTP confirmation did not return recovery codes.');
 }
+
+const session = await createSession(confirmation.data);
+await request('/admin/v1/auth/session', {
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+});
+await request('/admin/v1/workspace', { expectedStatus: 401 });
+
+const workspaceResponse = await request('/admin/v1/workspace', {
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+});
+const workspace = workspaceResponse.data;
+
+if (
+  typeof workspace.id !== 'string' ||
+  workspace.key !== 'default' ||
+  workspace.timezone !== 'Asia/Seoul' ||
+  typeof workspace.version !== 'number'
+) {
+  throw new Error('Default Workspace response is invalid.');
+}
+
+await request('/admin/v1/workspace', {
+  method: 'PATCH',
+  body: {
+    version: workspace.version,
+    name: 'Atlas CI Workspace',
+    timezone: 'Asia/Seoul',
+    locale: 'ko-KR',
+  },
+  expectedStatus: 403,
+  cookieHeader: session.cookieHeader,
+});
+
+const updatedWorkspace = await request('/admin/v1/workspace', {
+  method: 'PATCH',
+  body: {
+    version: workspace.version,
+    name: 'Atlas CI Workspace',
+    timezone: 'Asia/Seoul',
+    locale: 'ko-KR',
+  },
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+assertEqual(updatedWorkspace.data.version, workspace.version + 1, 'Workspace version');
+
+const mainBlogInput = {
+  key: 'main-blog',
+  name: 'Main Blog',
+  description: 'Atlas CI main Blog',
+  type: 'blog',
+  timezone: 'Asia/Seoul',
+  locale: 'ko-KR',
+  canonicalDomain: 'main-blog.atlas.test',
+};
+
+await request('/admin/v1/sites', {
+  method: 'POST',
+  body: mainBlogInput,
+  expectedStatus: 403,
+  cookieHeader: session.cookieHeader,
+});
+
+const mainBlogCreated = await request('/admin/v1/sites', {
+  method: 'POST',
+  body: mainBlogInput,
+  expectedStatus: 201,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+let mainBlog = mainBlogCreated.data;
+assertSite(mainBlog, 'main-blog', 'draft');
+assertEqual(
+  mainBlog.canonicalDomain?.verificationStatus,
+  'pending',
+  'Canonical Domain verification status',
+);
+
+await request('/admin/v1/sites', {
+  method: 'POST',
+  body: {
+    ...mainBlogInput,
+    name: 'Duplicate Main Blog',
+    canonicalDomain: 'duplicate.atlas.test',
+  },
+  expectedStatus: 409,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+
+await request('/admin/v1/sites', {
+  method: 'POST',
+  body: {
+    ...mainBlogInput,
+    key: 'dev-log',
+    name: 'Dev Log',
+  },
+  expectedStatus: 409,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+
+const devLogCreated = await request('/admin/v1/sites', {
+  method: 'POST',
+  body: {
+    key: 'dev-log',
+    name: 'Dev Log',
+    description: 'Atlas CI development log',
+    type: 'blog',
+    timezone: 'Asia/Seoul',
+    locale: 'ko-KR',
+    canonicalDomain: 'dev-log.atlas.test',
+  },
+  expectedStatus: 201,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+assertSite(devLogCreated.data, 'dev-log', 'draft');
+
+const draftSites = await request('/admin/v1/sites?status=draft&type=blog&limit=10', {
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+});
+
+if (
+  !Array.isArray(draftSites.data.items) ||
+  draftSites.data.items.length !== 2 ||
+  draftSites.data.items.some((site) => site.workspaceId !== workspace.id)
+) {
+  throw new Error('Workspace-scoped Site list is invalid.');
+}
+
+const updatedMainBlog = await request(`/admin/v1/sites/${mainBlog.id}`, {
+  method: 'PATCH',
+  body: {
+    version: mainBlog.version,
+    name: 'Main Blog',
+    description: 'Updated by Atlas CI',
+    type: 'blog',
+    timezone: 'Asia/Seoul',
+    locale: 'ko-KR',
+    canonicalDomain: 'main-blog.atlas.test',
+  },
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+mainBlog = updatedMainBlog.data;
+assertEqual(mainBlog.version, 2, 'Updated Site version');
+
+mainBlog = (await transitionSite(mainBlog, 'activate', 'active', session)).data;
+mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
+
+await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
+  method: 'POST',
+  body: { version: mainBlog.version },
+  expectedStatus: 409,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+
+mainBlog = (await transitionSite(mainBlog, 'disable', 'disabled', session)).data;
+mainBlog = (await transitionSite(mainBlog, 'archive', 'archived', session)).data;
+
+await request(`/admin/v1/sites/${mainBlog.id}`, {
+  method: 'PATCH',
+  body: {
+    version: mainBlog.version,
+    name: 'Archived Site Cannot Change',
+    type: 'blog',
+    timezone: 'Asia/Seoul',
+    locale: 'ko-KR',
+  },
+  expectedStatus: 403,
+  cookieHeader: session.cookieHeader,
+  csrfToken: session.csrfToken,
+});
+
+const archivedSites = await request('/admin/v1/sites?status=archived&limit=10', {
+  expectedStatus: 200,
+  cookieHeader: session.cookieHeader,
+});
+assertEqual(archivedSites.data.items.length, 1, 'Archived Site list count');
+assertEqual(archivedSites.data.items[0]?.id, mainBlog.id, 'Archived Site ID');
 
 const totpLogin = await login();
 assertEqual(totpLogin.nextStep, 'mfa', 'post-enrollment login nextStep');
 
 const currentStep = Math.floor(Date.now() / 30_000);
-const currentCode = generateTotpCode(enrollment.secret, currentStep);
-const verified = await post(
-  '/admin/v1/auth/mfa/totp/verify',
-  {
+const currentCode = generateTotpCode(enrollment.data.secret, currentStep);
+const verified = await request('/admin/v1/auth/mfa/totp/verify', {
+  method: 'POST',
+  body: {
     ...challengeBody(totpLogin),
     code: currentCode,
   },
-  202,
-);
-assertGrant(verified);
+  expectedStatus: 202,
+});
+assertGrant(verified.data);
 
 const replayLogin = await login();
-await post(
-  '/admin/v1/auth/mfa/totp/verify',
-  {
+await request('/admin/v1/auth/mfa/totp/verify', {
+  method: 'POST',
+  body: {
     ...challengeBody(replayLogin),
     code: currentCode,
   },
-  401,
-);
+  expectedStatus: 401,
+});
 
-const recoveryCode = confirmation.recoveryCodes[0];
+const recoveryCode = confirmation.data.recoveryCodes[0];
 const recoveryLogin = await login();
-const recovered = await post(
-  '/admin/v1/auth/mfa/recovery/verify',
-  {
+const recovered = await request('/admin/v1/auth/mfa/recovery/verify', {
+  method: 'POST',
+  body: {
     ...challengeBody(recoveryLogin),
     recoveryCode,
   },
-  202,
-);
-assertGrant(recovered);
+  expectedStatus: 202,
+});
+assertGrant(recovered.data);
 
 const recoveryReplayLogin = await login();
-await post(
-  '/admin/v1/auth/mfa/recovery/verify',
-  {
+await request('/admin/v1/auth/mfa/recovery/verify', {
+  method: 'POST',
+  body: {
     ...challengeBody(recoveryReplayLogin),
     recoveryCode,
   },
-  401,
-);
+  expectedStatus: 401,
+});
 
-process.stdout.write('Admin password and TOTP MFA E2E passed.\n');
+process.stdout.write('Admin Password, TOTP, Session, Workspace and Site E2E passed.\n');
 
 async function login() {
-  const data = await post('/admin/v1/auth/login', { email, password }, 202);
+  const response = await request('/admin/v1/auth/login', {
+    method: 'POST',
+    body: { email, password },
+    expectedStatus: 202,
+  });
 
-  assertChallenge(data);
-  return data;
+  assertChallenge(response.data);
+  return response.data;
 }
 
-async function post(path, body, expectedStatus) {
-  const response = await fetch(`${baseUrl}${path}`, {
+async function createSession(grant) {
+  const response = await request('/admin/v1/auth/session', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
+    body: {
+      grantId: grant.grantId,
+      grantToken: grant.grantToken,
     },
-    body: JSON.stringify(body),
+    expectedStatus: 201,
+  });
+  const setCookies = response.response.headers.getSetCookie();
+  const cookiePairs = setCookies.map((value) => value.split(';', 1)[0]);
+  const sessionCookie = cookiePairs.find((value) => value.startsWith(`${sessionCookieName}=`));
+  const csrfCookie = cookiePairs.find((value) => value.startsWith(`${csrfCookieName}=`));
+
+  if (!sessionCookie || !csrfCookie) {
+    throw new Error(`Session response did not set both cookies: ${setCookies.join(' | ')}`);
+  }
+
+  return {
+    data: response.data,
+    cookieHeader: cookiePairs.join('; '),
+    csrfToken: decodeURIComponent(csrfCookie.slice(csrfCookie.indexOf('=') + 1)),
+  };
+}
+
+async function transitionSite(site, action, expectedStatus, session) {
+  const response = await request(`/admin/v1/sites/${site.id}/${action}`, {
+    method: 'POST',
+    body: { version: site.version },
+    expectedStatus: 200,
+    cookieHeader: session.cookieHeader,
+    csrfToken: session.csrfToken,
+  });
+  assertSite(response.data, site.key, expectedStatus);
+  assertEqual(response.data.version, site.version + 1, `${expectedStatus} Site version`);
+  return response;
+}
+
+async function request(path, { method = 'GET', body, expectedStatus, cookieHeader, csrfToken }) {
+  const headers = new Headers({ accept: 'application/json' });
+
+  if (body !== undefined) {
+    headers.set('content-type', 'application/json');
+  }
+  if (cookieHeader) {
+    headers.set('cookie', cookieHeader);
+  }
+  if (csrfToken) {
+    headers.set('x-csrf-token', csrfToken);
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
-  const parsed = text ? JSON.parse(text) : {};
-  const data = parsed.data ?? parsed;
+  let parsed = {};
+
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(`Response from ${path} is not valid JSON: ${text}`);
+    }
+  }
 
   if (response.status !== expectedStatus) {
     throw new Error(
-      `Expected ${expectedStatus} from ${path}, received ${response.status}: ${text}`,
+      `Expected ${expectedStatus} from ${method} ${path}, received ${response.status}: ${text}`,
     );
   }
 
-  return data;
+  return {
+    response,
+    data: parsed.data ?? parsed,
+  };
 }
 
 function challengeBody(challenge) {
@@ -155,9 +409,22 @@ function assertGrant(value) {
   }
 }
 
+function assertSite(value, key, status) {
+  if (
+    !value ||
+    typeof value.id !== 'string' ||
+    value.key !== key ||
+    value.status !== status ||
+    typeof value.version !== 'number' ||
+    typeof value.workspaceId !== 'string'
+  ) {
+    throw new Error(`Site response is invalid for ${key}/${status}.`);
+  }
+}
+
 function assertEqual(actual, expected, name) {
   if (actual !== expected) {
-    throw new Error(`${name} must be ${expected}, received ${String(actual)}.`);
+    throw new Error(`${name} must be ${String(expected)}, received ${String(actual)}.`);
   }
 }
 
