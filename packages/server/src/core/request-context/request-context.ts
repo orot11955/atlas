@@ -19,6 +19,7 @@ export interface RequestContext {
   correlationId?: string;
   actorType: ActorType;
   actorId?: string;
+  sessionId?: string;
   workspaceId?: string;
   siteId?: string;
 }
@@ -28,6 +29,10 @@ export class RequestContextStore {
 
   public run<TResult>(context: RequestContext, callback: () => TResult): TResult {
     return this.storage.run(Object.freeze({ ...context }), callback);
+  }
+
+  public enter(context: RequestContext): void {
+    this.storage.enterWith(Object.freeze({ ...context }));
   }
 
   public get(): Readonly<RequestContext> | undefined {
