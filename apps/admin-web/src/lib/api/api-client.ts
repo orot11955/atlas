@@ -68,15 +68,23 @@ export class AtlasApiClient {
     path: string,
     options: AtlasApiRequestOptions = {},
   ): Promise<TResponse> {
-    const method = (options.method ?? (options.body === undefined ? 'GET' : 'POST')).toUpperCase();
+    const {
+      body: requestBody,
+      csrfToken: explicitCsrfToken,
+      headers: requestHeaders,
+      responseType = 'json',
+      ...requestInit
+    } = options;
+    const method = (requestInit.method ?? (requestBody === undefined ? 'GET' : 'POST')).toUpperCase();
 
-    if ((method === 'GET' || method === 'HEAD') && options.body !== undefined) {
+    if ((method === 'GET' || method === 'HEAD') && requestBody !== undefined) {
       throw new TypeError(`${method} requests cannot include a body.`);
     }
 
-    const headers = mergeHeaders(this.defaultHeaders, options.headers);
-    const body = serializeBody(options.body, headers);
-    const csrfToken = options.csrfToken ?? this.getCsrfToken?.();
+    const requestUrl = this.resolvePath(path);
+    const headers = mergeHeaders(this.defaultHeaders, requestHeaders);
+    const body = serializeBody(requestBody, headers);
+    const csrfToken = explicitCsrfToken ?? this.getCsrfToken?.();
 
     if (MUTATING_METHODS.has(method) && csrfToken && !headers.has('x-csrf-token')) {
       headers.set('x-csrf-token', csrfToken);
@@ -89,10 +97,10 @@ export class AtlasApiClient {
     let response: Response;
 
     try {
-      response = await this.fetcher(this.resolvePath(path), {
-        ...options,
+      response = await this.fetcher(requestUrl, {
+        ...requestInit,
         body,
-        credentials: options.credentials ?? this.credentials,
+        credentials: requestInit.credentials ?? this.credentials,
         headers,
         method,
       });
@@ -104,7 +112,7 @@ export class AtlasApiClient {
       throw new AtlasApiError(await readProblemDetails(response));
     }
 
-    return parseSuccessfulResponse<TResponse>(response, options.responseType ?? 'json');
+    return parseSuccessfulResponse<TResponse>(response, responseType);
   }
 
   private resolvePath(path: string): string {
@@ -119,8 +127,15 @@ export class AtlasApiClient {
     }
 
     const pathname = trimmed.split(/[?#]/, 1)[0] ?? '';
+    let decodedPathname: string;
 
-    if (pathname.split('/').includes('..')) {
+    try {
+      decodedPathname = decodeURIComponent(pathname).replaceAll('\\', '/');
+    } catch {
+      throw new TypeError('API path contains invalid encoding.');
+    }
+
+    if (decodedPathname.split('/').includes('..')) {
       throw new TypeError('API path traversal is not allowed.');
     }
 

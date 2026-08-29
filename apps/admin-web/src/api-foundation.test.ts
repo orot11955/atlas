@@ -18,20 +18,29 @@ test('AtlasApiClient serializes JSON, includes credentials and attaches CSRF tok
   const client = new AtlasApiClient({
     baseUrl: 'https://atlas.example/api/admin/v1/',
     fetcher,
-    getCsrfToken: () => 'csrf-token',
+    getCsrfToken: () => 'fallback-csrf-token',
   });
 
-  const response = await client.post<{ data: { id: string } }>('/sites', {
-    name: 'Main Blog',
-  });
+  const response = await client.post<{ data: { id: string } }>(
+    '/sites',
+    {
+      name: 'Main Blog',
+    },
+    {
+      csrfToken: 'explicit-csrf-token',
+      responseType: 'json',
+    },
+  );
   const headers = new Headers(capturedInit?.headers);
 
   assert.equal(capturedUrl, 'https://atlas.example/api/admin/v1/sites');
   assert.equal(capturedInit?.method, 'POST');
   assert.equal(capturedInit?.credentials, 'include');
   assert.equal(headers.get('content-type'), 'application/json');
-  assert.equal(headers.get('x-csrf-token'), 'csrf-token');
+  assert.equal(headers.get('x-csrf-token'), 'explicit-csrf-token');
   assert.equal(capturedInit?.body, JSON.stringify({ name: 'Main Blog' }));
+  assert.equal(Object.hasOwn(capturedInit ?? {}, 'csrfToken'), false);
+  assert.equal(Object.hasOwn(capturedInit ?? {}, 'responseType'), false);
   assert.equal(response.data.id, 'site-1');
 });
 
@@ -75,14 +84,20 @@ test('AtlasApiClient converts Problem Details into AtlasApiError and form errors
   });
 });
 
-test('AtlasApiClient blocks absolute URLs and path traversal', async () => {
+test('AtlasApiClient blocks absolute URLs and path traversal before network execution', async () => {
+  let networkExecutions = 0;
   const client = new AtlasApiClient({
     baseUrl: '/api/admin/v1',
-    fetcher: (async () => new Response(null, { status: 204 })) as typeof fetch,
+    fetcher: (async () => {
+      networkExecutions += 1;
+      return new Response(null, { status: 204 });
+    }) as typeof fetch,
   });
 
   await assert.rejects(client.get('https://malicious.example/data'), TypeError);
   await assert.rejects(client.get('../delivery/v1/posts'), TypeError);
+  await assert.rejects(client.get('%2e%2e/delivery/v1/posts'), TypeError);
+  assert.equal(networkExecutions, 0);
 });
 
 test('AtlasApiClient uses a stable network error without exposing transport details', async () => {
