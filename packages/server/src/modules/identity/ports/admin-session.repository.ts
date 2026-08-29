@@ -37,7 +37,7 @@ export interface AdminSessionRecord {
   revokeReason?: AdminSessionRevokeReason;
 }
 
-export interface InsertAdminSessionRecord extends AdminSessionRecord {}
+export type InsertAdminSessionRecord = AdminSessionRecord;
 
 export interface TouchAdminSessionInput {
   lastSeenAt: Date;
