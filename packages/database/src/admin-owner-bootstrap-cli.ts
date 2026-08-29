@@ -99,6 +99,8 @@ function parseArguments(args: readonly string[]): CliOptions {
     const argument = args[index];
 
     switch (argument) {
+      case '--':
+        break;
       case '--email':
         options.email = requireArgumentValue(args, (index += 1), '--email');
         break;
