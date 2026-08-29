@@ -55,6 +55,14 @@
 - MFA Challenge Client Address Binding
 - MFA 실패 횟수와 Challenge 무효화
 - Session 생성 전 일회성 Authentication Grant
+- Authentication Grant Transactional 1회 소비
+- Digest 기반 Admin Session과 CSRF Token
+- Host-only HttpOnly Session Cookie
+- Idle·Absolute Timeout과 활동 Touch
+- 최대 활성 Session 제한
+- Session 목록·Logout·선택 폐기
+- Role·Password·Account 상태 변경 시 Session 무효화
+- Request Context `ADMIN` Actor와 Permission Guard 기반
 - 실제 PostgreSQL·Redis·NestJS 기반 인증 E2E
 
 Admin 인증 API:
@@ -65,6 +73,12 @@ POST /api/admin/v1/auth/mfa/totp/enrollment
 POST /api/admin/v1/auth/mfa/totp/confirm
 POST /api/admin/v1/auth/mfa/totp/verify
 POST /api/admin/v1/auth/mfa/recovery/verify
+POST /api/admin/v1/auth/session
+GET  /api/admin/v1/auth/session
+POST /api/admin/v1/auth/logout
+GET  /api/admin/v1/auth/sessions
+POST /api/admin/v1/auth/sessions/revoke-others
+POST /api/admin/v1/auth/sessions/{sessionId}/revoke
 ```
 
 보안 결정:
@@ -72,23 +86,27 @@ POST /api/admin/v1/auth/mfa/recovery/verify
 - Email·IP Fingerprint는 Secret Pepper를 이용한 HMAC-SHA-256이다.
 - TOTP Secret은 AES-256-GCM으로 암호화하며 Key Version을 저장한다.
 - Recovery Code는 원문을 한 번만 반환하고 HMAC Digest만 저장한다.
-- MFA Challenge와 Authentication Grant Token은 SHA-256 Digest만 저장한다.
+- MFA Challenge, Authentication Grant, Session과 CSRF Token은 Digest만 저장한다.
 - TOTP Time Step은 계정별로 한 번만 사용할 수 있다.
 - Password Login은 Session을 직접 만들지 않으며 MFA 성공 후 Grant를 발급한다.
+- 상태 변경 Admin API는 Session과 Double-submit CSRF 검증을 모두 요구한다.
+- Role 또는 Password Snapshot이 현재 계정과 다르면 기존 Session을 폐기한다.
 
 주요 Pull Request:
 
 - [#7 Admin Identity Schema and OWNER Bootstrap](https://github.com/orot11955/atlas/pull/7)
 - [#8 Admin Password Login and MFA Challenge](https://github.com/orot11955/atlas/pull/8)
 - [#9 Admin Login Privacy Hardening](https://github.com/orot11955/atlas/pull/9)
+- [#10 Admin TOTP MFA and Authentication Grants](https://github.com/orot11955/atlas/pull/10)
+- [#11 Admin Sessions and CSRF Protection](https://github.com/orot11955/atlas/pull/11)
 
 ## 다음
 
 ```text
-Authentication Grant 검증과 1회 소비
-→ Admin Session과 HttpOnly Cookie
-→ Idle·Absolute Timeout
-→ CSRF
-→ Permission Guard
-→ Login UI와 Admin Shell
+Password Login UI
+→ TOTP 등록·검증 UI
+→ Recovery Code UI
+→ Session 교환과 CSRF 자동 주입
+→ Admin Layout과 보호 Route
+→ 활성 Session 관리 화면
 ```
