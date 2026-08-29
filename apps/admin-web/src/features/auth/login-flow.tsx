@@ -207,10 +207,7 @@ export function LoginFlow() {
           <div className="auth-copy">
             <span className="step-badge">최초 1회</span>
             <h2>Authenticator를 등록하세요</h2>
-            <p>
-              Authenticator 앱에서 아래 Secret을 수동 등록한 뒤 생성된 6자리 코드를
-              입력하세요.
-            </p>
+            <p>Authenticator 앱에서 아래 Secret을 수동 등록한 뒤 생성된 6자리 코드를 입력하세요.</p>
           </div>
 
           <div className="secret-panel">
@@ -263,7 +260,11 @@ export function LoginFlow() {
           <button className="primary-button" disabled={busy || code.length !== 6} type="submit">
             {busy ? '인증 중…' : '로그인'}
           </button>
-          <button className="text-button centered" type="button" onClick={() => setStep('recovery')}>
+          <button
+            className="text-button centered"
+            type="button"
+            onClick={() => setStep('recovery')}
+          >
             Recovery Code 사용
           </button>
           <button className="secondary-button" type="button" onClick={() => resetFlow()}>
@@ -293,7 +294,11 @@ export function LoginFlow() {
             />
           </label>
 
-          <button className="primary-button" disabled={busy || recoveryCode.length < 8} type="submit">
+          <button
+            className="primary-button"
+            disabled={busy || recoveryCode.length < 8}
+            type="submit"
+          >
             {busy ? '확인 중…' : 'Recovery Code로 로그인'}
           </button>
           <button className="text-button centered" type="button" onClick={() => setStep('totp')}>
@@ -308,8 +313,8 @@ export function LoginFlow() {
             <span className="step-badge success">MFA 등록 완료</span>
             <h2 id="recovery-title">Recovery Code를 안전하게 보관하세요</h2>
             <p>
-              아래 코드는 다시 표시되지 않습니다. Password Manager 같은 안전한 위치에
-              저장한 뒤 계속하세요.
+              아래 코드는 다시 표시되지 않습니다. Password Manager 같은 안전한 위치에 저장한 뒤
+              계속하세요.
             </p>
           </div>
 

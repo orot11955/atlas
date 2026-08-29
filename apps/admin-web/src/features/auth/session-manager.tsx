@@ -4,11 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import { AtlasApiError } from '../../lib/api';
-import {
-  loadAdminSessions,
-  revokeAdminSession,
-  revokeOtherAdminSessions,
-} from './auth-api';
+import { loadAdminSessions, revokeAdminSession, revokeOtherAdminSessions } from './auth-api';
 import type { AdminSessionListItem } from './auth-types';
 
 export function SessionManager() {

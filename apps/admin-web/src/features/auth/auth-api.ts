@@ -38,12 +38,13 @@ export async function confirmTotpEnrollment(
   challenge: AdminLoginChallenge,
   code: string,
 ): Promise<AdminTotpEnrollmentConfirmation> {
-  const response = await createClient().post<
-    ApiEnvelope<AdminTotpEnrollmentConfirmation>
-  >('/auth/mfa/totp/confirm', {
-    ...challengeBody(challenge),
-    code,
-  });
+  const response = await createClient().post<ApiEnvelope<AdminTotpEnrollmentConfirmation>>(
+    '/auth/mfa/totp/confirm',
+    {
+      ...challengeBody(challenge),
+      code,
+    },
+  );
   return response.data;
 }
 
@@ -91,9 +92,8 @@ export async function loadCurrentSession(): Promise<AdminSession> {
 }
 
 export async function loadAdminSessions(): Promise<readonly AdminSessionListItem[]> {
-  const response = await createClient().get<ApiEnvelope<readonly AdminSessionListItem[]>>(
-    '/auth/sessions',
-  );
+  const response =
+    await createClient().get<ApiEnvelope<readonly AdminSessionListItem[]>>('/auth/sessions');
   return response.data;
 }
 
@@ -111,9 +111,13 @@ export async function revokeOtherAdminSessions(): Promise<number> {
 }
 
 export async function revokeAdminSession(sessionId: string): Promise<void> {
-  await createClient().post<void>(`/auth/sessions/${encodeURIComponent(sessionId)}/revoke`, undefined, {
-    responseType: 'void',
-  });
+  await createClient().post<void>(
+    `/auth/sessions/${encodeURIComponent(sessionId)}/revoke`,
+    undefined,
+    {
+      responseType: 'void',
+    },
+  );
 }
 
 function challengeBody(challenge: AdminLoginChallenge) {

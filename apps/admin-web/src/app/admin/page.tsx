@@ -29,8 +29,8 @@ export default function AdminDashboardPage() {
           <p className="eyebrow">DASHBOARD</p>
           <h1>운영 현황</h1>
           <p>
-            인증 기반이 준비되었습니다. 다음 단계부터 Site, 프로젝트와 배포 Read Model을
-            순서대로 연결합니다.
+            인증 기반이 준비되었습니다. 다음 단계부터 Site, 프로젝트와 배포 Read Model을 순서대로
+            연결합니다.
           </p>
         </div>
         <span className="foundation-badge">Foundation ready</span>

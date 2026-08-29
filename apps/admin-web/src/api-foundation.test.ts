@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  AtlasApiClient,
-  AtlasApiError,
-  problemToFormErrors,
-  readCookieValue,
-} from './lib/api';
+import { AtlasApiClient, AtlasApiError, problemToFormErrors, readCookieValue } from './lib/api';
 
 test('AtlasApiClient serializes JSON, includes credentials and attaches CSRF tokens', async () => {
   let capturedUrl = '';
@@ -132,10 +127,7 @@ test('readCookieValue returns one decoded CSRF Cookie and rejects duplicates', (
     'atlas_csrf_value.one',
   );
   assert.equal(
-    readCookieValue(
-      'atlas_admin_csrf=first; atlas_admin_csrf=second',
-      'atlas_admin_csrf',
-    ),
+    readCookieValue('atlas_admin_csrf=first; atlas_admin_csrf=second', 'atlas_admin_csrf'),
     undefined,
   );
   assert.equal(readCookieValue('theme=dark', 'atlas_admin_csrf'), undefined);

@@ -193,8 +193,7 @@ function readCsrfTokenFromBrowser(): string | undefined {
     return undefined;
   }
 
-  const cookieName =
-    process.env.NEXT_PUBLIC_ATLAS_CSRF_COOKIE_NAME ?? 'atlas_admin_csrf';
+  const cookieName = process.env.NEXT_PUBLIC_ATLAS_CSRF_COOKIE_NAME ?? 'atlas_admin_csrf';
   const cookieToken = readCookieValue(document.cookie, cookieName);
 
   if (cookieToken) {

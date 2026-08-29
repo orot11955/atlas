@@ -38,8 +38,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 0%, rgba(255, 153, 0, 0.12), transparent 30rem),
-    var(--bg);
+    radial-gradient(circle at 12% 0%, rgba(255, 153, 0, 0.12), transparent 30rem), var(--bg);
   color: var(--text);
 }
 
@@ -92,8 +91,7 @@ code {
   padding: clamp(48px, 8vw, 120px);
   border-right: 1px solid var(--line);
   background:
-    linear-gradient(145deg, rgba(255, 173, 51, 0.08), transparent 42%),
-    rgba(8, 10, 13, 0.72);
+    linear-gradient(145deg, rgba(255, 173, 51, 0.08), transparent 42%), rgba(8, 10, 13, 0.72);
 }
 
 .auth-context h2 {

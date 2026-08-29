@@ -16,8 +16,8 @@ export default async function LoginPage() {
         <p className="eyebrow">ONE CONTROL PLANE</p>
         <h2>개인 운영 정보를 한 곳에서 관리합니다.</h2>
         <p>
-          콘텐츠 발행, 프로젝트 이력, 배포 상태, 개인 자료와 회원 운영을 Site 단위로
-          연결하는 관리자 시스템입니다.
+          콘텐츠 발행, 프로젝트 이력, 배포 상태, 개인 자료와 회원 운영을 Site 단위로 연결하는 관리자
+          시스템입니다.
         </p>
         <dl className="auth-principles">
           <div>
