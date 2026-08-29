@@ -1,0 +1,442 @@
+name: Bootstrap server boundary once
+
+on:
+  push:
+    branches:
+      - refactor/server-package-boundary
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: refactor/server-package-boundary
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Implement shared server boundary
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const read = (file) => fs.readFileSync(file, 'utf8');
+          const write = (file, content) => {
+            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(file, content.endsWith('\n') ? content : `${content}\n`);
+          };
+          const readJson = (file) => JSON.parse(read(file));
+          const writeJson = (file, value) => write(file, JSON.stringify(value, null, 2));
+          const sortObject = (value) => Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+
+          const rootPackage = readJson('package.json');
+          const apiPackage = readJson('apps/api/package.json');
+          const workerPackage = readJson('apps/worker/package.json');
+
+          const nestCommonVersion = apiPackage.dependencies?.['@nestjs/common'] ?? '^11.0.0';
+          const reflectMetadataVersion = apiPackage.dependencies?.['reflect-metadata'] ?? '^0.2.2';
+          const rxjsVersion = apiPackage.dependencies?.rxjs ?? '^7.8.1';
+          const nodeTypesVersion = rootPackage.devDependencies?.['@types/node'] ?? '^24.0.0';
+          const typescriptVersion = rootPackage.devDependencies?.typescript ?? '^5.9.0';
+
+          writeJson('packages/server/package.json', {
+            name: '@atlas/server',
+            version: '0.1.0',
+            private: true,
+            main: 'dist/index.js',
+            types: 'dist/index.d.ts',
+            exports: {
+              '.': {
+                types: './dist/index.d.ts',
+                default: './dist/index.js',
+              },
+            },
+            scripts: {
+              build: 'tsc -p tsconfig.json',
+              dev: 'tsc --watch -p tsconfig.json',
+              lint: 'eslint src --max-warnings=0',
+              test: 'pnpm build && node --test dist/core/request-context/request-context.storage.spec.js dist/core/errors/problem-details.spec.js',
+              typecheck: 'tsc --noEmit -p tsconfig.json',
+            },
+            dependencies: {
+              '@nestjs/common': nestCommonVersion,
+              'reflect-metadata': reflectMetadataVersion,
+              rxjs: rxjsVersion,
+            },
+            devDependencies: {
+              '@types/node': nodeTypesVersion,
+              typescript: typescriptVersion,
+            },
+          });
+
+          writeJson('packages/server/tsconfig.json', {
+            extends: '../../tsconfig.base.json',
+            compilerOptions: {
+              composite: true,
+              declaration: true,
+              declarationMap: true,
+              outDir: 'dist',
+              rootDir: 'src',
+              sourceMap: true,
+              tsBuildInfoFile: 'dist/.tsbuildinfo',
+            },
+            include: ['src/**/*.ts'],
+            exclude: ['dist', 'node_modules'],
+          });
+
+          write('packages/server/src/core/errors/application-error.ts', `export type ErrorMetadata = Readonly<Record<string, unknown>>;
+
+export interface ApplicationErrorOptions {
+  readonly code: string;
+  readonly message: string;
+  readonly status: number;
+  readonly title?: string;
+  readonly metadata?: ErrorMetadata;
+}
+
+export class ApplicationError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly title: string;
+  readonly metadata?: ErrorMetadata;
+
+  constructor(options: ApplicationErrorOptions) {
+    super(options.message);
+    this.name = 'ApplicationError';
+    this.code = options.code;
+    this.status = options.status;
+    this.title = options.title ?? options.code;
+    this.metadata = options.metadata;
+  }
+}
+`);
+
+          write('packages/server/src/core/errors/problem-details.ts', `import { ApplicationError } from './application-error';
+
+export interface ProblemDetails {
+  readonly type: string;
+  readonly title: string;
+  readonly status: number;
+  readonly code: string;
+  readonly detail: string;
+  readonly requestId: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+const DEFAULT_PROBLEM_TYPE_BASE_URL = 'https://atlas.example/problems';
+
+export function toProblemDetails(
+  error: unknown,
+  requestId: string,
+  problemTypeBaseUrl = DEFAULT_PROBLEM_TYPE_BASE_URL,
+): ProblemDetails {
+  if (error instanceof ApplicationError) {
+    return {
+      type: `${problemTypeBaseUrl}/${error.code.toLowerCase().replaceAll('_', '-')}`,
+      title: error.title,
+      status: error.status,
+      code: error.code,
+      detail: error.message,
+      requestId,
+      ...(error.metadata ? { metadata: error.metadata } : {}),
+    };
+  }
+
+  return {
+    type: `${problemTypeBaseUrl}/internal-server-error`,
+    title: 'Internal server error',
+    status: 500,
+    code: 'INTERNAL_SERVER_ERROR',
+    detail: 'An unexpected error occurred.',
+    requestId,
+  };
+}
+`);
+
+          write('packages/server/src/core/errors/problem-details.spec.ts', `import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
+
+import { ApplicationError } from './application-error';
+import { toProblemDetails } from './problem-details';
+
+test('maps an application error to problem details', () => {
+  const result = toProblemDetails(
+    new ApplicationError({
+      code: 'SITE_NOT_FOUND',
+      message: 'The requested site does not exist.',
+      status: 404,
+      title: 'Site not found',
+    }),
+    'req-1',
+  );
+
+  assert.equal(result.status, 404);
+  assert.equal(result.code, 'SITE_NOT_FOUND');
+  assert.equal(result.requestId, 'req-1');
+  assert.equal(result.type, 'https://atlas.example/problems/site-not-found');
+});
+
+test('redacts an unknown error', () => {
+  const result = toProblemDetails(new Error('database password leaked'), 'req-2');
+
+  assert.equal(result.status, 500);
+  assert.equal(result.code, 'INTERNAL_SERVER_ERROR');
+  assert.equal(result.detail, 'An unexpected error occurred.');
+  assert.equal(result.detail.includes('password'), false);
+});
+`);
+
+          write('packages/server/src/core/errors/index.ts', `export * from './application-error';
+export * from './problem-details';
+`);
+
+          write('packages/server/src/core/clock/clock.port.ts', `export const CLOCK = Symbol('ATLAS_CLOCK');
+
+export interface Clock {
+  now(): Date;
+}
+`);
+
+          write('packages/server/src/core/clock/system-clock.ts', `import { Injectable } from '@nestjs/common';
+
+import type { Clock } from './clock.port';
+
+@Injectable()
+export class SystemClock implements Clock {
+  now(): Date {
+    return new Date();
+  }
+}
+`);
+
+          write('packages/server/src/core/clock/index.ts', `export * from './clock.port';
+export * from './system-clock';
+`);
+
+          write('packages/server/src/core/request-context/request-context.ts', `export type ActorType = 'ANONYMOUS' | 'ADMIN' | 'MEMBER' | 'API_CLIENT' | 'SYSTEM';
+
+export interface RequestContext {
+  readonly requestId: string;
+  readonly traceId: string;
+  readonly correlationId?: string;
+  readonly actorType: ActorType;
+  readonly actorId?: string;
+  readonly workspaceId?: string;
+  readonly siteId?: string;
+}
+`);
+
+          write('packages/server/src/core/request-context/request-context.storage.ts', `import { AsyncLocalStorage } from 'node:async_hooks';
+
+import { Injectable } from '@nestjs/common';
+
+import { ApplicationError } from '../errors';
+import type { RequestContext } from './request-context';
+
+@Injectable()
+export class RequestContextStorage {
+  private readonly storage = new AsyncLocalStorage<Readonly<RequestContext>>();
+
+  run<T>(context: RequestContext, callback: () => T): T {
+    return this.storage.run(Object.freeze({ ...context }), callback);
+  }
+
+  get(): Readonly<RequestContext> | undefined {
+    return this.storage.getStore();
+  }
+
+  getOrThrow(): Readonly<RequestContext> {
+    const context = this.get();
+
+    if (!context) {
+      throw new ApplicationError({
+        code: 'REQUEST_CONTEXT_UNAVAILABLE',
+        message: 'Request context is not available in the current execution scope.',
+        status: 500,
+      });
+    }
+
+    return context;
+  }
+}
+`);
+
+          write('packages/server/src/core/request-context/request-context.storage.spec.ts', `import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
+
+import { RequestContextStorage } from './request-context.storage';
+
+test('keeps concurrent request contexts isolated', async () => {
+  const storage = new RequestContextStorage();
+
+  const readContext = (requestId: string, delay: number) =>
+    storage.run(
+      {
+        requestId,
+        traceId: `trace-${requestId}`,
+        actorType: 'ANONYMOUS',
+      },
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return storage.getOrThrow().requestId;
+      },
+    );
+
+  const [first, second] = await Promise.all([readContext('first', 5), readContext('second', 1)]);
+
+  assert.equal(first, 'first');
+  assert.equal(second, 'second');
+  assert.equal(storage.get(), undefined);
+});
+
+test('throws when context is unavailable', () => {
+  const storage = new RequestContextStorage();
+
+  assert.throws(() => storage.getOrThrow(), {
+    name: 'ApplicationError',
+    message: 'Request context is not available in the current execution scope.',
+  });
+});
+`);
+
+          write('packages/server/src/core/request-context/index.ts', `export * from './request-context';
+export * from './request-context.storage';
+`);
+
+          write('packages/server/src/core/server-core.module.ts', `import { Global, Module } from '@nestjs/common';
+
+import { CLOCK, SystemClock } from './clock';
+import { RequestContextStorage } from './request-context';
+
+@Global()
+@Module({
+  providers: [
+    RequestContextStorage,
+    {
+      provide: CLOCK,
+      useClass: SystemClock,
+    },
+  ],
+  exports: [CLOCK, RequestContextStorage],
+})
+export class ServerCoreModule {}
+`);
+
+          write('packages/server/src/core/index.ts', `export * from './clock';
+export * from './errors';
+export * from './request-context';
+export * from './server-core.module';
+`);
+
+          write('packages/server/src/modules/index.ts', `// Domain modules are added here as vertical features are implemented.
+export {};
+`);
+
+          write('packages/server/src/index.ts', `export * from './core';
+export * from './modules';
+`);
+
+          for (const packageFile of ['apps/api/package.json', 'apps/worker/package.json']) {
+            const packageJson = readJson(packageFile);
+            packageJson.dependencies = sortObject({
+              ...(packageJson.dependencies ?? {}),
+              '@atlas/server': 'workspace:*',
+            });
+            writeJson(packageFile, packageJson);
+          }
+
+          const connectServerCoreModule = (file) => {
+            let source = read(file);
+
+            if (!source.includes("from '@atlas/server'")) {
+              source = `import { ServerCoreModule } from '@atlas/server';\n${source}`;
+            }
+
+            const importsProperty = /imports\s*:\s*\[/;
+            const serverCoreInImports = /imports\s*:\s*\[[\s\S]*?\bServerCoreModule\b/;
+
+            if (!serverCoreInImports.test(source)) {
+              if (importsProperty.test(source)) {
+                source = source.replace(importsProperty, 'imports: [ServerCoreModule, ');
+              } else {
+                source = source.replace(/@Module\(\{/, '@Module({\n  imports: [ServerCoreModule],');
+              }
+            }
+
+            write(file, source);
+          };
+
+          connectServerCoreModule('apps/api/src/app.module.ts');
+          connectServerCoreModule('apps/worker/src/worker.module.ts');
+
+          const dataSourceFile = 'packages/database/src/data-source.ts';
+          let dataSource = read(dataSourceFile);
+          dataSource = dataSource
+            .replace('apps/api/src/**/*.entity.ts', 'packages/server/src/**/*.entity.ts')
+            .replace('apps/api/dist/**/*.entity.js', 'packages/server/dist/**/*.entity.js');
+          write(dataSourceFile, dataSource);
+
+          const turboFile = 'turbo.json';
+          const turbo = readJson(turboFile);
+          turbo.tasks ??= {};
+          turbo.tasks.dev ??= {};
+          turbo.tasks.dev.dependsOn = Array.from(new Set([...(turbo.tasks.dev.dependsOn ?? []), '^build']));
+          writeJson(turboFile, turbo);
+
+          const checklistFile = 'docs/implementation/phase-checklists.md';
+          let checklist = read(checklistFile);
+          const completedItems = [
+            '`packages/server/package.json`',
+            '`packages/server/tsconfig.json`',
+            '`packages/server/src/index.ts`',
+            '`packages/server/src/core`',
+            '`packages/server/src/modules`',
+            'API에서 `@atlas/server` Reference',
+            'Worker에서 `@atlas/server` Reference',
+            'DataSource Entity Glob 변경',
+            'Turbo Build Dependency 확인',
+            '`AsyncLocalStorage` Store',
+          ];
+          for (const item of completedItems) {
+            checklist = checklist.replace(`- [ ] ${item}`, `- [x] ${item}`);
+          }
+          write(checklistFile, checklist);
+          NODE
+
+      - name: Install and update lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Format
+        run: pnpm format
+
+      - name: Validate
+        run: |
+          pnpm check
+          docker compose config >/dev/null
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          rm -f .github/workflows/bootstrap-server-boundary-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor: establish shared server package boundary'
+          git push origin HEAD:refactor/server-package-boundary
