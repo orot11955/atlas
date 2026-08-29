@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { parseOriginList, type ApiEnvironment } from '@atlas/config';
+import { ATLAS_LOGGER, AtlasLogLevel, type AtlasLogger } from '@atlas/server';
 
 import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './filters/problem-details.filter';
@@ -16,8 +17,11 @@ async function bootstrap(): Promise<void> {
   });
 
   const config = app.get(ConfigService<ApiEnvironment, true>);
+  const logger = app.get<AtlasLogger>(ATLAS_LOGGER);
   const port = config.get('PORT', { infer: true });
 
+  app.useLogger(logger);
+  app.flushLogs();
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
   app.enableCors({
@@ -48,6 +52,14 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup('api/docs', app, document);
 
   await app.listen(port, '0.0.0.0');
+  logger.write(
+    AtlasLogLevel.INFO,
+    {
+      event: 'application.started',
+      port,
+    },
+    'Atlas API started.',
+  );
 }
 
 bootstrap().catch((error: unknown) => {
