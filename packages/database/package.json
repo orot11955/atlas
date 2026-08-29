@@ -15,9 +15,9 @@
     "test": "node --test",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
-    "migration:run": "tsx src/migration-cli.ts run",
-    "migration:revert": "tsx src/migration-cli.ts revert",
-    "migration:show": "tsx src/migration-cli.ts show"
+    "migration:run": "ts-node --project tsconfig.json src/migration-cli.ts run",
+    "migration:revert": "ts-node --project tsconfig.json src/migration-cli.ts revert",
+    "migration:show": "ts-node --project tsconfig.json src/migration-cli.ts show"
   },
   "dependencies": {
     "dotenv": "^17.2.2",

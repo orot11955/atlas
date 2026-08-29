@@ -14,6 +14,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test src/*.test.ts"
   },
+  "dependencies": {
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^1.1.0"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.20.5",
