@@ -16,11 +16,22 @@ const storageSchema = z.object({
   MINIO_PUBLIC_BASE_URL: z.url(),
 });
 
+const adminAuthenticationSchema = z.object({
+  TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
+  AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
+  AUTH_LOGIN_ACCOUNT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
+  AUTH_LOGIN_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(900),
+  AUTH_LOGIN_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(100).default(5),
+  AUTH_LOGIN_LOCK_SECONDS: z.coerce.number().int().min(1).max(86_400).default(900),
+  AUTH_MFA_CHALLENGE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
+});
+
 export const apiEnvironmentSchema = runtimeSchema.extend({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
+  ...adminAuthenticationSchema.shape,
   ...storageSchema.shape,
 });
 

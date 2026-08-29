@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { apiEnvironmentSchema, type ApiEnvironment } from '@atlas/config';
 import { ATLAS_LOGGER, createAtlasLogger } from '@atlas/server';
 
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
@@ -34,6 +35,7 @@ import { PlatformModule } from './platform/platform.module';
     RedisModule,
     MinioModule,
     PlatformModule,
+    AdminAuthModule,
     HealthModule,
   ],
   providers: [
