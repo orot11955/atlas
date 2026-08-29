@@ -63,6 +63,9 @@ importers:
       '@atlas/object-storage':
         specifier: workspace:*
         version: link:../../packages/object-storage
+      '@atlas/server':
+        specifier: workspace:*
+        version: link:../../packages/server
       '@nestjs/common':
         specifier: ^12.0.1
         version: 12.0.1(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -121,6 +124,9 @@ importers:
       '@atlas/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@atlas/server':
+        specifier: workspace:*
+        version: link:../../packages/server
       '@nestjs/common':
         specifier: ^12.0.1
         version: 12.0.1(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -206,6 +212,18 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/server:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.12
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

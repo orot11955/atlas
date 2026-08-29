@@ -107,7 +107,8 @@ function normalizeException(exception: unknown): NormalizedProblem {
 function normalizeHttpException(exception: HttpException): NormalizedProblem {
   const status = exception.getStatus();
   const body = exception.getResponse();
-  const bodyRecord = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  const bodyRecord =
+    typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
   const messages = bodyRecord.message;
   const errors = Array.isArray(messages)
     ? messages.filter((message): message is string => typeof message === 'string')
