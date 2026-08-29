@@ -1,7 +1,9 @@
 name: Verify and merge admin TOTP MFA once
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feat/admin-totp-mfa
 
 permissions:
   contents: write
