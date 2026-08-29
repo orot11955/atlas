@@ -22,6 +22,9 @@ export class AdminLoginChallengeEntity {
   @Column({ name: 'expires_at', type: 'timestamptz' })
   public expiresAt!: Date;
 
+  @Column({ name: 'mfa_failure_count', type: 'integer', default: 0 })
+  public mfaFailureCount!: number;
+
   @Column({ name: 'consumed_at', type: 'timestamptz', nullable: true })
   public consumedAt!: Date | null;
 
