@@ -103,6 +103,7 @@ services:
       PORT: 4000
       CORS_ORIGINS: http://localhost:${NGINX_PORT:-8080}
       TRUST_PROXY: ${TRUST_PROXY:-loopback, linklocal, uniquelocal}
+      AUTH_LOGIN_FINGERPRINT_PEPPER: ${AUTH_LOGIN_FINGERPRINT_PEPPER:-atlas-admin-login-fingerprint-local-secret}
       AUTH_LOGIN_IP_LIMIT: ${AUTH_LOGIN_IP_LIMIT:-30}
       AUTH_LOGIN_ACCOUNT_LIMIT: ${AUTH_LOGIN_ACCOUNT_LIMIT:-10}
       AUTH_LOGIN_WINDOW_SECONDS: ${AUTH_LOGIN_WINDOW_SECONDS:-900}

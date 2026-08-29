@@ -67,6 +67,7 @@ import { RedisAdminLoginRateLimiter } from './redis-admin-login-rate-limiter';
           ipLimit: config.get('AUTH_LOGIN_IP_LIMIT', { infer: true }),
           accountLimit: config.get('AUTH_LOGIN_ACCOUNT_LIMIT', { infer: true }),
           windowSeconds: config.get('AUTH_LOGIN_WINDOW_SECONDS', { infer: true }),
+          fingerprintPepper: config.get('AUTH_LOGIN_FINGERPRINT_PEPPER', { infer: true }),
         }),
     },
     {
@@ -96,6 +97,7 @@ import { RedisAdminLoginRateLimiter } from './redis-admin-login-rate-limiter';
           challengeTokenIssuer,
           loginRateLimiter,
           auditService,
+          config.get('AUTH_LOGIN_FINGERPRINT_PEPPER', { infer: true }),
           {
             failureThreshold: config.get('AUTH_LOGIN_FAILURE_THRESHOLD', { infer: true }),
             lockDurationMs: config.get('AUTH_LOGIN_LOCK_SECONDS', { infer: true }) * 1_000,

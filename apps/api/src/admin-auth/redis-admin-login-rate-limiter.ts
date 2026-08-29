@@ -1,9 +1,8 @@
-import { createHash } from 'node:crypto';
-
-import type {
-  AdminLoginRateLimiterPort,
-  AdminLoginRateLimitResult,
-  ConsumeAdminLoginRateLimitInput,
+import {
+  fingerprintAdminLoginValue,
+  type AdminLoginRateLimiterPort,
+  type AdminLoginRateLimitResult,
+  type ConsumeAdminLoginRateLimitInput,
 } from '@atlas/server';
 
 interface RedisCounterClient {
@@ -15,6 +14,7 @@ export interface RedisAdminLoginRateLimiterOptions {
   ipLimit: number;
   accountLimit: number;
   windowSeconds: number;
+  fingerprintPepper: string;
   keyPrefix?: string;
 }
 
@@ -97,11 +97,11 @@ export class RedisAdminLoginRateLimiter implements AdminLoginRateLimiterPort {
   }
 
   private createKey(namespace: 'account' | 'ip', value: string): string {
-    const fingerprint = createHash('sha256')
-      .update(`${namespace}\u0000${value}`, 'utf8')
-      .digest('hex');
-
-    return `${this.keyPrefix}:${namespace}:${fingerprint}`;
+    return `${this.keyPrefix}:${namespace}:${fingerprintAdminLoginValue(
+      this.options.fingerprintPepper,
+      namespace === 'account' ? 'email' : 'ip',
+      value,
+    )}`;
   }
 }
 

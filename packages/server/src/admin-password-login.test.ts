@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import {
@@ -11,6 +12,7 @@ import {
   DomainError,
   ErrorCode,
   FixedClock,
+  fingerprintAdminLoginValue,
   requestContext,
   type AdminAuthenticationAccount,
   type AdminAuthenticationRepositoryPort,
@@ -28,6 +30,8 @@ import {
 } from './index';
 
 type TestTransaction = Readonly<{ id: 'login-transaction' }>;
+
+const FINGERPRINT_PEPPER = 'atlas-test-admin-login-fingerprint-secret';
 
 class TestTransactionRunner implements TransactionRunner<TestTransaction> {
   private readonly transaction: TestTransaction = Object.freeze({ id: 'login-transaction' });
@@ -179,6 +183,7 @@ function createHarness() {
     new TestChallengeIssuer(),
     rateLimiter,
     new AuditService(auditRepository, clock),
+    FINGERPRINT_PEPPER,
     {
       failureThreshold: 3,
       lockDurationMs: 15 * 60 * 1_000,
@@ -209,6 +214,20 @@ async function executeLogin(
       }),
   );
 }
+
+test('login fingerprints use keyed HMAC instead of guessable plain SHA-256 values', () => {
+  const value = 'owner@example.com';
+  const fingerprint = fingerprintAdminLoginValue(FINGERPRINT_PEPPER, 'email', value);
+  const unkeyedDigest = createHash('sha256').update(`email\u0000${value}`, 'utf8').digest('hex');
+
+  assert.equal(fingerprint.length, 64);
+  assert.notEqual(fingerprint, unkeyedDigest);
+  assert.equal(fingerprint, fingerprintAdminLoginValue(FINGERPRINT_PEPPER, 'email', value));
+  assert.notEqual(
+    fingerprint,
+    fingerprintAdminLoginValue(`${FINGERPRINT_PEPPER}-rotated`, 'email', value),
+  );
+});
 
 test('valid password resets failure state and issues only a digested MFA challenge', async () => {
   const harness = createHarness();
@@ -275,7 +294,7 @@ test('unknown email performs dummy password verification and returns a generic e
   assert.equal(JSON.stringify(harness.repository.attempts).includes('missing@example.com'), false);
 });
 
-test('the threshold failure locks the account and returns retry metadata', async () => {
+test('the threshold failure locks internally but keeps the external credentials response generic', async () => {
   const harness = createHarness();
   const account = createAccount({ failedLoginCount: 2 });
   harness.repository.accounts.set(account.id, account);
@@ -284,8 +303,8 @@ test('the threshold failure locks the account and returns retry metadata', async
     executeLogin(harness.service, account.email, 'wrong password'),
     (error: unknown) => {
       assert.equal(error instanceof DomainError, true);
-      assert.equal((error as DomainError).code, ErrorCode.RATE_LIMITED);
-      assert.deepEqual((error as DomainError).details, { retryAfterSeconds: 900 });
+      assert.equal((error as DomainError).code, ErrorCode.AUTH_REQUIRED);
+      assert.equal((error as Error).message, 'Email or password is invalid.');
       return true;
     },
   );
@@ -293,6 +312,27 @@ test('the threshold failure locks the account and returns retry metadata', async
   const updated = harness.repository.accounts.get(account.id);
   assert.equal(updated?.failedLoginCount, 3);
   assert.equal(updated?.lockedUntil?.toISOString(), '2026-08-29T12:35:00.000Z');
+  assert.equal(harness.repository.attempts[0]?.outcome, AdminLoginAttemptOutcome.ACCOUNT_LOCKED);
+});
+
+test('an already locked account also returns the same external credentials error', async () => {
+  const harness = createHarness();
+  const account = createAccount({
+    failedLoginCount: 3,
+    lockedUntil: new Date('2026-08-29T12:35:00.000Z'),
+  });
+  harness.repository.accounts.set(account.id, account);
+
+  await assert.rejects(
+    executeLogin(harness.service, account.email, 'correct password'),
+    (error: unknown) => {
+      assert.equal(error instanceof DomainError, true);
+      assert.equal((error as DomainError).code, ErrorCode.AUTH_REQUIRED);
+      assert.equal((error as Error).message, 'Email or password is invalid.');
+      return true;
+    },
+  );
+
   assert.equal(harness.repository.attempts[0]?.outcome, AdminLoginAttemptOutcome.ACCOUNT_LOCKED);
 });
 

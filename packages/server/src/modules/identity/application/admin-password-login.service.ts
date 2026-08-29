@@ -11,6 +11,7 @@ import { AdminAccountStatus } from '../domain/admin-account-status';
 import { normalizeAdminEmail } from '../domain/admin-account';
 import {
   AdminLoginAttemptOutcome,
+  assertAdminLoginFingerprintPepper,
   assertAdminLoginPasswordInput,
   calculateFailedLoginState,
   fingerprintAdminLoginValue,
@@ -52,7 +53,6 @@ type AuthenticationDecision =
         | typeof AdminLoginAttemptOutcome.ACCOUNT_DISABLED
         | typeof AdminLoginAttemptOutcome.ACCOUNT_LOCKED
         | typeof AdminLoginAttemptOutcome.INVALID_CREDENTIALS;
-      retryAfterSeconds?: number;
     };
 
 export class AdminPasswordLoginService<TTransaction> {
@@ -65,9 +65,11 @@ export class AdminPasswordLoginService<TTransaction> {
     private readonly challengeTokenIssuer: AdminLoginChallengeTokenIssuerPort,
     private readonly loginRateLimiter: AdminLoginRateLimiterPort,
     private readonly auditService: AuditService<TTransaction>,
+    private readonly fingerprintPepper: string,
     policy: AdminPasswordLoginPolicy,
     private readonly clock: Clock = systemClock,
   ) {
+    assertAdminLoginFingerprintPepper(fingerprintPepper);
     this.policy = validateAdminPasswordLoginPolicy(policy);
   }
 
@@ -85,8 +87,8 @@ export class AdminPasswordLoginService<TTransaction> {
     }
 
     const attemptedAt = this.clock.now();
-    const emailFingerprint = fingerprintAdminLoginValue('email', email);
-    const ipFingerprint = fingerprintAdminLoginValue('ip', clientAddress);
+    const emailFingerprint = fingerprintAdminLoginValue(this.fingerprintPepper, 'email', email);
+    const ipFingerprint = fingerprintAdminLoginValue(this.fingerprintPepper, 'ip', clientAddress);
     const account = await this.repository.findByEmail(email);
     const passwordHash = account?.passwordHash ?? DUMMY_PASSWORD_HASH;
     const passwordValid = await this.passwordHasher.verify(passwordHash, input.password);
@@ -147,8 +149,6 @@ export class AdminPasswordLoginService<TTransaction> {
       }
 
       if (current.lockedUntil && current.lockedUntil.getTime() > attemptedAt.getTime()) {
-        const retryAfterSeconds = secondsUntil(current.lockedUntil, attemptedAt);
-
         await this.recordAttemptAndAudit(
           {
             accountId: current.id,
@@ -165,7 +165,6 @@ export class AdminPasswordLoginService<TTransaction> {
         return {
           kind: 'denied',
           outcome: AdminLoginAttemptOutcome.ACCOUNT_LOCKED,
-          retryAfterSeconds,
         } satisfies AuthenticationDecision;
       }
 
@@ -202,9 +201,6 @@ export class AdminPasswordLoginService<TTransaction> {
         return {
           kind: 'denied',
           outcome,
-          ...(state.lockedUntil
-            ? { retryAfterSeconds: secondsUntil(state.lockedUntil, attemptedAt) }
-            : {}),
         } satisfies AuthenticationDecision;
       }
 
@@ -255,10 +251,6 @@ export class AdminPasswordLoginService<TTransaction> {
     });
 
     if (decision.kind === 'denied') {
-      if (decision.outcome === AdminLoginAttemptOutcome.ACCOUNT_LOCKED) {
-        throw createRateLimitedError(decision.retryAfterSeconds ?? 1);
-      }
-
       throw createInvalidCredentialsError();
     }
 
@@ -337,8 +329,4 @@ function createRateLimitedError(retryAfterSeconds: number): DomainError {
       retryAfterSeconds: Math.max(1, Math.ceil(retryAfterSeconds)),
     },
   });
-}
-
-function secondsUntil(later: Date, earlier: Date): number {
-  return Math.max(1, Math.ceil((later.getTime() - earlier.getTime()) / 1_000));
 }

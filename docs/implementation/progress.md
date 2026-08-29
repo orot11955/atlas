@@ -44,22 +44,29 @@
 - 코드 기반 Permission Registry
 - Node.js Argon2id Password Hasher
 - OWNER Bootstrap CLI와 중복 생성 차단
-- `admin_login_attempts`와 개인정보 비식별 Fingerprint
+- `admin_login_attempts`와 HMAC-SHA-256 Email·IP Fingerprint
 - 짧은 수명의 `admin_login_challenges`
 - Password Login Use Case
 - 존재하지 않는 Email의 Dummy Hash 검증
 - 실패 횟수와 Account Lock
+- Account Lock 상태의 외부 응답 평준화
 - Redis 기반 IP·Account Rate Limit
 - Password 검증 후 MFA Challenge 발급
-- Login Audit와 `Retry-After`
+- Login Audit와 외부 Rate Limit의 `Retry-After`
 - `POST /api/admin/v1/auth/login`
 - CI의 실제 PostgreSQL·Redis 기반 Password Login API 검증
 
-현재 Branch:
+보안 결정:
 
-```text
-feat/admin-password-login
-```
+- Email·IP Fingerprint는 `AUTH_LOGIN_FINGERPRINT_PEPPER`를 이용한 HMAC-SHA-256이다.
+- Pepper는 32바이트 이상이며 운영 Secret Store에서 주입한다.
+- 계정 잠금, 비활성 계정, 잘못된 Password는 모두 동일한 `AUTH_REQUIRED` 응답을 사용한다.
+- Redis의 IP·Account Rate Limit에 걸린 요청만 429와 `Retry-After`를 반환한다.
+
+주요 Pull Request:
+
+- [#7 Admin Identity Schema and OWNER Bootstrap](https://github.com/orot11955/atlas/pull/7)
+- [#8 Admin Password Login and MFA Challenge](https://github.com/orot11955/atlas/pull/8)
 
 ## 다음
 
