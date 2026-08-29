@@ -77,6 +77,27 @@ pnpm build
 pnpm check
 ```
 
+## 구현 단계
+
+```text
+Repository Foundation
+→ Platform Core
+→ Admin Identity & Security
+→ Workspace & Site
+→ API Client
+→ Content Core
+→ Publication & Delivery MVP
+→ MinIO Media
+→ Webhook & Scheduling
+→ Content Operations
+→ Project & Deployment
+→ Resource & Member
+→ Dashboard
+→ Production Hardening
+```
+
+현재 Repository Foundation이 구성되어 있으며 다음 구현 대상은 Platform Core와 Admin Identity입니다.
+
 ## 브랜치
 
 ```text
@@ -94,6 +115,7 @@ main
 ## 문서
 
 - [플랫폼 설계](docs/atlas-platform-design.md)
+- [전체 구현 로드맵](docs/implementation-roadmap.md)
 - [프로젝트 구조](docs/project-structure.md)
 - [로컬 개발 환경](docs/local-development.md)
 - [브랜치 전략](docs/branch-strategy.md)
