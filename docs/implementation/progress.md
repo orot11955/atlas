@@ -115,16 +115,72 @@ Admin Web Route:
 - [#11 Admin Sessions and CSRF Protection](https://github.com/orot11955/atlas/pull/11)
 - [#12 Admin Login Flow and Protected Shell](https://github.com/orot11955/atlas/pull/12)
 
-## 다음
+## 진행 중
 
 ### Phase 3. Workspace, Site & API Client
 
+완료된 구현 단위:
+
+- Migration에서 단일 기본 Workspace Bootstrap
+- Workspace 이름·Timezone·Locale 설정과 Optimistic Version
+- `workspaces`, `sites`, `site_domains`, `site_settings` Schema
+- 모든 Site Repository·Service에 `workspaceId` Scope 강제
+- Workspace 범위 Site Key·Canonical Domain Unique 제약
+- Blog·Portfolio·Docs·Photo·Other Site 유형
+- Draft·Active·Maintenance·Disabled·Archived 상태 전이 정책
+- Archived Site 수정·재활성화 차단
+- Site Cursor Pagination, 검색, 상태·유형 Filter
+- Site 생성·조회·수정·상태 변경 API
+- Admin Session·Permission·CSRF Guard 연결
+- Workspace·Site Audit Log
+- Workspace 설정과 Site 목록·등록·상세 관리 UI
+- Admin Shell Site 메뉴와 Site Switcher
+- 실제 인증 Session 기반 Workspace·Site 통합 E2E
+
+Workspace·Site API:
+
 ```text
-기본 Workspace Bootstrap
-→ Workspace와 Site Schema
-→ Site 생성·조회·수정
-→ Site Switcher
-→ Site Domain과 기본 설정
-→ Site Scope API Client
-→ API Key 발급·회전·폐기
+GET   /api/admin/v1/workspace
+PATCH /api/admin/v1/workspace
+GET   /api/admin/v1/sites
+POST  /api/admin/v1/sites
+GET   /api/admin/v1/sites/{siteId}
+PATCH /api/admin/v1/sites/{siteId}
+POST  /api/admin/v1/sites/{siteId}/activate
+POST  /api/admin/v1/sites/{siteId}/maintenance
+POST  /api/admin/v1/sites/{siteId}/disable
+POST  /api/admin/v1/sites/{siteId}/archive
+```
+
+Admin Web Route:
+
+```text
+/admin/sites
+/admin/sites/new
+/admin/sites/{siteId}
+```
+
+보안·일관성 결정:
+
+- Workspace ID는 인증된 Admin 요청의 Request Context에 서버에서 주입한다.
+- Site Key와 Canonical Domain은 Workspace 범위에서만 Unique하다.
+- Site 변경 요청은 현재 Version을 요구하며 충돌 시 `409`를 반환한다.
+- Site ID는 UUIDv7만 허용한다.
+- Canonical Domain 변경 시 Verification 상태를 `pending`으로 초기화한다.
+- 모든 변경 API는 Session, Permission과 Double-submit CSRF를 요구한다.
+
+주요 Pull Request:
+
+- [#13 Workspace and Site Foundation](https://github.com/orot11955/atlas/pull/13)
+
+## 다음
+
+```text
+Site Scope API Client Schema
+→ API Key 발급과 원문 1회 표시
+→ Key Digest 저장
+→ Scope·Origin·Rate Limit 정책
+→ API Key 회전과 Grace Period
+→ 폐기와 최근 사용 시각
+→ Admin API Client 관리 화면
 ```
