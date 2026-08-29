@@ -1,0 +1,67 @@
+name: Verify workspace and site foundation once
+
+on:
+  push:
+    branches:
+      - feat/workspace-site-foundation
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-workspace-site-foundation-once
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/workspace-site-foundation
+
+      - name: Remove known unused test imports
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/server/src/workspace-site.test.ts')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace('  AdminRole,\n', '')
+          content = content.replace('  type TouchAdminSessionInput,\n', '')
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format repository
+        run: pnpm format
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Commit verified implementation
+        run: |
+          git rm .github/workflows/verify-workspace-site-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'style: verify workspace and site foundation'
+          git push origin HEAD:feat/workspace-site-foundation
