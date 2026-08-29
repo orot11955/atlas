@@ -18,7 +18,7 @@ export class CreateWorkspaceAndSites1788020400000 implements MigrationInterface 
         CONSTRAINT "pk_workspaces" PRIMARY KEY ("id"),
         CONSTRAINT "uq_workspaces_key" UNIQUE ("key"),
         CONSTRAINT "chk_workspaces_key"
-          CHECK ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+          CHECK ("key" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
         CONSTRAINT "chk_workspaces_name"
           CHECK (char_length(btrim("name")) BETWEEN 1 AND 120),
         CONSTRAINT "chk_workspaces_version" CHECK ("version" >= 1)
@@ -76,7 +76,7 @@ export class CreateWorkspaceAndSites1788020400000 implements MigrationInterface 
         CONSTRAINT "fk_sites_workspace"
           FOREIGN KEY ("workspace_id") REFERENCES "workspaces" ("id") ON DELETE CASCADE,
         CONSTRAINT "chk_sites_key"
-          CHECK ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+          CHECK ("key" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
         CONSTRAINT "chk_sites_name"
           CHECK (char_length(btrim("name")) BETWEEN 1 AND 120),
         CONSTRAINT "chk_sites_type"

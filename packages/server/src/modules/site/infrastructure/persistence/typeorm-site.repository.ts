@@ -1,9 +1,6 @@
 import { In, type DataSource, type EntityManager, type Repository } from 'typeorm';
 
-import type {
-  SiteCanonicalDomain,
-  SiteRecord,
-} from '../../domain/site';
+import type { SiteCanonicalDomain, SiteRecord } from '../../domain/site';
 import type {
   InsertSiteRecordInput,
   SiteListRepositoryQuery,
@@ -105,7 +102,7 @@ export class TypeOrmSiteRepository implements SiteRepositoryPort<EntityManager> 
       .getRepository(SiteDomainEntity)
       .findOne({
         where: { workspaceId, hostname },
-        select: { siteId: true },
+        select: { id: true, siteId: true },
       });
 
     return entity?.siteId;

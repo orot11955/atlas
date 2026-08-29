@@ -62,14 +62,14 @@ export async function loadSite(siteId: string): Promise<Site> {
 }
 
 export async function createSite(input: CreateSiteInput): Promise<Site> {
-  const response = await client().post<ApiEnvelope<Site>>('/sites', compactSiteInput(input));
+  const response = await client().post<ApiEnvelope<Site>>('/sites', normalizeSiteInput(input));
   return response.data;
 }
 
 export async function updateSite(siteId: string, input: UpdateSiteInput): Promise<Site> {
   const response = await client().patch<ApiEnvelope<Site>>(
     `/sites/${encodeURIComponent(siteId)}`,
-    compactSiteInput(input),
+    normalizeSiteInput(input),
   );
   return response.data;
 }
@@ -110,7 +110,12 @@ export function buildSiteListPath(input: SiteListInput = {}): string {
   return value ? `/sites?${value}` : '/sites';
 }
 
-function compactSiteInput<T extends CreateSiteInput | UpdateSiteInput>(input: T): T {
+function normalizeSiteInput<T extends CreateSiteInput | UpdateSiteInput>(
+  input: T,
+): Omit<T, 'description' | 'canonicalDomain'> & {
+  description?: string;
+  canonicalDomain?: string;
+} {
   return {
     ...input,
     description: input.description?.trim() || undefined,

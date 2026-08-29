@@ -23,6 +23,7 @@ export function SiteSwitcher() {
           setSites(result.items.filter((site) => site.status !== 'archived'));
         }
       })
+      .catch(() => undefined)
       .finally(() => {
         if (active) {
           setLoaded(true);
