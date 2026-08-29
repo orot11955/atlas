@@ -53,3 +53,53 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:migration:run
+
+      - name: Verify no pending migrations
+        run: pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Verify rollback and re-apply
+        run: |
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
