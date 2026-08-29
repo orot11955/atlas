@@ -31,6 +31,7 @@
 - [#2 Shared server package boundary](https://github.com/orot11955/atlas/pull/2)
 - [#3 Transaction and audit foundation](https://github.com/orot11955/atlas/pull/3)
 - [#4 Structured logging and secret redaction](https://github.com/orot11955/atlas/pull/4)
+- [#5 Admin Web API and feedback foundation](https://github.com/orot11955/atlas/pull/5)
 
 ## 다음
 
