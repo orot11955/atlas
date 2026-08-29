@@ -18,6 +18,7 @@ const storageSchema = z.object({
 
 const adminAuthenticationSchema = z.object({
   TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
+  AUTH_LOGIN_FINGERPRINT_PEPPER: z.string().min(32),
   AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
   AUTH_LOGIN_ACCOUNT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
   AUTH_LOGIN_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(900),

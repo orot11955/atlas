@@ -1,6 +1,8 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 
 import { DomainError, ErrorCode } from '../../../core/errors';
+
+const MIN_FINGERPRINT_PEPPER_BYTES = 32;
 
 export const AdminLoginAttemptOutcome = {
   ACCOUNT_DISABLED: 'account-disabled',
@@ -38,6 +40,14 @@ export function validateAdminPasswordLoginPolicy(
   return Object.freeze({ ...policy });
 }
 
+export function assertAdminLoginFingerprintPepper(pepper: string): void {
+  if (Buffer.byteLength(pepper, 'utf8') < MIN_FINGERPRINT_PEPPER_BYTES) {
+    throw new RangeError(
+      `Admin login fingerprint pepper must contain at least ${MIN_FINGERPRINT_PEPPER_BYTES} bytes.`,
+    );
+  }
+}
+
 export function assertAdminLoginPasswordInput(password: string): void {
   const length = Array.from(password).length;
 
@@ -68,8 +78,16 @@ export function normalizeAdminLoginClientAddress(value: string): string {
   return normalized;
 }
 
-export function fingerprintAdminLoginValue(namespace: 'email' | 'ip', value: string): string {
-  return createHash('sha256').update(`${namespace}\u0000${value}`, 'utf8').digest('hex');
+export function fingerprintAdminLoginValue(
+  pepper: string,
+  namespace: 'email' | 'ip',
+  value: string,
+): string {
+  assertAdminLoginFingerprintPepper(pepper);
+
+  return createHmac('sha256', pepper)
+    .update(`${namespace}\u0000${value}`, 'utf8')
+    .digest('hex');
 }
 
 export function calculateFailedLoginState(

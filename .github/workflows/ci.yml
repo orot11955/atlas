@@ -62,6 +62,7 @@ jobs:
       PORT: 4000
       CORS_ORIGINS: http://localhost:3000
       TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
       DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
       REDIS_URL: redis://localhost:6379/0
       MINIO_ENDPOINT: http://localhost:9000
