@@ -47,29 +47,21 @@ jobs:
 
           site_types_path = Path('apps/admin-web/src/features/sites/site-types.ts')
           site_types_content = site_types_path.read_text(encoding='utf-8')
-          old = """const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> =
-  Object.freeze({
-    draft: Object.freeze(['active', 'disabled', 'archived']),
-    active: Object.freeze(['maintenance', 'disabled']),
-    maintenance: Object.freeze(['active', 'disabled']),
-    disabled: Object.freeze(['active', 'archived']),
-    archived: Object.freeze([]),
-  });
-"""
-          new = """const STATUS_TRANSITIONS = {
-  draft: ['active', 'disabled', 'archived'],
-  active: ['maintenance', 'disabled'],
-  maintenance: ['active', 'disabled'],
-  disabled: ['active', 'archived'],
-  archived: [],
-} as const satisfies Readonly<Record<SiteStatus, readonly SiteStatus[]>>;
-"""
-          if old not in site_types_content:
-              raise RuntimeError('Site transition block was not found.')
-          site_types_path.write_text(
-              site_types_content.replace(old, new, 1),
-              encoding='utf-8',
-          )
+          replacements = {
+              'const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> =': 'const STATUS_TRANSITIONS =',
+              '  Object.freeze({': '{',
+              "    draft: Object.freeze(['active', 'disabled', 'archived']),": "  draft: ['active', 'disabled', 'archived'],",
+              "    active: Object.freeze(['maintenance', 'disabled']),": "  active: ['maintenance', 'disabled'],",
+              "    maintenance: Object.freeze(['active', 'disabled']),": "  maintenance: ['active', 'disabled'],",
+              "    disabled: Object.freeze(['active', 'archived']),": "  disabled: ['active', 'archived'],",
+              '    archived: Object.freeze([]),': '  archived: [],',
+              '  });': '} as const satisfies Readonly<Record<SiteStatus, readonly SiteStatus[]>>;',
+          }
+          for old, new in replacements.items():
+              if old not in site_types_content:
+                  raise RuntimeError(f'Site transition fragment was not found: {old}')
+              site_types_content = site_types_content.replace(old, new, 1)
+          site_types_path.write_text(site_types_content, encoding='utf-8')
           PY
 
       - name: Setup Node.js
