@@ -46,10 +46,7 @@ const confirmation = await request('/admin/v1/auth/mfa/totp/confirm', {
 
 assertGrant(confirmation.data);
 
-if (
-  !Array.isArray(confirmation.data.recoveryCodes) ||
-  confirmation.data.recoveryCodes.length < 1
-) {
+if (!Array.isArray(confirmation.data.recoveryCodes) || confirmation.data.recoveryCodes.length < 1) {
   throw new Error('TOTP confirmation did not return recovery codes.');
 }
 
@@ -205,12 +202,8 @@ const updatedMainBlog = await request(`/admin/v1/sites/${mainBlog.id}`, {
 mainBlog = updatedMainBlog.data;
 assertEqual(mainBlog.version, 2, 'Updated Site version');
 
-mainBlog = (
-  await transitionSite(mainBlog, 'activate', 'active', session)
-).data;
-mainBlog = (
-  await transitionSite(mainBlog, 'maintenance', 'maintenance', session)
-).data;
+mainBlog = (await transitionSite(mainBlog, 'activate', 'active', session)).data;
+mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
 
 await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
   method: 'POST',
@@ -220,12 +213,8 @@ await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
   csrfToken: session.csrfToken,
 });
 
-mainBlog = (
-  await transitionSite(mainBlog, 'disable', 'disabled', session)
-).data;
-mainBlog = (
-  await transitionSite(mainBlog, 'archive', 'archived', session)
-).data;
+mainBlog = (await transitionSite(mainBlog, 'disable', 'disabled', session)).data;
+mainBlog = (await transitionSite(mainBlog, 'archive', 'archived', session)).data;
 
 await request(`/admin/v1/sites/${mainBlog.id}`, {
   method: 'PATCH',
@@ -295,9 +284,7 @@ await request('/admin/v1/auth/mfa/recovery/verify', {
   expectedStatus: 401,
 });
 
-process.stdout.write(
-  'Admin Password, TOTP, Session, Workspace and Site E2E passed.\n',
-);
+process.stdout.write('Admin Password, TOTP, Session, Workspace and Site E2E passed.\n');
 
 async function login() {
   const response = await request('/admin/v1/auth/login', {
@@ -321,12 +308,8 @@ async function createSession(grant) {
   });
   const setCookies = response.response.headers.getSetCookie();
   const cookiePairs = setCookies.map((value) => value.split(';', 1)[0]);
-  const sessionCookie = cookiePairs.find((value) =>
-    value.startsWith(`${sessionCookieName}=`),
-  );
-  const csrfCookie = cookiePairs.find((value) =>
-    value.startsWith(`${csrfCookieName}=`),
-  );
+  const sessionCookie = cookiePairs.find((value) => value.startsWith(`${sessionCookieName}=`));
+  const csrfCookie = cookiePairs.find((value) => value.startsWith(`${csrfCookieName}=`));
 
   if (!sessionCookie || !csrfCookie) {
     throw new Error(`Session response did not set both cookies: ${setCookies.join(' | ')}`);
@@ -352,16 +335,7 @@ async function transitionSite(site, action, expectedStatus, session) {
   return response;
 }
 
-async function request(
-  path,
-  {
-    method = 'GET',
-    body,
-    expectedStatus,
-    cookieHeader,
-    csrfToken,
-  },
-) {
+async function request(path, { method = 'GET', body, expectedStatus, cookieHeader, csrfToken }) {
   const headers = new Headers({ accept: 'application/json' });
 
   if (body !== undefined) {

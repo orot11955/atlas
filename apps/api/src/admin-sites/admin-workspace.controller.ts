@@ -1,24 +1,7 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Header,
-  Inject,
-  Patch,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
-import {
-  ApiOkResponse,
-  ApiTags,
-  ApiUnauthorizedResponse,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Header, Inject, Patch, Req, UseGuards } from '@nestjs/common';
+import { ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 
-import {
-  AdminPermission,
-  type WorkspaceRecord,
-  type WorkspaceService,
-} from '@atlas/server';
+import { AdminPermission, type WorkspaceRecord, type WorkspaceService } from '@atlas/server';
 
 import { AdminCsrfGuard } from '../admin-session/admin-csrf.guard';
 import {
@@ -27,10 +10,7 @@ import {
 } from '../admin-session/admin-permission.guard';
 import { AdminSessionGuard } from '../admin-session/admin-session.guard';
 import { AdminWorkspaceGuard } from './admin-workspace.guard';
-import {
-  requireAdminWorkspace,
-  type AdminWorkspaceHttpRequest,
-} from './admin-workspace.request';
+import { requireAdminWorkspace, type AdminWorkspaceHttpRequest } from './admin-workspace.request';
 import { WORKSPACE_SERVICE } from './admin-workspace-site.tokens';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 
@@ -48,19 +28,14 @@ export class AdminWorkspaceController {
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'Returns the default Workspace.' })
   @ApiUnauthorizedResponse({ description: 'Administrator Session is required.' })
-  public getWorkspace(
-    @Req() request: AdminWorkspaceHttpRequest,
-  ): { data: ReturnType<typeof toWorkspaceData> } {
+  public getWorkspace(@Req() request: AdminWorkspaceHttpRequest): {
+    data: ReturnType<typeof toWorkspaceData>;
+  } {
     return { data: toWorkspaceData(requireAdminWorkspace(request)) };
   }
 
   @Patch()
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.WORKSPACES_MANAGE)
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'Updates the default Workspace settings.' })

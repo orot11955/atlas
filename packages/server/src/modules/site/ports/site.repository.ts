@@ -1,9 +1,4 @@
-import type {
-  SiteCanonicalDomain,
-  SiteRecord,
-  SiteStatus,
-  SiteType,
-} from '../domain/site';
+import type { SiteCanonicalDomain, SiteRecord, SiteStatus, SiteType } from '../domain/site';
 
 export interface SiteListCursor {
   createdAt: Date;
@@ -42,10 +37,7 @@ export interface UpdateSiteStatusRecordInput {
 }
 
 export interface SiteRepositoryPort<TTransaction = unknown> {
-  list(
-    workspaceId: string,
-    query: SiteListRepositoryQuery,
-  ): Promise<readonly SiteRecord[]>;
+  list(workspaceId: string, query: SiteListRepositoryQuery): Promise<readonly SiteRecord[]>;
   findById(
     workspaceId: string,
     siteId: string,
@@ -61,10 +53,7 @@ export interface SiteRepositoryPort<TTransaction = unknown> {
     hostname: string,
     transaction?: TTransaction,
   ): Promise<string | undefined>;
-  insert(
-    site: InsertSiteRecordInput,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insert(site: InsertSiteRecordInput, transaction: TTransaction): Promise<void>;
   update(
     workspaceId: string,
     siteId: string,

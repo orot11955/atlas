@@ -7,14 +7,10 @@ import type {
 } from '../../ports/workspace.repository';
 import { WorkspaceEntity } from './workspace.entity';
 
-export class TypeOrmWorkspaceRepository
-  implements WorkspaceRepositoryPort<EntityManager>
-{
+export class TypeOrmWorkspaceRepository implements WorkspaceRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
-  public async findDefault(
-    transaction?: EntityManager,
-  ): Promise<WorkspaceRecord | undefined> {
+  public async findDefault(transaction?: EntityManager): Promise<WorkspaceRecord | undefined> {
     const entity = await this.repository(transaction).findOne({
       where: { isDefault: true },
     });

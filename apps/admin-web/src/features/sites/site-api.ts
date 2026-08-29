@@ -55,9 +55,7 @@ export async function loadSites(input: SiteListInput = {}): Promise<SiteListResu
 }
 
 export async function loadSite(siteId: string): Promise<Site> {
-  const response = await client().get<ApiEnvelope<Site>>(
-    `/sites/${encodeURIComponent(siteId)}`,
-  );
+  const response = await client().get<ApiEnvelope<Site>>(`/sites/${encodeURIComponent(siteId)}`);
   return response.data;
 }
 

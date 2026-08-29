@@ -3,7 +3,6 @@ import { test } from 'node:test';
 
 import {
   ActorType,
-  AdminRole,
   AuditService,
   DomainError,
   ErrorCode,
@@ -21,7 +20,6 @@ import {
   type SiteListRepositoryQuery,
   type SiteRecord,
   type SiteRepositoryPort,
-  type TouchAdminSessionInput,
   type TransactionRunner,
   type UpdateSiteRecordInput,
   type UpdateSiteStatusRecordInput,
@@ -34,9 +32,7 @@ class TestTransactionRunner implements TransactionRunner<TestTransaction> {
     id: 'workspace-site-transaction',
   });
 
-  public run<TResult>(
-    work: (transaction: TestTransaction) => Promise<TResult>,
-  ): Promise<TResult> {
+  public run<TResult>(work: (transaction: TestTransaction) => Promise<TResult>): Promise<TResult> {
     return work(this.transaction);
   }
 }
@@ -57,21 +53,14 @@ class MemorySiteRepository implements SiteRepositoryPort<TestTransaction> {
       .map(cloneSite);
   }
 
-  public async findById(
-    workspaceId: string,
-    siteId: string,
-  ): Promise<SiteRecord | undefined> {
+  public async findById(workspaceId: string, siteId: string): Promise<SiteRecord | undefined> {
     const site = this.sites.get(siteId);
     return site?.workspaceId === workspaceId ? cloneSite(site) : undefined;
   }
 
-  public async findByKey(
-    workspaceId: string,
-    key: string,
-  ): Promise<SiteRecord | undefined> {
+  public async findByKey(workspaceId: string, key: string): Promise<SiteRecord | undefined> {
     const site = [...this.sites.values()].find(
-      (candidate) =>
-        candidate.workspaceId === workspaceId && candidate.key === key,
+      (candidate) => candidate.workspaceId === workspaceId && candidate.key === key,
     );
     return site ? cloneSite(site) : undefined;
   }
@@ -81,9 +70,7 @@ class MemorySiteRepository implements SiteRepositoryPort<TestTransaction> {
     hostname: string,
   ): Promise<string | undefined> {
     return [...this.sites.values()].find(
-      (site) =>
-        site.workspaceId === workspaceId &&
-        site.canonicalDomain?.hostname === hostname,
+      (site) => site.workspaceId === workspaceId && site.canonicalDomain?.hostname === hostname,
     )?.id;
   }
 
@@ -132,9 +119,7 @@ class MemorySiteRepository implements SiteRepositoryPort<TestTransaction> {
         canonicalDomain: domain
           ? {
               ...domain,
-              verifiedAt: domain.verifiedAt
-                ? new Date(domain.verifiedAt)
-                : undefined,
+              verifiedAt: domain.verifiedAt ? new Date(domain.verifiedAt) : undefined,
             }
           : undefined,
       });
@@ -160,9 +145,7 @@ class MemorySiteRepository implements SiteRepositoryPort<TestTransaction> {
       ...current,
       status: input.status,
       version: input.nextVersion,
-      archivedAt: input.archivedAt
-        ? new Date(input.archivedAt)
-        : undefined,
+      archivedAt: input.archivedAt ? new Date(input.archivedAt) : undefined,
       updatedAt: new Date(input.updatedAt),
     });
     return true;
@@ -289,12 +272,7 @@ test('Site service enforces optimistic versions and server-side status transitio
     }),
   );
   const active = await runAsOwner(() =>
-    harness.service.changeStatus(
-      workspaceId,
-      site.id,
-      SiteStatus.ACTIVE,
-      site.version,
-    ),
+    harness.service.changeStatus(workspaceId, site.id, SiteStatus.ACTIVE, site.version),
   );
 
   assert.equal(active.status, SiteStatus.ACTIVE);
@@ -302,12 +280,7 @@ test('Site service enforces optimistic versions and server-side status transitio
 
   await assert.rejects(
     runAsOwner(() =>
-      harness.service.changeStatus(
-        workspaceId,
-        site.id,
-        SiteStatus.ARCHIVED,
-        active.version,
-      ),
+      harness.service.changeStatus(workspaceId, site.id, SiteStatus.ARCHIVED, active.version),
     ),
     (error: unknown) => {
       assert.equal(error instanceof DomainError, true);

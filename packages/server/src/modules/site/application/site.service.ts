@@ -1,11 +1,5 @@
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  createUuidV7,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, createUuidV7, systemClock } from '../../../core';
 import {
   SiteDomainVerificationStatus,
   SiteStatus,
@@ -25,10 +19,7 @@ import {
   type SiteType,
   type UpdateSiteDetails,
 } from '../domain/site';
-import type {
-  SiteListCursor,
-  SiteRepositoryPort,
-} from '../ports/site.repository';
+import type { SiteListCursor, SiteRepositoryPort } from '../ports/site.repository';
 
 export interface SiteListQuery {
   limit?: number;
@@ -80,10 +71,7 @@ export class SiteService<TTransaction> {
     });
   }
 
-  public async getSite(
-    workspaceId: string,
-    siteId: string,
-  ): Promise<Readonly<SiteRecord>> {
+  public async getSite(workspaceId: string, siteId: string): Promise<Readonly<SiteRecord>> {
     const site = await this.repository.findById(workspaceId, siteId);
 
     if (!site) {
@@ -117,9 +105,7 @@ export class SiteService<TTransaction> {
       }
 
       await this.assertDomainAvailable(workspaceId, hostname, undefined, transaction);
-      const canonicalDomain = hostname
-        ? createPendingCanonicalDomain(hostname, now)
-        : undefined;
+      const canonicalDomain = hostname ? createPendingCanonicalDomain(hostname, now) : undefined;
       const site: SiteRecord = {
         id,
         workspaceId,
@@ -342,10 +328,7 @@ export class SiteService<TTransaction> {
   }
 }
 
-function createPendingCanonicalDomain(
-  hostname: string,
-  now: Date,
-): SiteCanonicalDomain {
+function createPendingCanonicalDomain(hostname: string, now: Date): SiteCanonicalDomain {
   return {
     id: createUuidV7(now.getTime()),
     hostname,
@@ -404,8 +387,7 @@ function decodeCursor(value: string): SiteListCursor {
       createdAt?: unknown;
       id?: unknown;
     };
-    const createdAt =
-      typeof parsed.createdAt === 'string' ? new Date(parsed.createdAt) : undefined;
+    const createdAt = typeof parsed.createdAt === 'string' ? new Date(parsed.createdAt) : undefined;
 
     if (
       !createdAt ||

@@ -147,11 +147,21 @@ export function SiteDetail({ siteId }: Readonly<{ siteId: string }>) {
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>이름</span>
-              <input disabled={archived} required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+              <input
+                disabled={archived}
+                required
+                maxLength={120}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>유형</span>
-              <select disabled={archived} value={type} onChange={(event) => setType(event.target.value as SiteType)}>
+              <select
+                disabled={archived}
+                value={type}
+                onChange={(event) => setType(event.target.value as SiteType)}
+              >
                 {SITE_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -161,19 +171,41 @@ export function SiteDetail({ siteId }: Readonly<{ siteId: string }>) {
             </label>
             <label className={styles.field}>
               <span>Canonical Domain</span>
-              <input disabled={archived} maxLength={253} value={canonicalDomain} onChange={(event) => setCanonicalDomain(event.target.value)} />
+              <input
+                disabled={archived}
+                maxLength={253}
+                value={canonicalDomain}
+                onChange={(event) => setCanonicalDomain(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>Timezone</span>
-              <input disabled={archived} required maxLength={64} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+              <input
+                disabled={archived}
+                required
+                maxLength={64}
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>Locale</span>
-              <input disabled={archived} required maxLength={32} value={locale} onChange={(event) => setLocale(event.target.value)} />
+              <input
+                disabled={archived}
+                required
+                maxLength={32}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value)}
+              />
             </label>
             <label className={`${styles.field} ${styles.fullWidth}`}>
               <span>설명</span>
-              <textarea disabled={archived} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+              <textarea
+                disabled={archived}
+                maxLength={500}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </label>
           </div>
           {!archived ? (

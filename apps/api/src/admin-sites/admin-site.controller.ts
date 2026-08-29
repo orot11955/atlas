@@ -21,12 +21,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import {
-  AdminPermission,
-  SiteStatus,
-  type SiteRecord,
-  type SiteService,
-} from '@atlas/server';
+import { AdminPermission, SiteStatus, type SiteRecord, type SiteService } from '@atlas/server';
 
 import { AdminCsrfGuard } from '../admin-session/admin-csrf.guard';
 import {
@@ -35,10 +30,7 @@ import {
 } from '../admin-session/admin-permission.guard';
 import { AdminSessionGuard } from '../admin-session/admin-session.guard';
 import { AdminWorkspaceGuard } from './admin-workspace.guard';
-import {
-  requireAdminWorkspace,
-  type AdminWorkspaceHttpRequest,
-} from './admin-workspace.request';
+import { requireAdminWorkspace, type AdminWorkspaceHttpRequest } from './admin-workspace.request';
 import { SITE_SERVICE } from './admin-workspace-site.tokens';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { SiteListQueryDto } from './dto/site-list-query.dto';
@@ -88,12 +80,7 @@ export class AdminSiteController {
   }
 
   @Post()
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @HttpCode(HttpStatus.CREATED)
   @Header('Cache-Control', 'no-store')
@@ -115,7 +102,7 @@ export class AdminSiteController {
   @ApiOkResponse({ description: 'Returns a Site in the default Workspace.' })
   public async getSite(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
   ): Promise<{ data: ReturnType<typeof toSiteData> }> {
     const workspace = requireAdminWorkspace(request);
     const site = await this.siteService.getSite(workspace.id, siteId);
@@ -124,18 +111,13 @@ export class AdminSiteController {
   }
 
   @Patch(':siteId')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'Updates mutable Site settings.' })
   public async updateSite(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
     @Body() body: UpdateSiteDto,
   ): Promise<{ data: ReturnType<typeof toSiteData> }> {
     const workspace = requireAdminWorkspace(request);
@@ -145,68 +127,48 @@ export class AdminSiteController {
   }
 
   @Post(':siteId/activate')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @Header('Cache-Control', 'no-store')
   public activateSite(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
     @Body() body: SiteStatusTransitionDto,
   ) {
     return this.transition(request, siteId, SiteStatus.ACTIVE, body.version);
   }
 
   @Post(':siteId/maintenance')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @Header('Cache-Control', 'no-store')
   public putSiteInMaintenance(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
     @Body() body: SiteStatusTransitionDto,
   ) {
     return this.transition(request, siteId, SiteStatus.MAINTENANCE, body.version);
   }
 
   @Post(':siteId/disable')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @Header('Cache-Control', 'no-store')
   public disableSite(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
     @Body() body: SiteStatusTransitionDto,
   ) {
     return this.transition(request, siteId, SiteStatus.DISABLED, body.version);
   }
 
   @Post(':siteId/archive')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
   @Header('Cache-Control', 'no-store')
   public archiveSite(
     @Req() request: AdminWorkspaceHttpRequest,
-    @Param('siteId', new ParseUUIDPipe({ version: 'all' })) siteId: string,
+    @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
     @Body() body: SiteStatusTransitionDto,
   ) {
     return this.transition(request, siteId, SiteStatus.ARCHIVED, body.version);
@@ -219,12 +181,7 @@ export class AdminSiteController {
     version: number,
   ): Promise<{ data: ReturnType<typeof toSiteData> }> {
     const workspace = requireAdminWorkspace(request);
-    const site = await this.siteService.changeStatus(
-      workspace.id,
-      siteId,
-      status,
-      version,
-    );
+    const site = await this.siteService.changeStatus(workspace.id, siteId, status, version);
 
     return { data: toSiteData(site) };
   }

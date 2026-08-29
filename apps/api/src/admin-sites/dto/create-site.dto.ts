@@ -1,12 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsLocale,
-  IsOptional,
-  IsString,
-  Length,
-  MaxLength,
-} from 'class-validator';
+import { IsIn, IsLocale, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
 import { SITE_TYPES, type SiteType } from '@atlas/server';
 

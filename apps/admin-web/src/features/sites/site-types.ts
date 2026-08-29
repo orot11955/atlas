@@ -70,14 +70,13 @@ export const SITE_STATUS_OPTIONS: readonly Readonly<{
   { value: 'archived', label: 'Archived' },
 ]);
 
-const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> =
-  Object.freeze({
-    draft: Object.freeze(['active', 'disabled', 'archived']),
-    active: Object.freeze(['maintenance', 'disabled']),
-    maintenance: Object.freeze(['active', 'disabled']),
-    disabled: Object.freeze(['active', 'archived']),
-    archived: Object.freeze([]),
-  });
+const STATUS_TRANSITIONS = {
+  draft: ['active', 'disabled', 'archived'],
+  active: ['maintenance', 'disabled'],
+  maintenance: ['active', 'disabled'],
+  disabled: ['active', 'archived'],
+  archived: [],
+} as const satisfies Readonly<Record<SiteStatus, readonly SiteStatus[]>>;
 
 export function getSiteStatusTransitions(status: SiteStatus): readonly SiteStatus[] {
   return STATUS_TRANSITIONS[status];

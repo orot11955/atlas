@@ -20,10 +20,7 @@ import {
 
 import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { PlatformModule } from '../platform/platform.module';
-import {
-  AUDIT_SERVICE,
-  TRANSACTION_RUNNER,
-} from '../platform/platform.tokens';
+import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { AdminSiteController } from './admin-site.controller';
 import { AdminWorkspaceController } from './admin-workspace.controller';
 import { AdminWorkspaceGuard } from './admin-workspace.guard';
@@ -36,12 +33,7 @@ import {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      WorkspaceEntity,
-      SiteEntity,
-      SiteDomainEntity,
-      SiteSettingsEntity,
-    ]),
+    TypeOrmModule.forFeature([WorkspaceEntity, SiteEntity, SiteDomainEntity, SiteSettingsEntity]),
     PlatformModule,
     AdminSessionModule,
   ],
@@ -50,14 +42,12 @@ import {
     {
       provide: WORKSPACE_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmWorkspaceRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmWorkspaceRepository(dataSource),
     },
     {
       provide: SITE_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmSiteRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmSiteRepository(dataSource),
     },
     {
       provide: WORKSPACE_SERVICE,

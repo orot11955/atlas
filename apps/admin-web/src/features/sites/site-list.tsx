@@ -111,9 +111,7 @@ export function SiteList() {
         </div>
       </header>
 
-      {workspace ? (
-        <WorkspaceSettings workspace={workspace} onUpdated={setWorkspace} />
-      ) : null}
+      {workspace ? <WorkspaceSettings workspace={workspace} onUpdated={setWorkspace} /> : null}
 
       <section className={styles.panel}>
         <form className={styles.toolbar} onSubmit={handleFilter}>
@@ -141,10 +139,7 @@ export function SiteList() {
           </label>
           <label className={styles.field}>
             <span>유형</span>
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value as SiteType | '')}
-            >
+            <select value={type} onChange={(event) => setType(event.target.value as SiteType | '')}>
               <option value="">전체</option>
               {SITE_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -194,7 +189,12 @@ export function SiteList() {
       )}
 
       {nextCursor ? (
-        <button className={styles.secondaryLink} disabled={loading} type="button" onClick={loadMore}>
+        <button
+          className={styles.secondaryLink}
+          disabled={loading}
+          type="button"
+          onClick={loadMore}
+        >
           더 불러오기
         </button>
       ) : null}
@@ -252,15 +252,30 @@ function WorkspaceSettings({
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>이름</span>
-              <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+              <input
+                required
+                maxLength={120}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>Timezone</span>
-              <input required maxLength={64} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+              <input
+                required
+                maxLength={64}
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>Locale</span>
-              <input required maxLength={32} value={locale} onChange={(event) => setLocale(event.target.value)} />
+              <input
+                required
+                maxLength={32}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value)}
+              />
             </label>
             <button className={styles.button} disabled={busy} type="submit">
               {busy ? '저장 중…' : 'Workspace 저장'}

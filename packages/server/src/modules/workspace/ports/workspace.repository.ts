@@ -11,10 +11,7 @@ export interface UpdateWorkspaceRecordInput {
 
 export interface WorkspaceRepositoryPort<TTransaction = unknown> {
   findDefault(transaction?: TTransaction): Promise<WorkspaceRecord | undefined>;
-  findById(
-    workspaceId: string,
-    transaction?: TTransaction,
-  ): Promise<WorkspaceRecord | undefined>;
+  findById(workspaceId: string, transaction?: TTransaction): Promise<WorkspaceRecord | undefined>;
   update(
     workspaceId: string,
     input: UpdateWorkspaceRecordInput,

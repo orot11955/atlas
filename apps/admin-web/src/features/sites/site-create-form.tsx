@@ -83,7 +83,12 @@ export function SiteCreateForm() {
             </label>
             <label className={styles.field}>
               <span>이름</span>
-              <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+              <input
+                required
+                maxLength={120}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>유형</span>
@@ -106,15 +111,29 @@ export function SiteCreateForm() {
             </label>
             <label className={styles.field}>
               <span>Timezone</span>
-              <input required maxLength={64} value={timezone} onChange={(event) => setTimezone(event.target.value)} />
+              <input
+                required
+                maxLength={64}
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>Locale</span>
-              <input required maxLength={32} value={locale} onChange={(event) => setLocale(event.target.value)} />
+              <input
+                required
+                maxLength={32}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value)}
+              />
             </label>
             <label className={`${styles.field} ${styles.fullWidth}`}>
               <span>설명</span>
-              <textarea maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+              <textarea
+                maxLength={500}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </label>
           </div>
           <div className={styles.feedback} aria-live="polite">

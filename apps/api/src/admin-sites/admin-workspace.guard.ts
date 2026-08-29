@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
 
 import type { WorkspaceService } from '@atlas/server';
 
@@ -18,9 +13,7 @@ export class AdminWorkspaceGuard implements CanActivate {
   ) {}
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context
-      .switchToHttp()
-      .getRequest<AdminWorkspaceHttpRequest>();
+    const request = context.switchToHttp().getRequest<AdminWorkspaceHttpRequest>();
     const workspace = await this.workspaceService.getDefaultWorkspace();
 
     request.adminWorkspace = workspace;

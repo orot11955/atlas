@@ -1,11 +1,5 @@
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  requestContext,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, requestContext, systemClock } from '../../../core';
 import {
   normalizeWorkspaceLocale,
   normalizeWorkspaceName,

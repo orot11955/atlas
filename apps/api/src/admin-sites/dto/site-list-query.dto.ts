@@ -1,18 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-} from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
-import {
-  SITE_STATUSES,
-  SITE_TYPES,
-  type SiteStatus,
-  type SiteType,
-} from '@atlas/server';
+import { SITE_STATUSES, SITE_TYPES, type SiteStatus, type SiteType } from '@atlas/server';
 
 export class SiteListQueryDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 25 })

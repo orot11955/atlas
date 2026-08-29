@@ -1,4 +1,4 @@
-import { In, type DataSource, type EntityManager, type Repository } from 'typeorm';
+import { In, type DataSource, type EntityManager } from 'typeorm';
 
 import type { SiteCanonicalDomain, SiteRecord } from '../../domain/site';
 import type {
@@ -108,10 +108,7 @@ export class TypeOrmSiteRepository implements SiteRepositoryPort<EntityManager> 
     return entity?.siteId;
   }
 
-  public async insert(
-    site: InsertSiteRecordInput,
-    transaction: EntityManager,
-  ): Promise<void> {
+  public async insert(site: InsertSiteRecordInput, transaction: EntityManager): Promise<void> {
     await transaction.getRepository(SiteEntity).insert({
       id: site.id,
       workspaceId: site.workspaceId,
@@ -242,16 +239,11 @@ export class TypeOrmSiteRepository implements SiteRepositoryPort<EntityManager> 
       domains.map((domain) => [domain.siteId, toCanonicalDomain(domain)]),
     );
 
-    return entities.map((entity) =>
-      toSiteRecord(entity, domainsBySiteId.get(entity.id)),
-    );
+    return entities.map((entity) => toSiteRecord(entity, domainsBySiteId.get(entity.id)));
   }
 }
 
-function toSiteRecord(
-  entity: SiteEntity,
-  canonicalDomain?: SiteCanonicalDomain,
-): SiteRecord {
+function toSiteRecord(entity: SiteEntity, canonicalDomain?: SiteCanonicalDomain): SiteRecord {
   return {
     id: entity.id,
     workspaceId: entity.workspaceId,

@@ -28,9 +28,7 @@ export const SiteStatus = {
 
 export type SiteStatus = (typeof SiteStatus)[keyof typeof SiteStatus];
 
-export const SITE_STATUSES = Object.freeze(
-  Object.values(SiteStatus),
-) as readonly SiteStatus[];
+export const SITE_STATUSES = Object.freeze(Object.values(SiteStatus)) as readonly SiteStatus[];
 
 export const SiteDomainVerificationStatus = {
   FAILED: 'failed',
@@ -84,27 +82,13 @@ export interface UpdateSiteDetails {
   canonicalDomain?: string;
 }
 
-const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> =
-  Object.freeze({
-    [SiteStatus.DRAFT]: Object.freeze([
-      SiteStatus.ACTIVE,
-      SiteStatus.DISABLED,
-      SiteStatus.ARCHIVED,
-    ]),
-    [SiteStatus.ACTIVE]: Object.freeze([
-      SiteStatus.MAINTENANCE,
-      SiteStatus.DISABLED,
-    ]),
-    [SiteStatus.MAINTENANCE]: Object.freeze([
-      SiteStatus.ACTIVE,
-      SiteStatus.DISABLED,
-    ]),
-    [SiteStatus.DISABLED]: Object.freeze([
-      SiteStatus.ACTIVE,
-      SiteStatus.ARCHIVED,
-    ]),
-    [SiteStatus.ARCHIVED]: Object.freeze([]),
-  });
+const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> = Object.freeze({
+  [SiteStatus.DRAFT]: Object.freeze([SiteStatus.ACTIVE, SiteStatus.DISABLED, SiteStatus.ARCHIVED]),
+  [SiteStatus.ACTIVE]: Object.freeze([SiteStatus.MAINTENANCE, SiteStatus.DISABLED]),
+  [SiteStatus.MAINTENANCE]: Object.freeze([SiteStatus.ACTIVE, SiteStatus.DISABLED]),
+  [SiteStatus.DISABLED]: Object.freeze([SiteStatus.ACTIVE, SiteStatus.ARCHIVED]),
+  [SiteStatus.ARCHIVED]: Object.freeze([]),
+});
 
 export function normalizeSiteKey(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -197,9 +181,7 @@ export function normalizeCanonicalHostname(value?: string): string | undefined {
     labels.length < 2 ||
     labels.some(
       (label) =>
-        label.length < 1 ||
-        label.length > 63 ||
-        !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label),
+        label.length < 1 || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label),
     )
   ) {
     throw validationError('canonicalDomain', 'Canonical domain is invalid.');
@@ -217,10 +199,7 @@ export function assertSiteEditable(status: SiteStatus): void {
   }
 }
 
-export function assertSiteStatusTransition(
-  current: SiteStatus,
-  target: SiteStatus,
-): void {
+export function assertSiteStatusTransition(current: SiteStatus, target: SiteStatus): void {
   if (current === target) {
     return;
   }
