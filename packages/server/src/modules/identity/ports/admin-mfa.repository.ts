@@ -84,10 +84,7 @@ export interface AdminMfaRepositoryPort<TTransaction = unknown> {
     adminAccountId: string,
     transaction: TTransaction,
   ): Promise<AdminTotpMethod | undefined>;
-  insertTotpMethod(
-    method: InsertAdminTotpMethodRecord,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insertTotpMethod(method: InsertAdminTotpMethodRecord, transaction: TTransaction): Promise<void>;
   activateTotpMethod(
     methodId: string,
     input: ActivateAdminTotpMethodInput,
@@ -103,11 +100,7 @@ export interface AdminMfaRepositoryPort<TTransaction = unknown> {
     input: UpdateAdminMfaChallengeFailureInput,
     transaction: TTransaction,
   ): Promise<void>;
-  consumeChallenge(
-    challengeId: string,
-    consumedAt: Date,
-    transaction: TTransaction,
-  ): Promise<void>;
+  consumeChallenge(challengeId: string, consumedAt: Date, transaction: TTransaction): Promise<void>;
   replaceRecoveryCodes(
     adminAccountId: string,
     codes: readonly AdminRecoveryCodeRecord[],

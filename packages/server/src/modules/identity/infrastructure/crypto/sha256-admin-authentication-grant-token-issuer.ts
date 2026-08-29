@@ -6,9 +6,7 @@ import type {
   IssuedAdminAuthenticationGrantToken,
 } from '../../ports/admin-authentication-grant-token-issuer.port';
 
-export class Sha256AdminAuthenticationGrantTokenIssuer
-  implements AdminAuthenticationGrantTokenIssuerPort
-{
+export class Sha256AdminAuthenticationGrantTokenIssuer implements AdminAuthenticationGrantTokenIssuerPort {
   public issue(issuedAt: Date): Readonly<IssuedAdminAuthenticationGrantToken> {
     const id = createUuidV7(issuedAt.getTime());
     const secret = randomBytes(32).toString('base64url');

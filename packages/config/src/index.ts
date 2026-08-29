@@ -18,17 +18,30 @@ const storageSchema = z.object({
 
 const adminAuthenticationSchema = z.object({
   TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
-  AUTH_LOGIN_FINGERPRINT_PEPPER: z.string().min(32),
   AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
   AUTH_LOGIN_ACCOUNT_LIMIT: z.coerce.number().int().min(1).max(10_000).default(10),
   AUTH_LOGIN_WINDOW_SECONDS: z.coerce.number().int().min(1).max(86_400).default(900),
   AUTH_LOGIN_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(100).default(5),
   AUTH_LOGIN_LOCK_SECONDS: z.coerce.number().int().min(1).max(86_400).default(900),
+  AUTH_LOGIN_FINGERPRINT_PEPPER: z.string().min(32),
   AUTH_MFA_CHALLENGE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
+  AUTH_MFA_ENCRYPTION_KEY_BASE64: z.string().refine(isBase64Encoded32ByteKey, {
+    message: 'AUTH_MFA_ENCRYPTION_KEY_BASE64 must encode exactly 32 bytes.',
+  }),
+  AUTH_MFA_ENCRYPTION_KEY_VERSION: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/u)
+    .default('v1'),
+  AUTH_MFA_RECOVERY_CODE_PEPPER: z.string().min(32),
+  AUTH_MFA_ISSUER: z.string().trim().min(1).max(80).default('Atlas'),
+  AUTH_MFA_WINDOW_STEPS: z.coerce.number().int().min(0).max(2).default(1),
+  AUTH_MFA_GRANT_SECONDS: z.coerce.number().int().min(30).max(600).default(120),
+  AUTH_MFA_RECOVERY_CODE_COUNT: z.coerce.number().int().min(1).max(20).default(10),
+  AUTH_MFA_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(20).default(5),
 });
 
 export const apiEnvironmentSchema = runtimeSchema.extend({
-  PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
@@ -57,7 +70,7 @@ export type RedisConnectionOptions = {
 
 export function parseRedisUrl(redisUrl: string): RedisConnectionOptions {
   const parsed = new URL(redisUrl);
-  const databasePath = parsed.pathname.replace(/^\//, '');
+  const databasePath = parsed.pathname.replace(/^\//u, '');
 
   return {
     host: parsed.hostname,
@@ -74,4 +87,19 @@ export function parseOriginList(value: string): string[] {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+}
+
+function isBase64Encoded32ByteKey(value: string): boolean {
+  const normalized = value.trim();
+
+  try {
+    const decoded = Buffer.from(normalized, 'base64');
+
+    return (
+      decoded.length === 32 &&
+      decoded.toString('base64').replace(/=+$/u, '') === normalized.replace(/=+$/u, '')
+    );
+  } catch {
+    return false;
+  }
 }

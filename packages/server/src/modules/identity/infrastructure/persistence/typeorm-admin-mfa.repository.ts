@@ -286,10 +286,7 @@ function toTotpMethod(entity: AdminMfaMethodEntity): AdminTotpMethod {
   };
 }
 
-function assertSingleRowChanged(
-  affected: number | null | undefined,
-  operation: string,
-): void {
+function assertSingleRowChanged(affected: number | null | undefined, operation: string): void {
   if (affected !== 1) {
     throw new Error(`Failed to ${operation}.`);
   }

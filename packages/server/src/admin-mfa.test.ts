@@ -41,9 +41,7 @@ class TestTransactionRunner implements TransactionRunner<TestTransaction> {
     id: 'mfa-transaction',
   });
 
-  public run<TResult>(
-    work: (transaction: TestTransaction) => Promise<TResult>,
-  ): Promise<TResult> {
+  public run<TResult>(work: (transaction: TestTransaction) => Promise<TResult>): Promise<TResult> {
     return work(this.transaction);
   }
 }
@@ -68,8 +66,7 @@ class MemoryAdminMfaRepository implements AdminMfaRepositoryPort<TestTransaction
     return cloneMethod(
       [...this.methods.values()].find(
         (method) =>
-          method.adminAccountId === adminAccountId &&
-          method.methodType === AdminMfaMethodType.TOTP,
+          method.adminAccountId === adminAccountId && method.methodType === AdminMfaMethodType.TOTP,
       ),
     );
   }
@@ -164,9 +161,7 @@ class MemoryAdminMfaRepository implements AdminMfaRepositoryPort<TestTransaction
   ): Promise<AdminRecoveryCodeRecord | undefined> {
     const code = [...this.recoveryCodes.values()].find(
       (entry) =>
-        entry.adminAccountId === adminAccountId &&
-        entry.codeDigest === codeDigest &&
-        !entry.usedAt,
+        entry.adminAccountId === adminAccountId && entry.codeDigest === codeDigest && !entry.usedAt,
     );
 
     return code
@@ -197,11 +192,7 @@ class MemoryAdminMfaRepository implements AdminMfaRepositoryPort<TestTransaction
     _transaction: TestTransaction,
   ): Promise<void> {
     for (const [id, grant] of this.grants) {
-      if (
-        grant.adminAccountId === adminAccountId &&
-        !grant.consumedAt &&
-        !grant.invalidatedAt
-      ) {
+      if (grant.adminAccountId === adminAccountId && !grant.consumedAt && !grant.invalidatedAt) {
         this.grants.set(id, {
           ...grant,
           invalidatedAt: new Date(invalidatedAt),
@@ -225,50 +216,35 @@ class MemoryAdminMfaRepository implements AdminMfaRepositoryPort<TestTransaction
 class MemoryAuditRepository implements AuditRepositoryPort<TestTransaction> {
   public readonly records: AuditRecord[] = [];
 
-  public async insert(
-    record: AuditRecord,
-    _transaction?: TestTransaction,
-  ): Promise<void> {
+  public async insert(record: AuditRecord, _transaction?: TestTransaction): Promise<void> {
     this.records.push({ ...record });
   }
 }
 
-const encryptionKeyBase64 =
-  'YXRsYXMtbG9jYWwtbWZhLWVuY3J5cHRpb24ta2V5LTE=';
+const encryptionKeyBase64 = 'YXRsYXMtbG9jYWwtbWZhLWVuY3J5cHRpb24ta2V5LTE=';
 const fingerprintPepper = 'atlas-test-login-fingerprint-pepper-2026';
 const recoveryPepper = 'atlas-test-recovery-code-pepper-2026';
 const accountId = '0199a000-0000-7000-8000-000000000001';
 const clientAddress = '127.0.0.1';
 
 test('TOTP generation matches the RFC 6238 SHA1 vector', () => {
-  const code = generateTotpCode(
-    'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
-    new Date(59_000),
-    {
-      algorithm: AdminMfaAlgorithm.SHA1,
-      digits: 8,
-      periodSeconds: 30,
-    },
-  );
+  const code = generateTotpCode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', new Date(59_000), {
+    algorithm: AdminMfaAlgorithm.SHA1,
+    digits: 8,
+    periodSeconds: 30,
+  });
 
   assert.equal(code, '94287082');
 });
 
 test('AES-256-GCM protects MFA secrets and rejects tampering', () => {
-  const cipher = new Aes256GcmAdminMfaSecretCipher(
-    encryptionKeyBase64,
-    'test-v1',
-  );
+  const cipher = new Aes256GcmAdminMfaSecretCipher(encryptionKeyBase64, 'test-v1');
   const encrypted = cipher.encrypt('JBSWY3DPEHPK3PXP');
 
   assert.equal(encrypted.encryptedValue.includes('JBSWY3DPEHPK3PXP'), false);
-  assert.equal(
-    cipher.decrypt(encrypted.encryptedValue, encrypted.keyVersion),
-    'JBSWY3DPEHPK3PXP',
-  );
+  assert.equal(cipher.decrypt(encrypted.encryptedValue, encrypted.keyVersion), 'JBSWY3DPEHPK3PXP');
 
-  const [version, iv, authenticationTag, ciphertext] =
-    encrypted.encryptedValue.split('.');
+  const [version, iv, authenticationTag, ciphertext] = encrypted.encryptedValue.split('.');
   const tamperedTag = `${
     authenticationTag?.startsWith('A') ? 'B' : 'A'
   }${authenticationTag?.slice(1) ?? ''}`;
@@ -284,10 +260,7 @@ test('TOTP enrollment, replay defense, and recovery codes form a one-time chain'
   const auditRepository = new MemoryAuditRepository();
   const challengeIssuer = new Sha256AdminLoginChallengeTokenIssuer();
   const totp = new NodeAdminTotpAuthenticator();
-  const cipher = new Aes256GcmAdminMfaSecretCipher(
-    encryptionKeyBase64,
-    'test-v1',
-  );
+  const cipher = new Aes256GcmAdminMfaSecretCipher(encryptionKeyBase64, 'test-v1');
   const recoveryIssuer = new HmacAdminRecoveryCodeIssuer(recoveryPepper);
   const service = new AdminMfaService(
     new TestTransactionRunner(),
@@ -351,10 +324,7 @@ test('TOTP enrollment, replay defense, and recovery codes form a one-time chain'
     repository.challenges.get(firstChallenge.challengeId)?.consumedAt?.toISOString(),
     clock.now().toISOString(),
   );
-  assert.equal(
-    repository.methods.get(enrollment.methodId)?.status,
-    AdminMfaMethodStatus.ACTIVE,
-  );
+  assert.equal(repository.methods.get(enrollment.methodId)?.status, AdminMfaMethodStatus.ACTIVE);
 
   const replayChallenge = addChallenge(repository, challengeIssuer, clock);
 
@@ -373,10 +343,7 @@ test('TOTP enrollment, replay defense, and recovery codes form a one-time chain'
     },
   );
 
-  assert.equal(
-    repository.challenges.get(replayChallenge.challengeId)?.mfaFailureCount,
-    1,
-  );
+  assert.equal(repository.challenges.get(replayChallenge.challengeId)?.mfaFailureCount, 1);
 
   clock.advanceBy(30_000);
   const nextChallenge = addChallenge(repository, challengeIssuer, clock);
@@ -447,11 +414,7 @@ function addChallenge(
     accountEmail: 'owner@example.com',
     accountStatus: AdminAccountStatus.ACTIVE,
     tokenDigest: issued.tokenDigest,
-    ipFingerprint: fingerprintAdminLoginValue(
-      fingerprintPepper,
-      'ip',
-      clientAddress,
-    ),
+    ipFingerprint: fingerprintAdminLoginValue(fingerprintPepper, 'ip', clientAddress),
     expiresAt: new Date(clock.now().getTime() + 300_000),
     mfaFailureCount: 0,
     createdAt: clock.now(),
@@ -474,17 +437,13 @@ function runAsAnonymous<TResult>(work: () => Promise<TResult>): Promise<TResult>
   );
 }
 
-function cloneChallenge(
-  challenge: AdminMfaChallenge | undefined,
-): AdminMfaChallenge | undefined {
+function cloneChallenge(challenge: AdminMfaChallenge | undefined): AdminMfaChallenge | undefined {
   return challenge
     ? {
         ...challenge,
         expiresAt: new Date(challenge.expiresAt),
         consumedAt: challenge.consumedAt ? new Date(challenge.consumedAt) : undefined,
-        invalidatedAt: challenge.invalidatedAt
-          ? new Date(challenge.invalidatedAt)
-          : undefined,
+        invalidatedAt: challenge.invalidatedAt ? new Date(challenge.invalidatedAt) : undefined,
         createdAt: new Date(challenge.createdAt),
       }
     : undefined;

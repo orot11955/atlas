@@ -1,9 +1,6 @@
 import { createHmac, randomBytes } from 'node:crypto';
 
-import {
-  formatAdminRecoveryCode,
-  normalizeAdminRecoveryCode,
-} from '../../domain/admin-mfa';
+import { formatAdminRecoveryCode, normalizeAdminRecoveryCode } from '../../domain/admin-mfa';
 import type {
   AdminRecoveryCodeIssuerPort,
   IssuedAdminRecoveryCode,

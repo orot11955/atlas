@@ -100,11 +100,7 @@ function decodeEncryptionKey(value: string): Buffer {
 function validateKeyVersion(value: string): string {
   const normalized = value.trim();
 
-  if (
-    normalized.length < 1 ||
-    normalized.length > 64 ||
-    !/^[A-Za-z0-9._-]+$/u.test(normalized)
-  ) {
+  if (normalized.length < 1 || normalized.length > 64 || !/^[A-Za-z0-9._-]+$/u.test(normalized)) {
     throw new RangeError('AUTH_MFA_ENCRYPTION_KEY_VERSION is invalid.');
   }
 

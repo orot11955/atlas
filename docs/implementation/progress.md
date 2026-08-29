@@ -1,7 +1,7 @@
 # Atlas 구현 진행 현황
 
 - 기준 브랜치: `develop`
-- 갱신일: 2026-08-29
+- 갱신일: 2026-08-30
 
 ## 완료
 
@@ -40,42 +40,54 @@
 완료된 구현 단위:
 
 - `admin_accounts` Migration과 TypeORM Entity
-- `OWNER`, `ADMIN`, `EDITOR`, `OPERATOR`, `VIEWER` Role Registry
-- 코드 기반 Permission Registry
+- 코드 기반 Role·Permission Registry
 - Node.js Argon2id Password Hasher
 - OWNER Bootstrap CLI와 중복 생성 차단
-- `admin_login_attempts`와 HMAC-SHA-256 Email·IP Fingerprint
-- 짧은 수명의 `admin_login_challenges`
-- Password Login Use Case
-- 존재하지 않는 Email의 Dummy Hash 검증
-- 실패 횟수와 Account Lock
-- Account Lock 상태의 외부 응답 평준화
+- HMAC-SHA-256 Email·IP Login Fingerprint
+- Password Login과 Dummy Hash 검증
+- Account Lock과 외부 응답 평준화
 - Redis 기반 IP·Account Rate Limit
 - Password 검증 후 MFA Challenge 발급
-- Login Audit와 외부 Rate Limit의 `Retry-After`
-- `POST /api/admin/v1/auth/login`
-- CI의 실제 PostgreSQL·Redis 기반 Password Login API 검증
+- TOTP Secret AES-256-GCM 암호화 저장
+- TOTP 등록과 활성화
+- RFC 6238 TOTP 검증과 Time Step Replay 차단
+- Recovery Code HMAC Digest와 1회 소비
+- MFA Challenge Client Address Binding
+- MFA 실패 횟수와 Challenge 무효화
+- Session 생성 전 일회성 Authentication Grant
+- 실제 PostgreSQL·Redis·NestJS 기반 인증 E2E
+
+Admin 인증 API:
+
+```text
+POST /api/admin/v1/auth/login
+POST /api/admin/v1/auth/mfa/totp/enrollment
+POST /api/admin/v1/auth/mfa/totp/confirm
+POST /api/admin/v1/auth/mfa/totp/verify
+POST /api/admin/v1/auth/mfa/recovery/verify
+```
 
 보안 결정:
 
-- Email·IP Fingerprint는 `AUTH_LOGIN_FINGERPRINT_PEPPER`를 이용한 HMAC-SHA-256이다.
-- Pepper는 32바이트 이상이며 운영 Secret Store에서 주입한다.
-- 계정 잠금, 비활성 계정, 잘못된 Password는 모두 동일한 `AUTH_REQUIRED` 응답을 사용한다.
-- Redis의 IP·Account Rate Limit에 걸린 요청만 429와 `Retry-After`를 반환한다.
+- Email·IP Fingerprint는 Secret Pepper를 이용한 HMAC-SHA-256이다.
+- TOTP Secret은 AES-256-GCM으로 암호화하며 Key Version을 저장한다.
+- Recovery Code는 원문을 한 번만 반환하고 HMAC Digest만 저장한다.
+- MFA Challenge와 Authentication Grant Token은 SHA-256 Digest만 저장한다.
+- TOTP Time Step은 계정별로 한 번만 사용할 수 있다.
+- Password Login은 Session을 직접 만들지 않으며 MFA 성공 후 Grant를 발급한다.
 
 주요 Pull Request:
 
 - [#7 Admin Identity Schema and OWNER Bootstrap](https://github.com/orot11955/atlas/pull/7)
 - [#8 Admin Password Login and MFA Challenge](https://github.com/orot11955/atlas/pull/8)
+- [#9 Admin Login Privacy Hardening](https://github.com/orot11955/atlas/pull/9)
 
 ## 다음
 
 ```text
-MFA Method Schema
-→ TOTP 등록
-→ MFA Challenge 검증과 1회 소비
-→ Recovery Code
-→ Admin Session과 Cookie
+Authentication Grant 검증과 1회 소비
+→ Admin Session과 HttpOnly Cookie
+→ Idle·Absolute Timeout
 → CSRF
 → Permission Guard
 → Login UI와 Admin Shell

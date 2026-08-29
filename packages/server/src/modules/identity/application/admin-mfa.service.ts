@@ -1,13 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  createUuidV7,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, createUuidV7, systemClock } from '../../../core';
 import { AdminAccountStatus } from '../domain/admin-account-status';
 import {
   AdminMfaAlgorithm,
@@ -27,10 +21,7 @@ import {
 } from '../domain/admin-login';
 import type { AdminAuthenticationGrantTokenIssuerPort } from '../ports/admin-authentication-grant-token-issuer.port';
 import type { AdminLoginChallengeTokenIssuerPort } from '../ports/admin-login-challenge-token-issuer.port';
-import type {
-  AdminMfaChallenge,
-  AdminMfaRepositoryPort,
-} from '../ports/admin-mfa.repository';
+import type { AdminMfaChallenge, AdminMfaRepositoryPort } from '../ports/admin-mfa.repository';
 import type { AdminMfaSecretCipherPort } from '../ports/admin-mfa-secret-cipher.port';
 import type { AdminRecoveryCodeIssuerPort } from '../ports/admin-recovery-code-issuer.port';
 import type { AdminTotpAuthenticatorPort } from '../ports/admin-totp-authenticator.port';
@@ -156,12 +147,7 @@ export class AdminMfaService<TTransaction> {
         }
 
         if (existingMethod?.status === AdminMfaMethodStatus.DISABLED) {
-          await this.recordDeniedAudit(
-            challenge,
-            'totp-disabled',
-            transaction,
-            'totp-enrollment',
-          );
+          await this.recordDeniedAudit(challenge, 'totp-disabled', transaction, 'totp-enrollment');
 
           return {
             kind: 'denied',
@@ -254,9 +240,7 @@ export class AdminMfaService<TTransaction> {
     const attemptedAt = this.clock.now();
 
     const decision = await this.transactionRunner.run(
-      async (
-        transaction,
-      ): Promise<ServiceDecision<AdminTotpEnrollmentConfirmationResult>> => {
+      async (transaction): Promise<ServiceDecision<AdminTotpEnrollmentConfirmationResult>> => {
         const challengeDecision = await this.validateChallenge(
           normalized,
           attemptedAt,
@@ -291,10 +275,7 @@ export class AdminMfaService<TTransaction> {
           };
         }
 
-        const secret = this.secretCipher.decrypt(
-          method.encryptedSecret,
-          method.secretKeyVersion,
-        );
+        const secret = this.secretCipher.decrypt(method.encryptedSecret, method.secretKeyVersion);
         const matchedStep = this.totpAuthenticator.matchCode({
           secret,
           code: input.code,
@@ -306,16 +287,10 @@ export class AdminMfaService<TTransaction> {
         });
 
         if (matchedStep === undefined) {
-          return this.handleVerificationFailure(
-            challenge,
-            'invalid-totp',
-            transaction,
-          );
+          return this.handleVerificationFailure(challenge, 'invalid-totp', transaction);
         }
 
-        const issuedRecoveryCodes = this.recoveryCodeIssuer.issue(
-          this.policy.recoveryCodeCount,
-        );
+        const issuedRecoveryCodes = this.recoveryCodeIssuer.issue(this.policy.recoveryCodeCount);
         const recoveryCodeRecords = issuedRecoveryCodes.map((entry) => ({
           id: createUuidV7(attemptedAt.getTime()),
           adminAccountId: challenge.adminAccountId,
@@ -403,12 +378,7 @@ export class AdminMfaService<TTransaction> {
         );
 
         if (!method || method.status !== AdminMfaMethodStatus.ACTIVE) {
-          await this.recordDeniedAudit(
-            challenge,
-            'totp-not-active',
-            transaction,
-            'totp-verify',
-          );
+          await this.recordDeniedAudit(challenge, 'totp-not-active', transaction, 'totp-verify');
 
           return {
             kind: 'denied',
@@ -416,10 +386,7 @@ export class AdminMfaService<TTransaction> {
           };
         }
 
-        const secret = this.secretCipher.decrypt(
-          method.encryptedSecret,
-          method.secretKeyVersion,
-        );
+        const secret = this.secretCipher.decrypt(method.encryptedSecret, method.secretKeyVersion);
         const matchedStep = this.totpAuthenticator.matchCode({
           secret,
           code: input.code,
@@ -532,11 +499,7 @@ export class AdminMfaService<TTransaction> {
         );
 
         if (!recoveryCode) {
-          return this.handleVerificationFailure(
-            challenge,
-            'invalid-recovery-code',
-            transaction,
-          );
+          return this.handleVerificationFailure(challenge, 'invalid-recovery-code', transaction);
         }
 
         await this.repository.markRecoveryCodeUsed(recoveryCode.id, attemptedAt, transaction);
@@ -575,9 +538,7 @@ export class AdminMfaService<TTransaction> {
     return unwrapDecision(decision);
   }
 
-  private normalizeChallengeInput(
-    input: AdminMfaChallengeInput,
-  ): Readonly<AdminMfaChallengeInput> {
+  private normalizeChallengeInput(input: AdminMfaChallengeInput): Readonly<AdminMfaChallengeInput> {
     assertAdminMfaChallengeInput(input.challengeId, input.challengeToken);
 
     return Object.freeze({
@@ -593,10 +554,7 @@ export class AdminMfaService<TTransaction> {
     transaction: TTransaction,
     operation: string,
   ): Promise<ChallengeDecision> {
-    const challenge = await this.repository.findChallengeForUpdate(
-      input.challengeId,
-      transaction,
-    );
+    const challenge = await this.repository.findChallengeForUpdate(input.challengeId, transaction);
     const ipFingerprint = fingerprintAdminLoginValue(
       this.fingerprintPepper,
       'ip',
@@ -716,11 +674,7 @@ export class AdminMfaService<TTransaction> {
     issuedAt: Date,
     transaction: TTransaction,
   ): Promise<Readonly<AdminAuthenticationGrantResult>> {
-    await this.repository.invalidateOpenAuthenticationGrants(
-      adminAccountId,
-      issuedAt,
-      transaction,
-    );
+    await this.repository.invalidateOpenAuthenticationGrants(adminAccountId, issuedAt, transaction);
 
     const token = this.grantTokenIssuer.issue(issuedAt);
     const expiresAt = new Date(issuedAt.getTime() + this.policy.grantTtlMs);

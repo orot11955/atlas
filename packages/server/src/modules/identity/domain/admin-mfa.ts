@@ -4,8 +4,7 @@ export const AdminMfaMethodType = {
   TOTP: 'totp',
 } as const;
 
-export type AdminMfaMethodType =
-  (typeof AdminMfaMethodType)[keyof typeof AdminMfaMethodType];
+export type AdminMfaMethodType = (typeof AdminMfaMethodType)[keyof typeof AdminMfaMethodType];
 
 export const AdminMfaMethodStatus = {
   ACTIVE: 'active',
@@ -13,15 +12,13 @@ export const AdminMfaMethodStatus = {
   PENDING: 'pending',
 } as const;
 
-export type AdminMfaMethodStatus =
-  (typeof AdminMfaMethodStatus)[keyof typeof AdminMfaMethodStatus];
+export type AdminMfaMethodStatus = (typeof AdminMfaMethodStatus)[keyof typeof AdminMfaMethodStatus];
 
 export const AdminMfaAlgorithm = {
   SHA1: 'SHA1',
 } as const;
 
-export type AdminMfaAlgorithm =
-  (typeof AdminMfaAlgorithm)[keyof typeof AdminMfaAlgorithm];
+export type AdminMfaAlgorithm = (typeof AdminMfaAlgorithm)[keyof typeof AdminMfaAlgorithm];
 
 export interface AdminMfaPolicy {
   issuer: string;
@@ -36,21 +33,14 @@ export interface AdminMfaFailureState {
   invalidatedAt?: Date;
 }
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const TOTP_CODE_PATTERN = /^\d{6}$/u;
 const RECOVERY_CODE_PATTERN = /^[A-Z2-9]{16}$/u;
 
-export function validateAdminMfaPolicy(
-  policy: AdminMfaPolicy,
-): Readonly<AdminMfaPolicy> {
+export function validateAdminMfaPolicy(policy: AdminMfaPolicy): Readonly<AdminMfaPolicy> {
   const issuer = policy.issuer.trim().normalize('NFKC');
 
-  if (
-    issuer.length < 1 ||
-    issuer.length > 80 ||
-    Array.from(issuer).some(isControlCharacter)
-  ) {
+  if (issuer.length < 1 || issuer.length > 80 || Array.from(issuer).some(isControlCharacter)) {
     throw new RangeError('issuer must contain between 1 and 80 printable characters.');
   }
 
@@ -68,10 +58,7 @@ export function validateAdminMfaPolicy(
   });
 }
 
-export function assertAdminMfaChallengeInput(
-  challengeId: string,
-  challengeToken: string,
-): void {
+export function assertAdminMfaChallengeInput(challengeId: string, challengeToken: string): void {
   if (!UUID_PATTERN.test(challengeId)) {
     throw invalidField('challengeId', 'Challenge ID is invalid.');
   }
@@ -93,11 +80,7 @@ export function assertAdminTotpCode(code: string): void {
 }
 
 export function normalizeAdminRecoveryCode(value: string): string {
-  const normalized = value
-    .trim()
-    .normalize('NFKC')
-    .toUpperCase()
-    .replace(/[\s-]/gu, '');
+  const normalized = value.trim().normalize('NFKC').toUpperCase().replace(/[\s-]/gu, '');
 
   if (!RECOVERY_CODE_PATTERN.test(normalized)) {
     throw invalidField('recoveryCode', 'Recovery code is invalid.');
@@ -119,21 +102,14 @@ export function calculateAdminMfaFailureState(
   threshold: number,
   attemptedAt: Date,
 ): Readonly<AdminMfaFailureState> {
-  assertIntegerInRange(
-    currentFailureCount,
-    0,
-    Number.MAX_SAFE_INTEGER,
-    'currentFailureCount',
-  );
+  assertIntegerInRange(currentFailureCount, 0, Number.MAX_SAFE_INTEGER, 'currentFailureCount');
   assertIntegerInRange(threshold, 1, 20, 'threshold');
 
   const failureCount = currentFailureCount + 1;
 
   return Object.freeze({
     failureCount,
-    ...(failureCount >= threshold
-      ? { invalidatedAt: new Date(attemptedAt) }
-      : {}),
+    ...(failureCount >= threshold ? { invalidatedAt: new Date(attemptedAt) } : {}),
   });
 }
 
@@ -152,9 +128,7 @@ function assertIntegerInRange(
   field: string,
 ): void {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
-    throw new RangeError(
-      `${field} must be an integer between ${minimum} and ${maximum}.`,
-    );
+    throw new RangeError(`${field} must be an integer between ${minimum} and ${maximum}.`);
   }
 }
 

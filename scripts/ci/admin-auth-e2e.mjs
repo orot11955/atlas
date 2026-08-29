@@ -29,10 +29,7 @@ if (
   throw new Error('TOTP enrollment response is invalid.');
 }
 
-const previousStepCode = generateTotpCode(
-  enrollment.secret,
-  Math.floor(Date.now() / 30_000) - 1,
-);
+const previousStepCode = generateTotpCode(enrollment.secret, Math.floor(Date.now() / 30_000) - 1);
 const confirmation = await post(
   '/admin/v1/auth/mfa/totp/confirm',
   {

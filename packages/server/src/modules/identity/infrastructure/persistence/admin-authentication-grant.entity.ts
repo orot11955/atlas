@@ -4,10 +4,7 @@ import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 @Index('uq_admin_authentication_grants_token_digest', ['tokenDigest'], {
   unique: true,
 })
-@Index('idx_admin_authentication_grants_account_expires_at', [
-  'adminAccountId',
-  'expiresAt',
-])
+@Index('idx_admin_authentication_grants_account_expires_at', ['adminAccountId', 'expiresAt'])
 export class AdminAuthenticationGrantEntity {
   @PrimaryColumn({ type: 'uuid' })
   public id!: string;

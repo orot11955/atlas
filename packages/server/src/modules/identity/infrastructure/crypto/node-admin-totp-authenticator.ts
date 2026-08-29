@@ -44,7 +44,11 @@ export class NodeAdminTotpAuthenticator implements AdminTotpAuthenticatorPort {
       return undefined;
     }
 
-    if (!Number.isSafeInteger(input.windowSteps) || input.windowSteps < 0 || input.windowSteps > 2) {
+    if (
+      !Number.isSafeInteger(input.windowSteps) ||
+      input.windowSteps < 0 ||
+      input.windowSteps > 2
+    ) {
       throw new RangeError('TOTP windowSteps must be an integer between 0 and 2.');
     }
 
@@ -120,7 +124,10 @@ function validateTotpParameters(parameters: AdminTotpParameters): void {
 }
 
 function normalizeBase32Secret(value: string): string {
-  const normalized = value.trim().toUpperCase().replace(/[\s=-]/gu, '');
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s=-]/gu, '');
 
   if (normalized.length < 16 || !/^[A-Z2-7]+$/u.test(normalized)) {
     throw new RangeError('TOTP secret is invalid.');

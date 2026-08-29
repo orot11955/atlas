@@ -6,9 +6,7 @@ import type {
   IssuedAdminLoginChallengeToken,
 } from '../../ports/admin-login-challenge-token-issuer.port';
 
-export class Sha256AdminLoginChallengeTokenIssuer
-  implements AdminLoginChallengeTokenIssuerPort
-{
+export class Sha256AdminLoginChallengeTokenIssuer implements AdminLoginChallengeTokenIssuerPort {
   public issue(issuedAt: Date): Readonly<IssuedAdminLoginChallengeToken> {
     const id = createUuidV7(issuedAt.getTime());
     const secret = randomBytes(32).toString('base64url');

@@ -41,10 +41,7 @@ export const atlasDataSource = new DataSource({
     AdminAuthenticationGrantEntity,
   ],
   migrations: [
-    path.join(
-      packageRoot,
-      compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts',
-    ),
+    path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),
   ],
 });
 

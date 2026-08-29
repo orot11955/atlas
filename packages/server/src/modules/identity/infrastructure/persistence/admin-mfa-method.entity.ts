@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  PrimaryColumn,
-  type ValueTransformer,
-} from 'typeorm';
+import { Column, Entity, Index, PrimaryColumn, type ValueTransformer } from 'typeorm';
 
 import type {
   AdminMfaAlgorithm,

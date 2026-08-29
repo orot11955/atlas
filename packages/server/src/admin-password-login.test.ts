@@ -45,6 +45,7 @@ class MemoryAuthenticationRepository implements AdminAuthenticationRepositoryPor
   public readonly accounts = new Map<string, AdminAuthenticationAccount>();
   public readonly attempts: AdminLoginAttemptRecord[] = [];
   public readonly challenges: AdminLoginChallengeRecord[] = [];
+  public readonly activeTotpAccountIds = new Set<string>();
   public findByEmailCount = 0;
 
   public async findByEmail(email: string): Promise<AdminAuthenticationAccount | undefined> {
@@ -57,6 +58,13 @@ class MemoryAuthenticationRepository implements AdminAuthenticationRepositoryPor
     _transaction: TestTransaction,
   ): Promise<AdminAuthenticationAccount | undefined> {
     return cloneAccount(this.accounts.get(accountId));
+  }
+
+  public async hasActiveTotpMethod(
+    accountId: string,
+    _transaction?: TestTransaction,
+  ): Promise<boolean> {
+    return this.activeTotpAccountIds.has(accountId);
   }
 
   public async updateLoginState(
@@ -129,6 +137,16 @@ class TestChallengeIssuer implements AdminLoginChallengeTokenIssuerPort {
       token: 'atlas_mfa_0199-0000-7000-8000-000000000001.secret',
       tokenDigest: 'a'.repeat(64),
     });
+  }
+
+  public digest(token: string): string {
+    return token === 'atlas_mfa_0199-0000-7000-8000-000000000001.secret'
+      ? 'a'.repeat(64)
+      : 'b'.repeat(64);
+  }
+
+  public matches(token: string, expectedDigest: string): boolean {
+    return this.digest(token) === expectedDigest;
   }
 }
 
@@ -248,7 +266,7 @@ test('valid password resets failure state and issues only a digested MFA challen
 
   const result = await executeLogin(harness.service, ' OWNER@example.com ', 'correct password');
 
-  assert.equal(result.nextStep, 'mfa');
+  assert.equal(result.nextStep, 'mfa-setup');
   assert.equal(result.challengeToken.includes('secret'), true);
   assert.equal(result.expiresAt.toISOString(), '2026-08-29T12:25:00.000Z');
   assert.equal(harness.repository.accounts.get(account.id)?.failedLoginCount, 0);
