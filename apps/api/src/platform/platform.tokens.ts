@@ -1,0 +1,2 @@
+export const AUDIT_SERVICE = Symbol('AUDIT_SERVICE');
+export const TRANSACTION_RUNNER = Symbol('TRANSACTION_RUNNER');

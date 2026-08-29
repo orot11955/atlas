@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { RequestContextMiddleware } from './middleware/request-context.middleware';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { RequestContextMiddleware } from './middleware/request-context.middlewar
     }),
     RedisModule,
     MinioModule,
+    PlatformModule,
     HealthModule,
   ],
 })

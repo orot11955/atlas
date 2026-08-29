@@ -1,0 +1,49 @@
+name: Prepare audit foundation once
+
+on:
+  push:
+    branches:
+      - feat/transaction-audit-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feat/transaction-audit-foundation
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install and update lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Apply formatting
+        run: pnpm format
+
+      - name: Commit generated files
+        run: |
+          rm .github/workflows/prepare-audit-foundation-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: prepare audit foundation'
+          git push origin HEAD:feat/transaction-audit-foundation
+
+      - name: Verify workspace
+        run: pnpm check

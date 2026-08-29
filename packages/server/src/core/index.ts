@@ -1,3 +1,4 @@
+export * from './audit';
 export * from './clock';
 export * from './errors';
 export * from './ids';
