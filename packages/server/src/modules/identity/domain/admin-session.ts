@@ -19,8 +19,7 @@ export const AdminSessionStatus = {
   REVOKED: 'revoked',
 } as const;
 
-export type AdminSessionStatus =
-  (typeof AdminSessionStatus)[keyof typeof AdminSessionStatus];
+export type AdminSessionStatus = (typeof AdminSessionStatus)[keyof typeof AdminSessionStatus];
 
 export interface AdminSessionPolicy {
   idleTtlMs: number;
@@ -102,9 +101,7 @@ export function calculateTouchedIdleExpiry(
   absoluteExpiresAt: Date,
   policy: AdminSessionPolicy,
 ): Date {
-  return new Date(
-    Math.min(now.getTime() + policy.idleTtlMs, absoluteExpiresAt.getTime()),
-  );
+  return new Date(Math.min(now.getTime() + policy.idleTtlMs, absoluteExpiresAt.getTime()));
 }
 
 export function hasAdminAccountSnapshotChanged(
@@ -136,7 +133,9 @@ export function normalizeAdminSessionUserAgent(value?: string): string {
 
 export function assertAdminSessionFingerprintPepper(value: string): void {
   if (Buffer.byteLength(value, 'utf8') < 32) {
-    throw new RangeError('Administrator session fingerprint Pepper must contain at least 32 bytes.');
+    throw new RangeError(
+      'Administrator session fingerprint Pepper must contain at least 32 bytes.',
+    );
   }
 }
 

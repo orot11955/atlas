@@ -60,12 +60,7 @@ const adminAuthenticationSchema = z.object({
   AUTH_MFA_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(20).default(5),
   AUTH_SESSION_FINGERPRINT_PEPPER: z.string().min(32),
   AUTH_SESSION_IDLE_SECONDS: z.coerce.number().int().min(60).max(86_400).default(1_800),
-  AUTH_SESSION_ABSOLUTE_SECONDS: z.coerce
-    .number()
-    .int()
-    .min(300)
-    .max(604_800)
-    .default(43_200),
+  AUTH_SESSION_ABSOLUTE_SECONDS: z.coerce.number().int().min(300).max(604_800).default(43_200),
   AUTH_SESSION_TOUCH_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
   AUTH_SESSION_MAX_ACTIVE: z.coerce.number().int().min(1).max(100).default(5),
   AUTH_SESSION_BIND_IP: environmentBoolean.default(false),

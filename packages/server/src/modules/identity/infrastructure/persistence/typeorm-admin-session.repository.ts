@@ -13,21 +13,17 @@ import type {
   TouchAdminSessionInput,
 } from '../../ports/admin-session.repository';
 
-export class TypeOrmAdminSessionRepository
-  implements AdminSessionRepositoryPort<EntityManager>
-{
+export class TypeOrmAdminSessionRepository implements AdminSessionRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async findGrantForUpdate(
     grantId: string,
     transaction: EntityManager,
   ): Promise<AdminSessionAuthenticationGrant | undefined> {
-    const entity = await transaction
-      .getRepository(AdminAuthenticationGrantEntity)
-      .findOne({
-        where: { id: grantId },
-        lock: { mode: 'pessimistic_write' },
-      });
+    const entity = await transaction.getRepository(AdminAuthenticationGrantEntity).findOne({
+      where: { id: grantId },
+      lock: { mode: 'pessimistic_write' },
+    });
 
     return entity ? toGrant(entity) : undefined;
   }
@@ -46,9 +42,7 @@ export class TypeOrmAdminSessionRepository
     accountId: string,
     transaction?: EntityManager,
   ): Promise<AdminSessionAccount | undefined> {
-    const repository = (transaction ?? this.dataSource.manager).getRepository(
-      AdminAccountEntity,
-    );
+    const repository = (transaction ?? this.dataSource.manager).getRepository(AdminAccountEntity);
     const entity = await repository.findOne({ where: { id: accountId } });
 
     return entity
@@ -126,9 +120,7 @@ export class TypeOrmAdminSessionRepository
       .execute();
   }
 
-  public async listSessionsForAccount(
-    accountId: string,
-  ): Promise<readonly AdminSessionRecord[]> {
+  public async listSessionsForAccount(accountId: string): Promise<readonly AdminSessionRecord[]> {
     const entities = await this.dataSource.getRepository(AdminSessionEntity).find({
       where: { adminAccountId: accountId },
       order: { createdAt: 'DESC' },
@@ -207,9 +199,7 @@ async function findActiveSessions(
     .getMany();
 }
 
-function toGrant(
-  entity: AdminAuthenticationGrantEntity,
-): AdminSessionAuthenticationGrant {
+function toGrant(entity: AdminAuthenticationGrantEntity): AdminSessionAuthenticationGrant {
   return {
     id: entity.id,
     adminAccountId: entity.adminAccountId,
@@ -217,9 +207,7 @@ function toGrant(
     ipFingerprint: entity.ipFingerprint,
     expiresAt: new Date(entity.expiresAt),
     consumedAt: entity.consumedAt ? new Date(entity.consumedAt) : undefined,
-    invalidatedAt: entity.invalidatedAt
-      ? new Date(entity.invalidatedAt)
-      : undefined,
+    invalidatedAt: entity.invalidatedAt ? new Date(entity.invalidatedAt) : undefined,
   };
 }
 

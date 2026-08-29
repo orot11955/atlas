@@ -13,9 +13,7 @@ export interface AdminSessionHttpRequest {
   adminSession?: Readonly<AdminSessionPrincipal>;
 }
 
-export function readSingleHeader(
-  value: string | string[] | undefined,
-): string | undefined {
+export function readSingleHeader(value: string | string[] | undefined): string | undefined {
   if (typeof value === 'string') {
     return value;
   }

@@ -17,6 +17,7 @@ import {
   requestContext,
   type AdminSessionAccount,
   type AdminSessionAuthenticationGrant,
+  type CreateAdminSessionResult,
   type AdminSessionRecord,
   type AdminSessionRepositoryPort,
   type AuditRecord,
@@ -33,16 +34,12 @@ class TestTransactionRunner implements TransactionRunner<TestTransaction> {
     id: 'session-transaction',
   });
 
-  public run<TResult>(
-    work: (transaction: TestTransaction) => Promise<TResult>,
-  ): Promise<TResult> {
+  public run<TResult>(work: (transaction: TestTransaction) => Promise<TResult>): Promise<TResult> {
     return work(this.transaction);
   }
 }
 
-class MemorySessionRepository
-  implements AdminSessionRepositoryPort<TestTransaction>
-{
+class MemorySessionRepository implements AdminSessionRepositoryPort<TestTransaction> {
   public readonly grants = new Map<string, AdminSessionAuthenticationGrant>();
   public readonly accounts = new Map<string, AdminSessionAccount>();
   public readonly sessions = new Map<string, AdminSessionRecord>();
@@ -123,9 +120,7 @@ class MemorySessionRepository
     });
   }
 
-  public async listSessionsForAccount(
-    accountId: string,
-  ): Promise<readonly AdminSessionRecord[]> {
+  public async listSessionsForAccount(accountId: string): Promise<readonly AdminSessionRecord[]> {
     return [...this.sessions.values()]
       .filter((session) => session.adminAccountId === accountId)
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
@@ -353,7 +348,7 @@ test('password or role changes invalidate existing sessions and revoke-others pr
     passwordChangedAt,
   });
 
-  const sessions = [];
+  const sessions: CreateAdminSessionResult[] = [];
   for (let index = 0; index < 2; index += 1) {
     const grant = harness.grantIssuer.issue(clock.now());
     harness.repository.grants.set(grant.id, {
@@ -378,16 +373,20 @@ test('password or role changes invalidate existing sessions and revoke-others pr
 
   const current = await runInRequest(() =>
     harness.service.authenticateSession({
-      sessionToken: sessions[1].sessionToken,
+      sessionToken: sessions[1]!.sessionToken,
       clientAddress: '127.0.0.1',
     }),
   );
-  const revokedCount = await runInRequest(() =>
-    harness.service.revokeOtherSessions(current),
-  );
+  const revokedCount = await runInRequest(() => harness.service.revokeOtherSessions(current));
   assert.equal(revokedCount, 1);
-  assert.equal(harness.repository.sessions.get(sessions[0].session.sessionId)?.revokedAt !== undefined, true);
-  assert.equal(harness.repository.sessions.get(sessions[1].session.sessionId)?.revokedAt, undefined);
+  assert.equal(
+    harness.repository.sessions.get(sessions[0]!.session.sessionId)?.revokedAt !== undefined,
+    true,
+  );
+  assert.equal(
+    harness.repository.sessions.get(sessions[1]!.session.sessionId)?.revokedAt,
+    undefined,
+  );
 
   harness.repository.accounts.set(accountId, {
     id: accountId,
@@ -398,7 +397,7 @@ test('password or role changes invalidate existing sessions and revoke-others pr
   await assert.rejects(
     runInRequest(() =>
       harness.service.authenticateSession({
-        sessionToken: sessions[1].sessionToken,
+        sessionToken: sessions[1]!.sessionToken,
         clientAddress: '127.0.0.1',
       }),
     ),
@@ -409,16 +408,14 @@ test('password or role changes invalidate existing sessions and revoke-others pr
     },
   );
   assert.equal(
-    harness.repository.sessions.get(sessions[1].session.sessionId)?.revokeReason,
+    harness.repository.sessions.get(sessions[1]!.session.sessionId)?.revokeReason,
     AdminSessionRevokeReason.ACCOUNT_CHANGED,
   );
   clock.set('2026-08-30T00:00:00.000Z');
 });
 
 function fingerprintLoginAddress(address: string): string {
-  return createHmac('sha256', loginPepper)
-    .update(`ip\u0000${address}`, 'utf8')
-    .digest('hex');
+  return createHmac('sha256', loginPepper).update(`ip\u0000${address}`, 'utf8').digest('hex');
 }
 
 function cloneGrant(
@@ -435,15 +432,17 @@ function cloneGrant(
 }
 
 function cloneSession<T extends AdminSessionRecord | undefined>(session: T): T {
-  return (session
-    ? {
-        ...session,
-        passwordChangedAt: new Date(session.passwordChangedAt),
-        createdAt: new Date(session.createdAt),
-        lastSeenAt: new Date(session.lastSeenAt),
-        idleExpiresAt: new Date(session.idleExpiresAt),
-        absoluteExpiresAt: new Date(session.absoluteExpiresAt),
-        revokedAt: session.revokedAt ? new Date(session.revokedAt) : undefined,
-      }
-    : undefined) as T;
+  return (
+    session
+      ? {
+          ...session,
+          passwordChangedAt: new Date(session.passwordChangedAt),
+          createdAt: new Date(session.createdAt),
+          lastSeenAt: new Date(session.lastSeenAt),
+          idleExpiresAt: new Date(session.idleExpiresAt),
+          absoluteExpiresAt: new Date(session.absoluteExpiresAt),
+          revokedAt: session.revokedAt ? new Date(session.revokedAt) : undefined,
+        }
+      : undefined
+  ) as T;
 }

@@ -49,19 +49,12 @@ export interface AdminSessionRepositoryPort<TTransaction = unknown> {
     grantId: string,
     transaction: TTransaction,
   ): Promise<AdminSessionAuthenticationGrant | undefined>;
-  consumeGrant(
-    grantId: string,
-    consumedAt: Date,
-    transaction: TTransaction,
-  ): Promise<void>;
+  consumeGrant(grantId: string, consumedAt: Date, transaction: TTransaction): Promise<void>;
   findAccountForSession(
     accountId: string,
     transaction?: TTransaction,
   ): Promise<AdminSessionAccount | undefined>;
-  insertSession(
-    session: InsertAdminSessionRecord,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insertSession(session: InsertAdminSessionRecord, transaction: TTransaction): Promise<void>;
   findSessionForUpdate(
     sessionId: string,
     transaction: TTransaction,

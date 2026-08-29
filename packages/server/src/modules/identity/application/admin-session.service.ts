@@ -8,7 +8,10 @@ import {
   systemClock,
 } from '../../../core';
 import { AdminAccountStatus } from '../domain/admin-account-status';
-import { fingerprintAdminLoginValue, normalizeAdminLoginClientAddress } from '../domain/admin-login';
+import {
+  fingerprintAdminLoginValue,
+  normalizeAdminLoginClientAddress,
+} from '../domain/admin-login';
 import {
   AdminSessionRevokeReason,
   AdminSessionStatus,
@@ -25,7 +28,10 @@ import {
   type AdminSessionPolicy,
 } from '../domain/admin-session';
 import { Sha256AdminAuthenticationGrantTokenIssuer } from '../infrastructure/crypto/sha256-admin-authentication-grant-token-issuer';
-import type { AdminSessionRepositoryPort, AdminSessionRecord } from '../ports/admin-session.repository';
+import type {
+  AdminSessionRepositoryPort,
+  AdminSessionRecord,
+} from '../ports/admin-session.repository';
 import type { AdminSessionTokenIssuerPort } from '../ports/admin-session-token-issuer.port';
 
 export interface CreateAdminSessionInput {
@@ -223,10 +229,7 @@ export class AdminSessionService<TTransaction> {
 
       if (
         !session ||
-        !this.sessionTokenIssuer.matchesSessionToken(
-          input.sessionToken,
-          session.tokenDigest,
-        )
+        !this.sessionTokenIssuer.matchesSessionToken(input.sessionToken, session.tokenDigest)
       ) {
         throw createAdminSessionAuthenticationError();
       }
@@ -246,10 +249,7 @@ export class AdminSessionService<TTransaction> {
         throw createAdminSessionAuthenticationError();
       }
 
-      if (
-        this.policy.bindClientAddress &&
-        session.clientFingerprint !== clientFingerprint
-      ) {
+      if (this.policy.bindClientAddress && session.clientFingerprint !== clientFingerprint) {
         throw createAdminSessionAuthenticationError();
       }
 
@@ -311,10 +311,7 @@ export class AdminSessionService<TTransaction> {
       !cookieToken ||
       !headerToken ||
       cookieToken !== headerToken ||
-      !this.sessionTokenIssuer.matchesCsrfToken(
-        headerToken,
-        principal.csrfTokenDigest,
-      )
+      !this.sessionTokenIssuer.matchesCsrfToken(headerToken, principal.csrfTokenDigest)
     ) {
       throw createAdminSessionCsrfError();
     }
@@ -347,9 +344,7 @@ export class AdminSessionService<TTransaction> {
     principal: Readonly<AdminSessionPrincipal>,
   ): Promise<readonly Readonly<AdminSessionListItem>[]> {
     const now = this.clock.now();
-    const sessions = await this.repository.listSessionsForAccount(
-      principal.adminAccountId,
-    );
+    const sessions = await this.repository.listSessionsForAccount(principal.adminAccountId);
 
     return sessions.map((session) =>
       Object.freeze({
@@ -367,9 +362,7 @@ export class AdminSessionService<TTransaction> {
     );
   }
 
-  public async revokeOtherSessions(
-    principal: Readonly<AdminSessionPrincipal>,
-  ): Promise<number> {
+  public async revokeOtherSessions(principal: Readonly<AdminSessionPrincipal>): Promise<number> {
     const now = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
@@ -404,10 +397,7 @@ export class AdminSessionService<TTransaction> {
     const now = this.clock.now();
 
     await this.transactionRunner.run(async (transaction) => {
-      const target = await this.repository.findSessionForUpdate(
-        sessionId,
-        transaction,
-      );
+      const target = await this.repository.findSessionForUpdate(sessionId, transaction);
 
       if (!target || target.adminAccountId !== principal.adminAccountId) {
         throw new DomainError({
@@ -439,9 +429,7 @@ export class AdminSessionService<TTransaction> {
   }
 }
 
-function toPrincipal(
-  session: AdminSessionRecord,
-): Readonly<AdminSessionPrincipal> {
+function toPrincipal(session: AdminSessionRecord): Readonly<AdminSessionPrincipal> {
   return Object.freeze({
     sessionId: session.id,
     adminAccountId: session.adminAccountId,

@@ -18,10 +18,7 @@ import {
 } from '@atlas/server';
 
 import { PlatformModule } from '../platform/platform.module';
-import {
-  AUDIT_SERVICE,
-  TRANSACTION_RUNNER,
-} from '../platform/platform.tokens';
+import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { AdminCsrfGuard } from './admin-csrf.guard';
 import { AdminPermissionGuard } from './admin-permission.guard';
 import {
@@ -44,8 +41,7 @@ import {
     {
       provide: ADMIN_SESSION_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmAdminSessionRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmAdminSessionRepository(dataSource),
     },
     {
       provide: ADMIN_SESSION_TOKEN_ISSUER,
@@ -94,16 +90,12 @@ import {
           config.get('AUTH_LOGIN_FINGERPRINT_PEPPER', { infer: true }),
           config.get('AUTH_SESSION_FINGERPRINT_PEPPER', { infer: true }),
           {
-            idleTtlMs:
-              config.get('AUTH_SESSION_IDLE_SECONDS', { infer: true }) *
-              1_000,
+            idleTtlMs: config.get('AUTH_SESSION_IDLE_SECONDS', { infer: true }) * 1_000,
             absoluteTtlMs:
               config.get('AUTH_SESSION_ABSOLUTE_SECONDS', {
                 infer: true,
               }) * 1_000,
-            touchIntervalMs:
-              config.get('AUTH_SESSION_TOUCH_SECONDS', { infer: true }) *
-              1_000,
+            touchIntervalMs: config.get('AUTH_SESSION_TOUCH_SECONDS', { infer: true }) * 1_000,
             maximumActiveSessions: config.get('AUTH_SESSION_MAX_ACTIVE', {
               infer: true,
             }),
@@ -117,11 +109,6 @@ import {
     AdminCsrfGuard,
     AdminPermissionGuard,
   ],
-  exports: [
-    ADMIN_SESSION_SERVICE,
-    AdminSessionGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  ],
+  exports: [ADMIN_SESSION_SERVICE, AdminSessionGuard, AdminCsrfGuard, AdminPermissionGuard],
 })
 export class AdminSessionModule {}

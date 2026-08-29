@@ -37,18 +37,9 @@ import {
   type AdminCookieOptions,
   type AdminSessionCookieConfiguration,
 } from './admin-session.cookies';
-import {
-  AdminSessionGuard,
-  requireAdminSessionPrincipal,
-} from './admin-session.guard';
-import {
-  readSingleHeader,
-  type AdminSessionHttpRequest,
-} from './admin-session.request';
-import {
-  ADMIN_SESSION_COOKIE_CONFIGURATION,
-  ADMIN_SESSION_SERVICE,
-} from './admin-session.tokens';
+import { AdminSessionGuard, requireAdminSessionPrincipal } from './admin-session.guard';
+import { readSingleHeader, type AdminSessionHttpRequest } from './admin-session.request';
+import { ADMIN_SESSION_COOKIE_CONFIGURATION, ADMIN_SESSION_SERVICE } from './admin-session.tokens';
 import { AdminSessionExchangeDto } from './dto/admin-session-exchange.dto';
 
 interface CookieResponse {
@@ -81,8 +72,7 @@ export class AdminSessionController {
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')
   @ApiCreatedResponse({
-    description:
-      'The authentication grant was consumed and an administrator session was created.',
+    description: 'The authentication grant was consumed and an administrator session was created.',
   })
   @ApiUnauthorizedResponse({
     description: 'The authentication grant is invalid or expired.',
@@ -130,9 +120,7 @@ export class AdminSessionController {
   @ApiUnauthorizedResponse({
     description: 'An administrator session is required.',
   })
-  public currentSession(
-    @Req() request: AdminSessionHttpRequest,
-  ): { data: AdminSessionData } {
+  public currentSession(@Req() request: AdminSessionHttpRequest): { data: AdminSessionData } {
     return { data: toSessionData(requireAdminSessionPrincipal(request)) };
   }
 
@@ -160,9 +148,7 @@ export class AdminSessionController {
   public async listSessions(
     @Req() request: AdminSessionHttpRequest,
   ): Promise<{ data: readonly ReturnType<typeof toSessionListData>[] }> {
-    const sessions = await this.sessionService.listSessions(
-      requireAdminSessionPrincipal(request),
-    );
+    const sessions = await this.sessionService.listSessions(requireAdminSessionPrincipal(request));
 
     return { data: sessions.map(toSessionListData) };
   }
@@ -194,10 +180,7 @@ export class AdminSessionController {
     @Req() request: AdminSessionHttpRequest,
     @Param('sessionId', new ParseUUIDPipe()) sessionId: string,
   ): Promise<void> {
-    await this.sessionService.revokeSession(
-      requireAdminSessionPrincipal(request),
-      sessionId,
-    );
+    await this.sessionService.revokeSession(requireAdminSessionPrincipal(request), sessionId);
   }
 
   private clearCookies(response: CookieResponse): void {
@@ -205,16 +188,11 @@ export class AdminSessionController {
       this.cookies.sessionCookieName,
       createClearSessionCookieOptions(this.cookies),
     );
-    response.clearCookie(
-      this.cookies.csrfCookieName,
-      createClearCsrfCookieOptions(this.cookies),
-    );
+    response.clearCookie(this.cookies.csrfCookieName, createClearCsrfCookieOptions(this.cookies));
   }
 }
 
-function toSessionData(
-  session: Readonly<AdminSessionPrincipal>,
-): AdminSessionData {
+function toSessionData(session: Readonly<AdminSessionPrincipal>): AdminSessionData {
   return {
     id: session.sessionId,
     role: session.role,
@@ -236,9 +214,7 @@ function toSessionListData(session: Readonly<AdminSessionListItem>) {
     lastSeenAt: session.lastSeenAt.toISOString(),
     idleExpiresAt: session.idleExpiresAt.toISOString(),
     absoluteExpiresAt: session.absoluteExpiresAt.toISOString(),
-    ...(session.revokedAt
-      ? { revokedAt: session.revokedAt.toISOString() }
-      : {}),
+    ...(session.revokedAt ? { revokedAt: session.revokedAt.toISOString() } : {}),
     ...(session.revokeReason ? { revokeReason: session.revokeReason } : {}),
   };
 }

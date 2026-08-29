@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
 
 import {
   DomainError,
@@ -13,15 +8,9 @@ import {
 } from '@atlas/server';
 
 import { resolveClientAddress } from '../admin-auth/client-address';
-import {
-  readRequestCookie,
-  type AdminSessionCookieConfiguration,
-} from './admin-session.cookies';
+import { readRequestCookie, type AdminSessionCookieConfiguration } from './admin-session.cookies';
 import type { AdminSessionHttpRequest } from './admin-session.request';
-import {
-  ADMIN_SESSION_COOKIE_CONFIGURATION,
-  ADMIN_SESSION_SERVICE,
-} from './admin-session.tokens';
+import { ADMIN_SESSION_COOKIE_CONFIGURATION, ADMIN_SESSION_SERVICE } from './admin-session.tokens';
 
 @Injectable()
 export class AdminSessionGuard implements CanActivate {
@@ -33,13 +22,8 @@ export class AdminSessionGuard implements CanActivate {
   ) {}
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context
-      .switchToHttp()
-      .getRequest<AdminSessionHttpRequest>();
-    const sessionToken = readRequestCookie(
-      request.headers.cookie,
-      this.cookies.sessionCookieName,
-    );
+    const request = context.switchToHttp().getRequest<AdminSessionHttpRequest>();
+    const sessionToken = readRequestCookie(request.headers.cookie, this.cookies.sessionCookieName);
 
     if (!sessionToken) {
       throw createAuthenticationRequiredError();

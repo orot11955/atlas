@@ -7,8 +7,7 @@ export class AdminSessionExchangeDto {
   public grantId!: string;
 
   @ApiProperty({
-    description:
-      'Short-lived authentication grant returned after MFA verification.',
+    description: 'Short-lived authentication grant returned after MFA verification.',
   })
   @IsString()
   @Length(64, 512)
