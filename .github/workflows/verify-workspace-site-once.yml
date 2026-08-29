@@ -23,7 +23,7 @@ jobs:
         with:
           ref: feat/workspace-site-foundation
 
-      - name: Remove known unused imports
+      - name: Apply known quality fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -44,6 +44,32 @@ jobs:
               "import { In, type DataSource, type EntityManager } from 'typeorm';",
           )
           repository_path.write_text(repository_content, encoding='utf-8')
+
+          site_types_path = Path('apps/admin-web/src/features/sites/site-types.ts')
+          site_types_content = site_types_path.read_text(encoding='utf-8')
+          old = """const STATUS_TRANSITIONS: Readonly<Record<SiteStatus, readonly SiteStatus[]>> =
+  Object.freeze({
+    draft: Object.freeze(['active', 'disabled', 'archived']),
+    active: Object.freeze(['maintenance', 'disabled']),
+    maintenance: Object.freeze(['active', 'disabled']),
+    disabled: Object.freeze(['active', 'archived']),
+    archived: Object.freeze([]),
+  });
+"""
+          new = """const STATUS_TRANSITIONS = {
+  draft: ['active', 'disabled', 'archived'],
+  active: ['maintenance', 'disabled'],
+  maintenance: ['active', 'disabled'],
+  disabled: ['active', 'archived'],
+  archived: [],
+} as const satisfies Readonly<Record<SiteStatus, readonly SiteStatus[]>>;
+"""
+          if old not in site_types_content:
+              raise RuntimeError('Site transition block was not found.')
+          site_types_path.write_text(
+              site_types_content.replace(old, new, 1),
+              encoding='utf-8',
+          )
           PY
 
       - name: Setup Node.js
