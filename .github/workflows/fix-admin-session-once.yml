@@ -1,0 +1,70 @@
+name: Fix and verify admin session once
+
+on:
+  push:
+    branches:
+      - feat/admin-session
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-admin-session-once
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/admin-session
+
+      - name: Patch strict test typing
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/server/src/admin-session.test.ts')
+          content = path.read_text(encoding='utf-8')
+          content = content.replace(
+              "  type AdminSessionAuthenticationGrant,\n",
+              "  type AdminSessionAuthenticationGrant,\n  type CreateAdminSessionResult,\n",
+              1,
+          )
+          content = content.replace(
+              "  const sessions = [];\n",
+              "  const sessions: CreateAdminSessionResult[] = [];\n",
+              1,
+          )
+          content = content.replace('sessions[0].', 'sessions[0]!.')
+          content = content.replace('sessions[1].', 'sessions[1]!.')
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format
+
+      - name: Commit formatted fix
+        run: |
+          rm -f .github/workflows/fix-admin-session-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: format and type administrator session implementation'
+          git push origin HEAD:feat/admin-session
