@@ -42,8 +42,12 @@ const APPLICATION_ERROR_STATUS: Readonly<Record<string, number>> = {
   [ErrorCode.RATE_LIMITED]: HttpStatus.TOO_MANY_REQUESTS,
   [ErrorCode.REAUTH_REQUIRED]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.REQUEST_CONTEXT_REQUIRED]: HttpStatus.INTERNAL_SERVER_ERROR,
+  [ErrorCode.SITE_DOMAIN_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.SITE_KEY_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.SITE_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.VALIDATION_FAILED]: HttpStatus.BAD_REQUEST,
   [ErrorCode.VERSION_CONFLICT]: HttpStatus.CONFLICT,
+  [ErrorCode.WORKSPACE_NOT_FOUND]: HttpStatus.NOT_FOUND,
 };
 
 @Catch()

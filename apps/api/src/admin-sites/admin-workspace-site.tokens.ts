@@ -1,0 +1,4 @@
+export const WORKSPACE_REPOSITORY = Symbol('WORKSPACE_REPOSITORY');
+export const WORKSPACE_SERVICE = Symbol('WORKSPACE_SERVICE');
+export const SITE_REPOSITORY = Symbol('SITE_REPOSITORY');
+export const SITE_SERVICE = Symbol('SITE_SERVICE');
