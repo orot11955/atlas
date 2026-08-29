@@ -85,9 +85,7 @@ export function fingerprintAdminLoginValue(
 ): string {
   assertAdminLoginFingerprintPepper(pepper);
 
-  return createHmac('sha256', pepper)
-    .update(`${namespace}\u0000${value}`, 'utf8')
-    .digest('hex');
+  return createHmac('sha256', pepper).update(`${namespace}\u0000${value}`, 'utf8').digest('hex');
 }
 
 export function calculateFailedLoginState(

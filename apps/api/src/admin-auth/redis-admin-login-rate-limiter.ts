@@ -48,9 +48,7 @@ export class RedisAdminLoginRateLimiter implements AdminLoginRateLimiterPort {
     this.keyPrefix = options.keyPrefix ?? 'atlas:admin-login';
   }
 
-  public async consume(
-    input: ConsumeAdminLoginRateLimitInput,
-  ): Promise<AdminLoginRateLimitResult> {
+  public async consume(input: ConsumeAdminLoginRateLimitInput): Promise<AdminLoginRateLimitResult> {
     const [ipCounter, accountCounter] = await Promise.all([
       this.increment(this.createKey('ip', input.clientAddress)),
       this.increment(this.createKey('account', input.email)),

@@ -49,8 +49,7 @@ import { RedisAdminLoginRateLimiter } from './redis-admin-login-rate-limiter';
     {
       provide: ADMIN_AUTHENTICATION_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmAdminAuthenticationRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmAdminAuthenticationRepository(dataSource),
     },
     {
       provide: ADMIN_PASSWORD_HASHER,
@@ -63,10 +62,7 @@ import { RedisAdminLoginRateLimiter } from './redis-admin-login-rate-limiter';
     {
       provide: ADMIN_LOGIN_RATE_LIMITER,
       inject: [RedisClientService, ConfigService],
-      useFactory: (
-        redis: RedisClientService,
-        config: ConfigService<ApiEnvironment, true>,
-      ) =>
+      useFactory: (redis: RedisClientService, config: ConfigService<ApiEnvironment, true>) =>
         new RedisAdminLoginRateLimiter(redis.client, {
           ipLimit: config.get('AUTH_LOGIN_IP_LIMIT', { infer: true }),
           accountLimit: config.get('AUTH_LOGIN_ACCOUNT_LIMIT', { infer: true }),
@@ -104,10 +100,8 @@ import { RedisAdminLoginRateLimiter } from './redis-admin-login-rate-limiter';
           config.get('AUTH_LOGIN_FINGERPRINT_PEPPER', { infer: true }),
           {
             failureThreshold: config.get('AUTH_LOGIN_FAILURE_THRESHOLD', { infer: true }),
-            lockDurationMs:
-              config.get('AUTH_LOGIN_LOCK_SECONDS', { infer: true }) * 1_000,
-            challengeTtlMs:
-              config.get('AUTH_MFA_CHALLENGE_SECONDS', { infer: true }) * 1_000,
+            lockDurationMs: config.get('AUTH_LOGIN_LOCK_SECONDS', { infer: true }) * 1_000,
+            challengeTtlMs: config.get('AUTH_MFA_CHALLENGE_SECONDS', { infer: true }) * 1_000,
           },
         ),
     },

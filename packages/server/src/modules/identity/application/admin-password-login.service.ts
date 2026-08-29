@@ -87,16 +87,8 @@ export class AdminPasswordLoginService<TTransaction> {
     }
 
     const attemptedAt = this.clock.now();
-    const emailFingerprint = fingerprintAdminLoginValue(
-      this.fingerprintPepper,
-      'email',
-      email,
-    );
-    const ipFingerprint = fingerprintAdminLoginValue(
-      this.fingerprintPepper,
-      'ip',
-      clientAddress,
-    );
+    const emailFingerprint = fingerprintAdminLoginValue(this.fingerprintPepper, 'email', email);
+    const ipFingerprint = fingerprintAdminLoginValue(this.fingerprintPepper, 'ip', clientAddress);
     const account = await this.repository.findByEmail(email);
     const passwordHash = account?.passwordHash ?? DUMMY_PASSWORD_HASH;
     const passwordValid = await this.passwordHasher.verify(passwordHash, input.password);
