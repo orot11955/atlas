@@ -26,6 +26,13 @@
 - Loading, Empty/Not Found, Error 상태 기반
 - PostgreSQL Migration `up → down → up` CI
 
+Admin Web API Client 경계:
+
+- Admin API 상대 경로만 허용
+- 절대 URL과 직접·인코딩된 Path Traversal 차단
+- 경계 오류는 Network Error로 변환하지 않고 요청 전에 거부
+- `csrfToken`, `responseType` 같은 Client 전용 옵션은 `fetch`에 전달하지 않음
+
 주요 Pull Request:
 
 - [#2 Shared server package boundary](https://github.com/orot11955/atlas/pull/2)
