@@ -180,6 +180,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@atlas/server':
+        specifier: workspace:*
+        version: link:../server
       dotenv:
         specifier: ^17.2.2
         version: 17.4.2

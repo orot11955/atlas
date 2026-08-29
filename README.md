@@ -29,13 +29,25 @@ pnpm install --frozen-lockfile
 
 pnpm infra:up
 pnpm db:migration:run
+pnpm admin:bootstrap-owner
 pnpm dev
+```
+
+`admin:bootstrap-owner`는 OWNER Email과 Password를 대화형으로 입력받습니다. 자동화 환경에서는 Password를 명령행 인자로 전달하지 않고 표준 입력을 사용합니다.
+
+```bash
+printf '%s\n%s\n' "$OWNER_PASSWORD" "$OWNER_PASSWORD" |
+  pnpm admin:bootstrap-owner -- \
+    --email owner@example.com \
+    --display-name 'Atlas Owner' \
+    --password-stdin
 ```
 
 또는 Bootstrap Script를 사용합니다.
 
 ```bash
 ./scripts/bootstrap.sh
+pnpm admin:bootstrap-owner
 pnpm dev
 ```
 
@@ -66,6 +78,7 @@ pnpm infra:reset            # Volume까지 삭제
 pnpm stack:up               # 애플리케이션 포함 전체 Docker Stack 시작
 pnpm stack:down             # 전체 Docker Stack 종료
 
+pnpm admin:bootstrap-owner  # 최초 OWNER 계정 생성
 pnpm db:migration:run       # Migration 적용
 pnpm db:migration:revert    # 마지막 Migration 되돌리기
 pnpm db:migration:show      # Migration 상태 확인
@@ -98,7 +111,7 @@ Repository Foundation
 → Production Release
 ```
 
-현재 `Repository Foundation`과 `Server Boundary & Platform Kernel Lite`를 완료했으며 다음 구현 대상은 `Admin Identity & Shell`입니다.
+현재 `Repository Foundation`과 `Server Boundary & Platform Kernel Lite`를 완료했으며 `Admin Identity & Shell`을 구현하고 있습니다.
 
 ## Milestone
 
