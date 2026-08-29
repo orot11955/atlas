@@ -1,0 +1,56 @@
+name: Format admin login hardening once
+
+on:
+  push:
+    branches:
+      - fix/admin-login-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: fix/admin-login-hardening
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format changed TypeScript files
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/admin-auth/admin-auth.module.ts \
+            apps/api/src/admin-auth/redis-admin-login-rate-limiter.ts \
+            packages/server/src/admin-password-login.test.ts \
+            packages/server/src/modules/identity/application/admin-password-login.service.ts \
+            packages/server/src/modules/identity/domain/admin-login.ts
+
+      - name: Commit formatting
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            apps/api/src/admin-auth \
+            packages/server/src/admin-password-login.test.ts \
+            packages/server/src/modules/identity
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'style: format admin login hardening'
+          git push origin HEAD:fix/admin-login-hardening
