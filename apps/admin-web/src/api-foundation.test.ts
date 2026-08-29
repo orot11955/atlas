@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { AtlasApiClient, AtlasApiError, problemToFormErrors } from './lib/api';
+import {
+  AtlasApiClient,
+  AtlasApiError,
+  problemToFormErrors,
+  readCookieValue,
+} from './lib/api';
 
 test('AtlasApiClient serializes JSON, includes credentials and attaches CSRF tokens', async () => {
   let capturedUrl = '';
@@ -116,4 +121,22 @@ test('AtlasApiClient uses a stable network error without exposing transport deta
     assert.equal(apiError.problem.detail.includes('secret'), false);
     return true;
   });
+});
+
+test('readCookieValue returns one decoded CSRF Cookie and rejects duplicates', () => {
+  assert.equal(
+    readCookieValue(
+      'theme=dark; atlas_admin_csrf=atlas_csrf_value%2Eone; locale=ko',
+      'atlas_admin_csrf',
+    ),
+    'atlas_csrf_value.one',
+  );
+  assert.equal(
+    readCookieValue(
+      'atlas_admin_csrf=first; atlas_admin_csrf=second',
+      'atlas_admin_csrf',
+    ),
+    undefined,
+  );
+  assert.equal(readCookieValue('theme=dark', 'atlas_admin_csrf'), undefined);
 });
