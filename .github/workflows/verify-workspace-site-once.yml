@@ -23,16 +23,27 @@ jobs:
         with:
           ref: feat/workspace-site-foundation
 
-      - name: Remove known unused test imports
+      - name: Remove known unused imports
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('packages/server/src/workspace-site.test.ts')
-          content = path.read_text(encoding='utf-8')
-          content = content.replace('  AdminRole,\n', '')
-          content = content.replace('  type TouchAdminSessionInput,\n', '')
-          path.write_text(content, encoding='utf-8')
+          test_path = Path('packages/server/src/workspace-site.test.ts')
+          test_content = test_path.read_text(encoding='utf-8')
+          test_content = test_content.replace('  AdminRole,\n', '')
+          test_content = test_content.replace('  type TouchAdminSessionInput,\n', '')
+          test_path.write_text(test_content, encoding='utf-8')
+
+          repository_path = Path(
+              'packages/server/src/modules/site/infrastructure/persistence/'
+              'typeorm-site.repository.ts'
+          )
+          repository_content = repository_path.read_text(encoding='utf-8')
+          repository_content = repository_content.replace(
+              "import { In, type DataSource, type EntityManager, type Repository } from 'typeorm';",
+              "import { In, type DataSource, type EntityManager } from 'typeorm';",
+          )
+          repository_path.write_text(repository_content, encoding='utf-8')
           PY
 
       - name: Setup Node.js
