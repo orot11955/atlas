@@ -1,43 +1,44 @@
 # Atlas 플랫폼 설계
 
-- 문서 상태: Draft v0.1
+- 문서 상태: Draft v0.2
 - 작성일: 2026-08-29
 - 우선 구현 대상: 관리자 패널
-- Backend: NestJS
-- Object Storage: AWS S3
+- Admin Web: Next.js + TypeScript
+- Backend: NestJS + TypeScript
+- Object Storage: MinIO
 - 기본 배포 모델: Modular Monolith + Worker
 
 ---
 
 ## 1. 제품 정의
 
-Atlas는 개인 자료, 프로젝트 이력, 서비스 배포 상태, 블로그 콘텐츠, 회원을 하나의 관리자 패널에서 관리하는 개인 운영 플랫폼이다.
+Atlas는 개인 자료, 프로젝트 이력, 서비스 배포 상태, 블로그 콘텐츠와 회원을 하나의 관리자 패널에서 관리하는 개인 운영 플랫폼이다.
 
-초기에는 관리자 패널과 API를 먼저 개발한다. 실제 블로그 애플리케이션은 이후 별도 저장소와 별도 배포 단위로 만들며, Atlas의 Delivery API를 통해 게시된 콘텐츠를 조회한다.
+초기에는 관리자 패널과 API를 먼저 개발한다. 실제 블로그 애플리케이션은 이후 별도 저장소와 별도 배포 단위로 만들며, Atlas의 Delivery API와 Webhook을 사용한다.
 
 ```text
 Atlas Admin
 ├─ 개인 자료 관리
 ├─ 프로젝트 및 프로젝트 이력 관리
-├─ 서비스와 환경 관리
-├─ 배포 상태 및 배포 이력 관리
+├─ 서비스·환경·배포 상태 관리
 ├─ 블로그 콘텐츠 작성·검수·게시
 ├─ 다중 블로그 관리
 ├─ 회원 관리
 ├─ API Client 및 Webhook 관리
 └─ Audit Log
 
-External Blog Applications
-└─ Atlas Delivery API를 통해 게시된 콘텐츠 조회
+External Site Applications
+└─ Atlas Delivery API로 게시된 콘텐츠 조회
 ```
 
-Atlas는 블로그 화면을 직접 제공하는 서비스가 아니라 다음 역할을 담당한다.
+Atlas는 블로그 화면 자체를 제공하는 서비스가 아니라 다음 역할을 담당한다.
 
 ```text
 Control Plane
-├─ 콘텐츠 작성과 운영 제어
-├─ 프로젝트와 배포 정보 관리
+├─ 콘텐츠 제작과 게시 제어
+├─ 프로젝트와 운영 정보 관리
 ├─ 회원과 권한 관리
+├─ MinIO 미디어 관리
 └─ 외부 애플리케이션용 API 제공
 ```
 
@@ -47,15 +48,16 @@ Control Plane
 
 ### 2.1 목표
 
-- 한 관리자 패널에서 여러 블로그를 관리한다.
-- 동일한 원본 콘텐츠를 하나 이상의 블로그에 게시할 수 있다.
-- 블로그마다 slug, SEO, 카테고리, 게시 일정, 공개 여부를 다르게 관리한다.
-- 편집 중인 내용과 현재 외부에 제공되는 게시본을 분리한다.
-- 블로그 애플리케이션은 Atlas 데이터베이스에 직접 접근하지 않는다.
-- AWS S3를 원본 파일과 공개용 미디어 Variant 저장소로 사용한다.
-- 프로젝트, Release, 배포, Health Check 이력을 연결한다.
+- 한 관리자 패널에서 여러 블로그와 사이트를 관리한다.
+- 동일한 원본 콘텐츠를 하나 이상의 Site에 게시할 수 있다.
+- Site마다 slug, route, 제목, 요약, SEO, 분류, 게시 일정과 공개 범위를 다르게 관리한다.
+- 편집 중인 콘텐츠와 외부에 제공되는 게시본을 분리한다.
+- 외부 Site 애플리케이션은 Atlas 데이터베이스에 직접 접근하지 않는다.
+- MinIO를 원본 파일, 처리 중 파일, 공개용 미디어 Variant 저장소로 사용한다.
+- 프로젝트, Repository, Release, 배포, Health Check 이력을 연결한다.
 - 관리자 계정, 일반 회원, API Client의 인증 경계를 분리한다.
 - 모든 변경 작업을 Audit Log로 남긴다.
+- 이후 Site가 늘어나도 핵심 Schema와 API 경계를 유지한다.
 
 ### 2.2 초기 제외 범위
 
@@ -74,7 +76,7 @@ Control Plane
 
 ### 3.1 다중 블로그는 `Site`로 표현한다
 
-Atlas에서 블로그 하나를 `Site`라고 부른다.
+Atlas에서 블로그, 포트폴리오, 문서 사이트처럼 외부에 콘텐츠를 제공하는 하나의 애플리케이션을 `Site`라고 부른다.
 
 ```text
 Workspace
@@ -83,48 +85,58 @@ Workspace
    ├─ Delivery API Client
    ├─ Content Assignment
    ├─ Publication
-   ├─ Member
+   ├─ Membership
    ├─ Webhook
    └─ Site Setting
 ```
 
-초기에는 Workspace가 하나이고 OWNER도 한 명이지만, 데이터 경계는 처음부터 Workspace 단위로 둔다.
+초기에는 Workspace가 하나이고 OWNER도 한 명이지만 데이터 경계는 처음부터 Workspace 단위로 둔다.
 
 ```text
 Workspace: orot
 ├─ Site: main-blog
 ├─ Site: dev-log
-└─ Site: photo-blog
+├─ Site: photo-blog
+└─ Site: docs
 ```
 
-`Site`를 도입하면 블로그가 추가되어도 API, 콘텐츠, 회원, Webhook, 도메인을 분리해 관리할 수 있다.
+Site Type은 다음처럼 확장한다.
+
+```text
+BLOG
+PORTFOLIO
+DOCS
+PHOTO
+OTHER
+```
 
 ### 3.2 원본 콘텐츠와 Site 게시 설정을 분리한다
 
-`Content`는 Workspace에 속하는 원본 콘텐츠다. 어느 블로그에 게시할지는 `ContentSite`에서 결정한다.
+`Content`는 Workspace에 속하는 원본 콘텐츠다. 어느 Site에 어떤 형태로 게시할지는 `ContentSite`에서 결정한다.
 
 ```text
 Content
-├─ 원본 제목과 본문
-├─ Revision
+├─ 공통 원본 제목과 본문
+├─ ContentRevision
 └─ 공통 Metadata
 
 ContentSite
 ├─ 대상 Site
-├─ Site별 slug
+├─ Site별 slug와 route
 ├─ Site별 제목·요약·SEO Override
-├─ Site별 카테고리와 태그
+├─ Site별 Category와 Tag
+├─ Site별 공개 범위
 ├─ Site별 게시 상태
 └─ Site별 예약 시간
 ```
 
-따라서 하나의 글을 여러 블로그에 다음처럼 다르게 게시할 수 있다.
+따라서 하나의 원본 글을 여러 Site에 서로 다른 주소와 표현으로 게시할 수 있다.
 
 ```text
 Content: NestJS 배포 구조
 ├─ main-blog
 │  ├─ /writing/nestjs-deployment
-│  └─ 일반 독자용 요약
+│  └─ 일반 독자용 제목과 요약
 └─ dev-log
    ├─ /posts/nestjs-deployment-internals
    └─ 개발자용 제목과 상세 설명
@@ -148,11 +160,11 @@ Delivery API는 `Content`나 최신 `ContentRevision`을 직접 반환하지 않
 이 구조는 다음을 보장한다.
 
 - 게시 중인 글을 수정해도 기존 공개본 유지
-- 게시 실패 시 기존 공개본 유지
+- 게시 또는 Webhook 실패 시 기존 공개본 유지
 - Site별 게시본 독립 유지
-- 게시본 Revision 확인
+- 게시 당시 Metadata와 Asset Manifest 보존
 - 이전 게시본 복구
-- ETag와 CDN 캐시 안정성
+- ETag와 Cache 안정성
 
 ### 3.4 API 경계를 분리한다
 
@@ -161,16 +173,29 @@ Delivery API는 `Content`나 최신 `ContentRevision`을 직접 반환하지 않
 └─ 관리자 패널 전용
 
 /api/delivery/v1
-└─ 블로그 서버가 게시 콘텐츠를 조회
+└─ 외부 Site 서버의 게시 콘텐츠 조회
 
 /api/integration/v1
-└─ CI/CD, Gitea, 외부 시스템 Callback
+└─ CI/CD, Gitea, 배포 Callback
 
 /api/member/v1
-└─ 향후 블로그 회원 인증과 내 정보 기능
+└─ 향후 Site 회원 인증과 내 정보 기능
 ```
 
 각 API는 인증 방식과 권한 모델을 공유하지 않는다.
+
+### 3.5 MinIO 의존성은 Storage Port 뒤에 둔다
+
+Domain Module이 MinIO SDK를 직접 호출하지 않는다.
+
+```text
+Media Application Service
+→ ObjectStoragePort
+→ MinioObjectStorageAdapter
+→ MinIO
+```
+
+초기 구현은 MinIO로 고정하지만 Object Key, Bucket 정책과 공개 URL 생성 규칙은 Adapter에 캡슐화한다.
 
 ---
 
@@ -181,21 +206,23 @@ flowchart LR
     A[Admin Browser] -->|Admin Session| AW[Admin Web / Next.js]
     AW -->|Admin API| API[Atlas API / NestJS]
 
-    B1[Blog A / Next.js] -->|Site API Key| API
-    B2[Blog B / Next.js] -->|Site API Key| API
+    B1[Site A / Next.js] -->|Site API Key| API
+    B2[Site B / Next.js] -->|Site API Key| API
     CI[Gitea Actions / Deploy Script] -->|Integration API Key| API
 
     API --> PG[(PostgreSQL)]
     API --> REDIS[(Redis)]
-    API --> S3[(AWS S3)]
+    API --> MINIO[(MinIO)]
     API --> OUTBOX[(Transactional Outbox)]
 
     REDIS --> WORKER[Atlas Worker / NestJS]
     OUTBOX --> WORKER
 
-    WORKER --> S3
-    WORKER --> WH1[Blog A Revalidation Webhook]
-    WORKER --> WH2[Blog B Revalidation Webhook]
+    WORKER --> MINIO
+    WORKER --> WH1[Site A Revalidation Webhook]
+    WORKER --> WH2[Site B Revalidation Webhook]
+
+    PUBLIC[assets.example.dev] -->|GET/HEAD only| MINIO
 ```
 
 ### 4.1 초기 배포 단위
@@ -216,8 +243,10 @@ postgres
 redis
 └─ Queue, 분산 Lock, 짧은 Cache
 
-s3
-└─ 업로드 원본과 공개용 Variant
+minio
+├─ Private 원본
+├─ 처리 중 Object
+└─ 공개용 Variant
 ```
 
 API는 초기부터 여러 서비스로 쪼개지 않는다. 하나의 NestJS Modular Monolith로 만들고 Module과 API 경계만 명확히 분리한다.
@@ -249,6 +278,7 @@ PostgreSQL
 Redis
 BullMQ
 Passport
+Argon2id
 class-validator / class-transformer
 @nestjs/swagger
 Pino structured logging
@@ -257,14 +287,16 @@ Pino structured logging
 ### 5.3 Storage와 운영
 
 ```text
-AWS S3
-CloudFront 또는 CDN
+MinIO
+MinIO JavaScript Client
 Docker Compose
 Nginx
 OpenAPI
 Prometheus metrics
 Loki-compatible structured logs
 ```
+
+MinIO는 S3-compatible protocol을 제공하지만 Atlas의 저장소 Provider와 운영 기준은 MinIO로 고정한다.
 
 ### 5.4 저장소 구조
 
@@ -278,11 +310,16 @@ atlas/
 │  ├─ contracts/
 │  ├─ database/
 │  ├─ config/
+│  ├─ storage/
 │  └─ shared/
 ├─ docs/
-│  └─ atlas-platform-design.md
+│  ├─ atlas-platform-design.md
+│  └─ branch-strategy.md
 ├─ infra/
 │  ├─ compose/
+│  ├─ minio/
+│  │  ├─ policies/
+│  │  └─ bootstrap/
 │  ├─ nginx/
 │  └─ scripts/
 ├─ package.json
@@ -290,7 +327,7 @@ atlas/
 └─ turbo.json
 ```
 
-`apps/api`와 `apps/worker`는 같은 Domain Module과 Database Package를 재사용하되 실행 Entry Point는 분리한다.
+`apps/api`와 `apps/worker`는 같은 Domain Module, Database Package와 Storage Package를 재사용하되 실행 Entry Point는 분리한다.
 
 ---
 
@@ -351,17 +388,32 @@ content/
    └─ dto/
 ```
 
-처음부터 완전한 Clean Architecture를 강제하기보다 다음 의존성 규칙을 지킨다.
+의존성 규칙:
 
 ```text
 Controller
 → Application Service
 → Domain Policy
-→ Repository Interface
-→ TypeORM Adapter
+→ Repository or Port Interface
+→ TypeORM or MinIO Adapter
 ```
 
-Controller에서 TypeORM Repository를 직접 사용하지 않는다.
+Controller에서 TypeORM Repository 또는 MinIO Client를 직접 사용하지 않는다.
+
+### 6.1 Storage Port 예시
+
+```ts
+export interface ObjectStoragePort {
+  createPresignedUpload(input: CreateUploadInput): Promise<PresignedUpload>;
+  statObject(bucket: string, objectKey: string): Promise<ObjectMetadata>;
+  getObject(bucket: string, objectKey: string): Promise<NodeJS.ReadableStream>;
+  putObject(input: PutObjectInput): Promise<void>;
+  removeObject(bucket: string, objectKey: string): Promise<void>;
+  copyObject(input: CopyObjectInput): Promise<void>;
+}
+```
+
+MinIO 관련 Endpoint, Bucket, Credential과 URL 생성은 `MinioObjectStorageAdapter`와 Config Module 안에서만 다룬다.
 
 ---
 
@@ -425,16 +477,6 @@ DISABLED
 ARCHIVED
 ```
 
-`site_type` 예시:
-
-```text
-BLOG
-PORTFOLIO
-DOCS
-PHOTO
-OTHER
-```
-
 ### 7.3 Site Domain
 
 ```text
@@ -479,6 +521,7 @@ feed
 member-features
 content-types
 webhook-policy
+asset-base-url
 ```
 
 ---
@@ -492,10 +535,10 @@ AdminAccount
 └─ 관리자 패널 사용자
 
 Member
-└─ 블로그 일반 회원
+└─ 외부 Site 일반 회원
 
 ApiClient
-└─ 블로그 서버, CI, 외부 서비스
+└─ Site 서버, CI, 외부 시스템
 
 SystemActor
 └─ Worker와 예약 작업
@@ -568,11 +611,11 @@ api-client.manage
 audit.read
 ```
 
-모든 조회는 `workspaceId`를 기준으로 제한하고, Site 범위 권한이 있으면 `siteId`까지 제한한다.
+모든 조회는 `workspaceId`를 기준으로 제한하고 Site 범위 권한이 있으면 `siteId`까지 제한한다.
 
 ### 8.4 Delivery API 인증
 
-외부 블로그는 Server-to-server API Key를 사용한다.
+외부 Site는 Server-to-server API Key를 사용한다.
 
 ```http
 Authorization: Bearer atlas_live_{keyId}.{secret}
@@ -625,13 +668,11 @@ release:write
 health:write
 ```
 
-블로그용 Key와 CI용 Key를 공유하지 않는다.
-
-API Key는 브라우저 Bundle에 포함하지 않는다. 블로그의 Next.js Server Component, Route Handler 또는 BFF에서만 사용한다.
+Site용 Key와 CI용 Key를 공유하지 않는다. API Key는 브라우저 Bundle에 포함하지 않고 Site의 Server Component, Route Handler 또는 BFF에서만 사용한다.
 
 ### 8.5 Webhook 인증
 
-Atlas가 블로그에 Webhook을 보낼 때 HMAC SHA-256 서명을 사용한다.
+Atlas가 Site에 Webhook을 보낼 때 HMAC SHA-256 서명을 사용한다.
 
 ```http
 X-Atlas-Event-Id: evt_...
@@ -737,8 +778,6 @@ Revision은 생성 후 수정하지 않는다.
 
 ### 9.3 Content Site Assignment
 
-`ContentSite`는 원본 콘텐츠를 특정 Site에 배치하는 설정이다.
-
 ```text
 content_sites
 - id UUIDv7 PK
@@ -828,13 +867,7 @@ SUPERSEDED
 WITHDRAWN
 ```
 
-제약:
-
-```text
-UNIQUE(content_site_id, publication_number)
-```
-
-동일 `content_site_id`에는 ACTIVE Publication이 최대 하나만 존재하도록 PostgreSQL Partial Unique Index를 적용한다.
+동일 `content_site_id`에는 ACTIVE Publication이 최대 하나만 존재하도록 Partial Unique Index를 적용한다.
 
 ```sql
 CREATE UNIQUE INDEX uq_content_publication_active
@@ -926,7 +959,7 @@ sequenceDiagram
     participant D as PostgreSQL
     participant Q as Outbox/BullMQ
     participant W as Worker
-    participant B as Blog
+    participant B as Site
 
     U->>A: Publish(contentId, siteId, revisionId)
     A->>A: 권한·Revision·Slug·Asset 검증
@@ -934,13 +967,12 @@ sequenceDiagram
     A->>D: Publication Snapshot 생성
     A->>D: 이전 ACTIVE를 SUPERSEDED 처리
     A->>D: 새 Publication을 ACTIVE 처리
-    A->>D: Outbox Event 기록
-    A->>D: Audit 기록
+    A->>D: Outbox Event와 Audit 기록
     A->>D: Commit
     A-->>U: Publication ID 반환
     Q->>W: content.published
     W->>B: Revalidation Webhook
-    W->>D: Delivery 결과와 Webhook 결과 기록
+    W->>D: Webhook 결과 기록
 ```
 
 ### 10.3 게시 검증
@@ -956,7 +988,7 @@ sequenceDiagram
 - 허용되지 않은 HTML 또는 MDX Component 없음
 - 참조 Asset 존재
 - 처리 중 또는 실패한 Asset 없음
-- 비공개 Asset이 공개 Publication에 포함되지 않음
+- Private 원본이 공개 응답에 직접 포함되지 않음
 - 내부 링크 대상 유효
 - Site별 SEO 규칙 유효
 
@@ -973,75 +1005,140 @@ Admin에 검증 오류 반환
 Webhook 또는 Revalidation 실패:
 
 ```text
-새 Publication은 ACTIVE 유지 가능
+새 Publication은 ACTIVE 유지
 Delivery API는 정상 제공
 WebhookDelivery를 FAILED로 기록
 재시도 Queue 등록
 관리자 Dashboard에 경고 표시
 ```
 
-블로그 Revalidation 실패를 콘텐츠 게시 실패와 동일하게 취급하지 않는다. Atlas Delivery API가 정상 제공하면 게시 데이터 자체는 유효하다.
+Site Revalidation 실패를 콘텐츠 게시 실패와 동일하게 취급하지 않는다. Atlas Delivery API가 정상 제공하면 게시 데이터 자체는 유효하다.
 
 ---
 
-## 11. AWS S3 미디어 설계
+## 11. MinIO 미디어 설계
 
 ### 11.1 기본 원칙
 
-- S3 Bucket의 Public Access를 차단한다.
-- 원본은 항상 Private Prefix에 저장한다.
-- 공개 이미지는 Worker가 만든 Variant만 CDN을 통해 제공한다.
-- S3 Access Key 원문을 DB에 저장하지 않는다.
-- 배포 환경에서는 IAM Role 또는 환경 Secret을 사용한다.
-- 본문에는 S3 Object URL 대신 `asset://{assetId}`를 저장한다.
-- Publication 생성 시 `asset://` 참조를 CDN URL 또는 Render Data로 변환한다.
+- 저장소 Provider는 MinIO로 고정한다.
+- MinIO Root Credential은 Bootstrap에만 사용하고 애플리케이션에는 제공하지 않는다.
+- API, Worker, Backup은 각각 별도 MinIO Service Account와 최소 권한 Policy를 사용한다.
+- 원본은 항상 Private Bucket에 저장한다.
+- 처리 중 Object와 공개 Variant를 별도 Bucket으로 분리한다.
+- 본문에는 MinIO URL이나 Object Key 대신 `asset://{assetId}`를 저장한다.
+- Publication 생성 시 `asset://` 참조를 공개 Asset URL 또는 Render Data로 변환한다.
+- MinIO Console 포트는 외부 인터넷에 공개하지 않는다.
+- Delivery API에서 Bucket 이름, 내부 Endpoint, Object Key를 노출하지 않는다.
 
-### 11.2 Bucket과 Prefix
+### 11.2 Bucket 구조
 
-초기에는 하나의 Bucket과 Prefix 분리를 사용한다.
-
-```text
-s3://atlas-media/
-├─ private/
-│  └─ workspaces/{workspaceId}/assets/{assetId}/original/{filename}
-├─ processing/
-│  └─ workspaces/{workspaceId}/assets/{assetId}/{jobId}/...
-└─ public/
-   └─ assets/{assetId}/{contentHash}/{variant}.{ext}
-```
-
-규모나 보안 요구가 커지면 Private Bucket과 Delivery Bucket을 분리한다.
+초기부터 접근 목적에 따라 Bucket을 분리한다.
 
 ```text
-atlas-media-private
-atlas-media-delivery
+atlas-private
+└─ workspaces/{workspaceId}/assets/{assetId}/original/{safeFilename}
+
+atlas-processing
+└─ workspaces/{workspaceId}/assets/{assetId}/jobs/{jobId}/...
+
+atlas-public
+└─ assets/{assetId}/{contentHash}/{variant}.{ext}
 ```
 
-### 11.3 Upload 흐름
+Bucket 정책:
+
+| Bucket | API | Worker | 외부 익명 접근 |
+|---|---:|---:|---:|
+| `atlas-private` | 업로드·조회 검증 | 읽기 | 차단 |
+| `atlas-processing` | 제한 | 읽기·쓰기·삭제 | 차단 |
+| `atlas-public` | Metadata 조회 | 읽기·쓰기·삭제 | Nginx 경유 GET/HEAD만 |
+
+`atlas-public`을 MinIO Endpoint로 직접 공개하지 않고 `assets.example.dev`를 통해 제공한다.
+
+### 11.3 Endpoint 분리
+
+```text
+Internal MinIO API
+└─ http://minio:9000
+
+MinIO Console
+└─ http://minio:9001
+   └─ 내부망 또는 관리자 VPN만 허용
+
+Admin Upload Endpoint
+└─ https://upload.example.dev
+   └─ Nginx → MinIO API
+
+Public Asset Endpoint
+└─ https://assets.example.dev
+   └─ Nginx → atlas-public GET/HEAD
+```
+
+API와 Worker의 일반 Object 작업은 Internal Endpoint를 사용한다. 브라우저용 Presigned Upload는 브라우저가 접근 가능한 Upload Endpoint를 기준으로 생성한다.
+
+서명 URL의 Host와 실제 요청 Host가 달라지지 않도록 Server용 Client와 Presign용 Client를 분리할 수 있다.
+
+```text
+MinioInternalClient
+└─ http://minio:9000
+
+MinioPresignClient
+└─ https://upload.example.dev
+```
+
+### 11.4 환경 변수
+
+```text
+MINIO_INTERNAL_ENDPOINT=http://minio:9000
+MINIO_PRESIGN_ENDPOINT=https://upload.example.dev
+MINIO_USE_SSL=false
+MINIO_PRESIGN_USE_SSL=true
+MINIO_ACCESS_KEY=...
+MINIO_SECRET_KEY=...
+MINIO_BUCKET_PRIVATE=atlas-private
+MINIO_BUCKET_PROCESSING=atlas-processing
+MINIO_BUCKET_PUBLIC=atlas-public
+ASSET_PUBLIC_BASE_URL=https://assets.example.dev
+```
+
+Credential은 환경 Secret 또는 별도 Secret Store에서 주입하고 DB와 로그에 저장하지 않는다.
+
+### 11.5 Upload 흐름
 
 ```mermaid
 sequenceDiagram
     participant U as Admin Web
     participant A as Atlas API
-    participant S as AWS S3
+    participant M as MinIO
     participant W as Worker
     participant D as PostgreSQL
 
     U->>A: Upload Session 생성
     A->>D: UploadSession 저장
-    A-->>U: Presigned PUT/POST 반환
-    U->>S: 원본 직접 업로드
+    A-->>U: Presigned PUT URL 반환
+    U->>M: atlas-private에 원본 직접 업로드
     U->>A: Upload Complete
-    A->>S: HeadObject 검증
+    A->>M: statObject 검증
     A->>D: Asset 상태 UPLOADED
     A->>W: media.process Queue
-    W->>S: 원본 읽기
+    W->>M: 원본 읽기
     W->>W: EXIF 제거·Resize·Format 변환
-    W->>S: Variant 저장
+    W->>M: atlas-public에 Variant 저장
     W->>D: Asset READY
 ```
 
-### 11.4 Asset 모델
+Upload Session 생성 시 다음을 고정한다.
+
+- 허용 MIME Type
+- 최대 크기
+- Object Key
+- 만료 시각
+- 예상 Checksum
+- Workspace와 생성자
+
+완료 API는 Client가 보낸 Metadata를 신뢰하지 않고 MinIO `statObject` 결과와 실제 Checksum을 검증한다.
+
+### 11.6 Asset 모델
 
 ```text
 assets
@@ -1054,7 +1151,8 @@ assets
 - checksum_sha256 varchar
 - width integer nullable
 - height integer nullable
-- storage_bucket varchar
+- storage_provider varchar DEFAULT MINIO
+- private_bucket varchar
 - original_object_key varchar
 - status enum
 - visibility enum
@@ -1073,8 +1171,9 @@ asset_variants
 - height integer nullable
 - size_bytes bigint
 - checksum_sha256 varchar
+- public_bucket varchar
 - object_key varchar
-- cdn_path varchar
+- public_path varchar
 - status enum
 - created_at timestamptz
 
@@ -1090,9 +1189,11 @@ upload_sessions
 - id
 - workspace_id
 - asset_id nullable
+- bucket
 - object_key
 - expected_mime_type
 - expected_size
+- expected_checksum nullable
 - status
 - expires_at
 - created_by
@@ -1121,13 +1222,11 @@ content-1920-avif
 original-sanitized
 ```
 
-### 11.5 다중 Site Asset 사용
+### 11.7 다중 Site Asset 사용
 
-Asset은 Workspace에 속하므로 여러 Site에서 재사용할 수 있다. 실제 공개 여부는 `ACTIVE Publication`의 `asset_manifest_json`이 결정한다.
+Asset은 Workspace에 속하므로 여러 Site에서 재사용할 수 있다. 실제 공개 여부는 `ACTIVE Publication.asset_manifest_json`이 결정한다.
 
-한 Asset을 사용 중인 ACTIVE Publication이 하나라도 있으면 Public Variant를 삭제하지 않는다.
-
-정리 정책:
+한 Asset을 사용 중인 ACTIVE Publication이 하나라도 있으면 공개 Variant를 삭제하지 않는다.
 
 ```text
 ACTIVE 사용 있음
@@ -1139,6 +1238,27 @@ ACTIVE 사용 없음 + 보존 기간 이내
 ACTIVE 사용 없음 + 보존 기간 만료
 → Garbage Collection 후보
 ```
+
+### 11.8 공개 및 회원 전용 Asset
+
+`PUBLIC` Publication에서 사용하는 Variant는 `assets.example.dev`의 안정적인 URL을 반환한다.
+
+`MEMBERS_ONLY` 콘텐츠는 공개 Bucket URL을 그대로 반환하지 않는다. 이후 회원 기능 구현 시 다음 중 하나를 사용한다.
+
+```text
+짧은 만료의 Presigned GET
+또는
+인증된 Asset Proxy
+```
+
+### 11.9 Backup과 복구
+
+- `atlas-private`과 `atlas-public` Bucket Versioning을 활성화한다.
+- MinIO 데이터 디렉터리 Snapshot만으로 복구 정책을 끝내지 않는다.
+- `mc mirror` 또는 동등한 Job으로 Synology/NAS의 별도 경로에 주기적으로 복제한다.
+- DB Backup과 MinIO Backup의 시점을 Deployment Record에 함께 기록한다.
+- 삭제 작업은 Soft Delete와 보존 기간을 거친 뒤 실행한다.
+- 복구 Runbook에 Bucket, Version ID, DB Asset Record 복구 순서를 포함한다.
 
 ---
 
@@ -1152,9 +1272,7 @@ ACTIVE 사용 없음 + 보존 기간 만료
 GET /api/delivery/v1/sites/{siteKey}/posts
 ```
 
-API Client가 접근 가능한 Site인지 Guard에서 검사한다.
-
-향후 Domain 기반 조회가 필요하면 내부적으로 `Host → Site` Resolver를 추가할 수 있지만, 외부 계약은 `siteKey` 기반을 유지한다.
+API Client가 접근 가능한 Site인지 Guard에서 검사한다. 향후 Domain Resolver를 추가해도 외부 계약은 `siteKey` 기반을 유지한다.
 
 ### 12.2 Endpoint
 
@@ -1187,8 +1305,6 @@ GET /api/delivery/v1/sites/main-blog/posts?limit=20&cursor=...
 Authorization: Bearer atlas_live_keyId.secret
 ```
 
-응답:
-
 ```json
 {
   "data": [
@@ -1197,17 +1313,11 @@ Authorization: Bearer atlas_live_keyId.secret
       "publicationId": "0198f3d0-85df-7cc1-bab1-4cb724b93f21",
       "slug": "atlas-platform-design",
       "title": "Atlas 플랫폼 설계",
-      "summary": "개인 관리 플랫폼과 다중 블로그 Delivery API 설계",
+      "summary": "개인 관리 플랫폼과 다중 Site Delivery API 설계",
       "cover": {
         "url": "https://assets.example.dev/assets/.../card-768.webp",
         "alt": "Atlas architecture"
       },
-      "tags": [
-        {
-          "key": "architecture",
-          "name": "Architecture"
-        }
-      ],
       "publishedAt": "2026-08-29T07:00:00Z",
       "updatedAt": "2026-08-29T07:00:00Z"
     }
@@ -1219,15 +1329,13 @@ Authorization: Bearer atlas_live_keyId.secret
 }
 ```
 
-### 12.4 상세 요청
+### 12.4 상세 요청과 Cache
 
 ```http
 GET /api/delivery/v1/sites/main-blog/posts/atlas-platform-design
 Authorization: Bearer atlas_live_keyId.secret
 If-None-Match: "pub_0198f3d0"
 ```
-
-응답 Header:
 
 ```http
 ETag: "pub_0198f3d0"
@@ -1241,7 +1349,7 @@ Cache-Control: public, max-age=60, stale-while-revalidate=300
 - DB Entity를 그대로 직렬화하지 않는다.
 - Delivery DTO는 Version별 계약으로 고정한다.
 - 내부 ID와 공개 ID 노출 정책을 구분한다.
-- 비공개 Metadata, 내부 경로, S3 Object Key를 반환하지 않는다.
+- 비공개 Metadata, MinIO 내부 Endpoint, Bucket과 Object Key를 반환하지 않는다.
 - Cursor Pagination을 사용한다.
 - 정렬과 Filter는 Allowlist로 제한한다.
 
@@ -1252,12 +1360,12 @@ Cache-Control: public, max-age=60, stale-while-revalidate=300
 ### 13.1 인증
 
 ```http
-POST /api/admin/v1/auth/login
-POST /api/admin/v1/auth/mfa/verify
-POST /api/admin/v1/auth/logout
-GET  /api/admin/v1/auth/session
-POST /api/admin/v1/auth/reauth
-GET  /api/admin/v1/auth/sessions
+POST   /api/admin/v1/auth/login
+POST   /api/admin/v1/auth/mfa/verify
+POST   /api/admin/v1/auth/logout
+GET    /api/admin/v1/auth/session
+POST   /api/admin/v1/auth/reauth
+GET    /api/admin/v1/auth/sessions
 DELETE /api/admin/v1/auth/sessions/{sessionId}
 ```
 
@@ -1500,8 +1608,6 @@ POST /api/integration/v1/health-checks
 POST /api/integration/v1/releases
 ```
 
-멱등성:
-
 ```http
 Idempotency-Key: {projectKey}-{environmentKey}-{workflowRunId}
 ```
@@ -1571,7 +1677,7 @@ PUBLIC_CANDIDATE
 
 `PUBLIC_CANDIDATE`는 공개 가능한 자료라는 의미일 뿐 Delivery API에 자동 노출하지 않는다. 반드시 Content로 변환하고 Site Publication을 생성해야 외부에 노출된다.
 
-비밀번호, Private Key, Token은 저장하지 않는다. Secret Store의 Reference만 저장한다.
+비밀번호, Private Key와 Token은 저장하지 않는다. Secret Store의 Reference만 저장한다.
 
 ---
 
@@ -1588,7 +1694,7 @@ Member
    └─ dev-log SUSPENDED
 ```
 
-이를 통해 한 이메일로 여러 블로그에 가입할 수 있고 Site별 정지와 권한을 독립 관리할 수 있다.
+이를 통해 한 이메일로 여러 Site에 가입할 수 있고 Site별 정지와 권한을 독립 관리할 수 있다.
 
 ### 16.2 데이터 모델
 
@@ -1833,6 +1939,8 @@ INTEGRATION_UNAVAILABLE
 ACTION_NOT_ALLOWED
 RATE_LIMITED
 IDEMPOTENCY_CONFLICT
+STORAGE_UNAVAILABLE
+UPLOAD_SESSION_EXPIRED
 ```
 
 ### 18.4 Pagination
@@ -1851,15 +1959,11 @@ Cursor Pagination을 기본으로 하고 최대 `limit`을 제한한다.
 If-Match: "12"
 ```
 
-서버 Version이 다르면 다음을 반환한다.
-
-```text
-409 VERSION_CONFLICT
-```
+서버 Version이 다르면 `409 VERSION_CONFLICT`를 반환한다.
 
 ### 18.6 멱등성
 
-게시, 배포 생성, Callback 같은 명령은 `Idempotency-Key`를 지원한다.
+게시, 배포 생성, Upload Complete와 Callback 같은 명령은 `Idempotency-Key`를 지원한다.
 
 ```text
 idempotency_records
@@ -1913,15 +2017,14 @@ Audit 대상:
 - API Key 생성·회전·폐기
 - Content Revision 생성
 - 게시·재게시·게시 중단
+- Asset Upload·삭제·복구
 - 회원 정지·탈퇴
 - Deployment 상태 변경
 - Webhook 설정 변경
 
-Password Hash, API Secret, Session Token, S3 Credential은 Audit에 기록하지 않는다.
+Password Hash, API Secret, Session Token과 MinIO Credential은 Audit에 기록하지 않는다.
 
 ### 19.2 Application Log
-
-구조화 Logging 필드:
 
 ```text
 requestId
@@ -1943,15 +2046,18 @@ Audit Log와 Application Log는 목적과 보존 정책을 분리한다.
 
 ## 20. 보안 원칙
 
-- Admin Domain과 공개 Blog Domain을 분리한다.
-- Admin Cookie를 공개 Blog Domain과 공유하지 않는다.
+- Admin Domain과 외부 Site Domain을 분리한다.
+- Admin Cookie를 외부 Site Domain과 공유하지 않는다.
 - Delivery API Key를 Client-side JavaScript에 포함하지 않는다.
 - API Key Secret은 Hash만 저장한다.
 - Webhook Secret은 암호화해 저장한다.
-- S3 Bucket Public Access를 차단한다.
-- S3 Object Key와 내부 Bucket 이름을 Delivery API에서 숨긴다.
-- Presigned Upload의 MIME, 크기, 만료 시간을 제한한다.
-- SVG, HTML, 실행 파일 업로드 정책을 별도로 둔다.
+- MinIO Root Credential을 애플리케이션에 제공하지 않는다.
+- MinIO Console을 인터넷에 노출하지 않는다.
+- Private와 Processing Bucket은 익명 접근을 차단한다.
+- Public Asset는 Nginx를 통해 GET/HEAD만 허용한다.
+- MinIO Object Key와 내부 Bucket 이름을 Delivery API에서 숨긴다.
+- Presigned Upload의 MIME, 크기와 만료 시간을 제한한다.
+- SVG, HTML과 실행 파일 업로드 정책을 별도로 둔다.
 - 이미지 EXIF 위치 정보를 제거한다.
 - 관리자 변경 API는 CSRF와 Reauthentication을 적용한다.
 - 회원 개인정보 조회와 변경을 Audit에 기록한다.
@@ -2021,6 +2127,7 @@ Sites
 ├─ 역할과 권한
 ├─ API Client
 ├─ Webhook Delivery
+├─ MinIO 상태와 사용량
 ├─ Audit Log
 └─ 시스템 설정
 ```
@@ -2046,36 +2153,46 @@ Nginx
   │   └─ admin-web
   ├─ api.example.dev
   │   └─ api
+  ├─ upload.example.dev
+  │   └─ MinIO API for Presigned Upload
   └─ assets.example.dev
-      └─ CloudFront → S3
+      └─ atlas-public GET/HEAD
 
 Application Network
 ├─ api
 ├─ worker
 ├─ postgres
-└─ redis
+├─ redis
+└─ minio
+   ├─ API :9000
+   └─ Console :9001, internal only
 ```
 
-블로그는 별도 배포한다.
+외부 Site는 별도 배포한다.
 
 ```text
 blog-a.example.dev
-└─ Blog A
+└─ Site A
    ├─ Delivery API Client A
    └─ Revalidation Webhook A
 
 blog-b.example.dev
-└─ Blog B
+└─ Site B
    ├─ Delivery API Client B
    └─ Revalidation Webhook B
 ```
 
-Atlas 장애 시 블로그가 마지막 렌더링 결과를 계속 제공할 수 있도록 블로그 측 Cache와 ISR 정책을 적용한다.
+Atlas 장애 시 Site가 마지막 렌더링 결과를 계속 제공하도록 Site 측 Cache와 ISR 정책을 적용한다.
 
 ```text
 Atlas API 장애
-├─ 블로그 기존 Cache 제공
+├─ Site 기존 Cache 제공
 └─ 새 콘텐츠 조회와 Revalidation만 지연
+
+MinIO 장애
+├─ Site가 캐시한 기존 이미지 제공 가능
+├─ 신규 Upload와 Variant 생성 중단
+└─ Atlas에서 Storage 상태를 DEGRADED로 표시
 ```
 
 ---
@@ -2089,7 +2206,7 @@ Atlas API 장애
 목표:
 
 ```text
-Monorepo와 개발·테스트·배포 기준을 만든다.
+Monorepo와 develop 중심 개발·테스트 기준을 만든다.
 ```
 
 작업:
@@ -2100,7 +2217,8 @@ Monorepo와 개발·테스트·배포 기준을 만든다.
 - TypeScript 공통 설정
 - ESLint와 Formatter
 - Docker Compose
-- PostgreSQL과 Redis
+- PostgreSQL, Redis와 MinIO
+- MinIO Bucket 및 Policy Bootstrap
 - TypeORM Migration
 - OpenAPI 생성
 - Request ID와 Logging
@@ -2110,7 +2228,8 @@ Monorepo와 개발·테스트·배포 기준을 만든다.
 
 - 전체 앱 Local 실행
 - Migration 실행
-- Admin Web에서 API Health 확인
+- MinIO Bucket Bootstrap 재실행 가능
+- Admin Web에서 API와 Storage Health 확인
 - CI에서 lint, typecheck, test, build 통과
 
 ### Phase 1. Admin Foundation
@@ -2148,7 +2267,7 @@ OWNER가 안전하게 로그인하고 관리자 Shell에 진입한다.
 목표:
 
 ```text
-여러 블로그를 등록하고 Site별 Delivery Client를 발급한다.
+여러 Site를 등록하고 Site별 Delivery Client를 발급한다.
 ```
 
 작업:
@@ -2202,21 +2321,21 @@ Create
 → Delivery API 조회
 ```
 
-전체 흐름이 E2E로 검증된다.
-
-### Phase 4. S3 Media
+### Phase 4. MinIO Media
 
 목표:
 
 ```text
-S3에 원본을 안전하게 업로드하고 공개 Variant를 게시한다.
+MinIO에 원본을 안전하게 업로드하고 공개 Variant를 게시한다.
 ```
 
 작업:
 
+- MinIO Service Account와 Policy
+- Private, Processing, Public Bucket
 - Upload Session
 - Presigned Upload
-- HeadObject 검증
+- statObject와 Checksum 검증
 - Asset Library
 - BullMQ Media Job
 - Thumbnail과 WebP/AVIF
@@ -2224,22 +2343,24 @@ S3에 원본을 안전하게 업로드하고 공개 Variant를 게시한다.
 - `asset://id`
 - Asset Usage
 - Publication Asset Manifest
-- CDN URL
+- Public Asset URL
 - Garbage Collection 후보 조회
+- Backup Job
 
 완료 기준:
 
 - 원본 직접 Upload
 - Variant 자동 생성
-- S3 원본 URL 미노출
-- 게시된 글에서 CDN Variant 사용
+- MinIO 원본 URL과 Object Key 미노출
+- 게시된 글에서 공개 Variant 사용
+- 사용 중인 Variant 삭제 방지
 
 ### Phase 5. Webhook과 예약 게시
 
 목표:
 
 ```text
-Site별 블로그 Cache를 자동 갱신한다.
+Site별 Cache를 자동 갱신한다.
 ```
 
 작업:
@@ -2263,7 +2384,7 @@ Site별 블로그 Cache를 자동 갱신한다.
 목표:
 
 ```text
-프로젝트, Release, 배포, Health 상태를 연결한다.
+프로젝트, Release, 배포와 Health 상태를 연결한다.
 ```
 
 작업:
@@ -2313,7 +2434,7 @@ Site별 블로그 Cache를 자동 갱신한다.
 
 ## 24. 우선 생성할 Entity
 
-관리자 패널 첫 구현에서 다음 Entity를 우선 만든다.
+관리자 패널 첫 구현:
 
 ```text
 Workspace
@@ -2331,7 +2452,7 @@ ApiClientSiteAccess
 AuditLog
 ```
 
-콘텐츠 수직 흐름에서는 다음을 추가한다.
+콘텐츠 수직 흐름:
 
 ```text
 Content
@@ -2343,7 +2464,7 @@ ContentSiteTerm
 OutboxEvent
 ```
 
-미디어 단계에서는 다음을 추가한다.
+미디어 단계:
 
 ```text
 Asset
@@ -2388,15 +2509,16 @@ Then 새 Publication이 ACTIVE가 된다
 And 이전 Publication은 SUPERSEDED가 된다
 ```
 
-### 25.4 S3 Upload
+### 25.4 MinIO Upload
 
 ```gherkin
 Given OWNER가 이미지 Upload Session을 생성했다
-When Presigned URL로 S3 Upload를 완료한다
+When Presigned URL로 atlas-private에 Upload를 완료한다
 And Upload Complete API를 호출한다
-Then Worker가 공개용 Variant를 생성한다
+Then API는 MinIO statObject와 Checksum을 검증한다
+And Worker가 atlas-public에 공개용 Variant를 생성한다
 And Asset 상태는 READY가 된다
-And API 응답에는 원본 S3 Object Key가 포함되지 않는다
+And API 응답에는 내부 Endpoint, Bucket과 Object Key가 포함되지 않는다
 ```
 
 ### 25.5 배포 Callback 멱등성
@@ -2414,71 +2536,54 @@ And 두 번째 요청은 최초 응답을 반환한다
 
 ### ADR-001. Backend는 NestJS Modular Monolith로 시작한다
 
-이유:
+- 현재 요구 규모에 Microservice는 과도하다.
+- Module과 API 경계는 유지한다.
+- Worker를 별도 NestJS Entry Point로 분리한다.
+- TypeScript Contract를 공유한다.
 
-- 현재 요구 규모에 Microservice는 과도함
-- Module과 API 경계는 유지 가능
-- Worker를 별도 NestJS Entry Point로 분리 가능
-- TypeScript Contract 공유 용이
+### ADR-002. 여러 외부 애플리케이션은 Site로 관리한다
 
-### ADR-002. 여러 블로그는 Site로 관리한다
-
-이유:
-
-- Domain, 설정, API Client, Webhook, 회원을 독립 관리
-- 블로그 추가 시 Schema 변경 불필요
-- Site 단위 권한과 감사 가능
+- Domain, 설정, API Client, Webhook과 회원을 독립 관리한다.
+- Site 추가 시 핵심 Schema 변경이 필요 없다.
+- Site 단위 권한과 Audit가 가능하다.
 
 ### ADR-003. Content는 Workspace 원본이고 Publication은 Site별이다
 
-이유:
+- 동일 콘텐츠 Cross-posting을 지원한다.
+- Site별 slug와 SEO를 Override한다.
+- Site별 게시 일정과 게시 중단을 지원한다.
+- 공개본을 격리하고 복구할 수 있다.
 
-- 동일 콘텐츠 Cross-posting
-- Site별 slug와 SEO Override
-- Site별 게시 일정과 게시 중단
-- 공개본 격리와 롤백
+### ADR-004. Object Storage는 MinIO를 사용한다
 
-### ADR-004. AWS S3 원본은 Private로 저장한다
-
-이유:
-
-- 원본과 공개 Variant 분리
-- Presigned Direct Upload
-- CDN 연동
-- 향후 Storage 확장 가능
+- 개인 인프라에서 직접 운영할 수 있다.
+- Private 원본과 Public Variant를 분리할 수 있다.
+- Presigned Direct Upload를 지원한다.
+- MinIO SDK 의존성을 Storage Port 뒤에 격리한다.
+- Synology/NAS로 Backup 흐름을 구성할 수 있다.
 
 ### ADR-005. Delivery API는 Server-to-server API Key를 사용한다
 
-이유:
-
-- 관리자 Session과 인증 경계 분리
-- Site별 접근 권한
-- Key 회전과 폐기
-- 향후 OAuth2 Client Credentials로 확장 가능
+- 관리자 Session과 인증 경계를 분리한다.
+- Site별 접근 권한을 제한한다.
+- Key 회전과 폐기를 지원한다.
+- 향후 OAuth2 Client Credentials로 확장할 수 있다.
 
 ### ADR-006. 게시본은 불변 Snapshot이다
 
-이유:
-
-- 편집 중 변경 노출 방지
-- 실패 시 기존 공개본 유지
-- ETag와 Cache 안정성
-- Revision 기반 복구
+- 편집 중 변경 노출을 방지한다.
+- 실패 시 기존 공개본을 유지한다.
+- ETag와 Cache가 안정적이다.
+- Revision 기반 복구가 가능하다.
 
 ### ADR-007. 비동기 작업은 Outbox와 BullMQ를 사용한다
 
-이유:
-
-- 예약 게시
-- S3 이미지 처리
-- Webhook 재시도
-- DB Transaction과 Event 유실 방지
+- 예약 게시, 이미지 처리와 Webhook 재시도를 처리한다.
+- DB Transaction과 Event 유실을 방지한다.
 
 ---
 
 ## 27. 첫 구현의 기준 흐름
-
-가장 먼저 완성할 기능은 다음이다.
 
 ```text
 OWNER 로그인
@@ -2492,10 +2597,9 @@ OWNER 로그인
 → Publish
 → ACTIVE Publication 생성
 → Delivery API Key로 글 조회
+→ MinIO Asset Upload와 Variant 생성
 → 새 Revision 작성
 → 기존 공개본 유지 확인
 → Re-publish
 → 새 Publication 반환 확인
 ```
-
-이 흐름이 완성되면 프로젝트, 배포, 자료실, 회원 기능을 동일한 Workspace·Site·인증·Audit 기반 위에 확장한다.
