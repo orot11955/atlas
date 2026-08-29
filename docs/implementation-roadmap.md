@@ -170,23 +170,23 @@ Schema 변경이 있으면 Migration Up 검증이 추가되고, 운영 데이터
 
 ## 3. 전체 Phase
 
-| Phase | 이름 | 상태 | 핵심 결과 |
-| ---: | --- | --- | --- |
-| 0 | Repository Foundation | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
-| 1 | Server Boundary & Platform Kernel Lite | 다음 | API·Worker 공유 코드 경계와 최소 공통 기반 |
-| 2 | Admin Identity & Shell | 예정 | OWNER 로그인, MFA, Session, 기본 관리자 Shell |
-| 3 | Workspace, Site & API Client | 예정 | 다중 Site와 Site별 Server-to-server 인증 |
-| 4 | Project & Deployment Read Model | 예정 | 프로젝트 이력과 CI 배포 상태 조회 |
-| 5 | Resource & Member Directory MVP | 예정 | 개인 자료와 Site별 기본 회원 관리 |
-| 6 | Content Draft & Revision | 예정 | Autosave Draft와 불변 Revision |
-| 7 | Publication & Delivery API | 예정 | Site별 게시와 외부 읽기 API |
-| 8 | MinIO Media | 예정 | 원본 Upload, Variant와 Asset Picker |
-| 9 | Outbox, Webhook & Scheduling | 예정 | 신뢰성 있는 비동기 처리와 예약 게시 |
-| 10 | Content Operations | 예정 | Taxonomy, Redirect, Navigation, Feed와 Search |
-| 11 | Deployment Control & Incident | 예정 | 제한된 재배포·Rollback과 장애 관리 |
-| 12 | Member Authentication & Privacy | 예정 | 회원가입, 로그인, Consent, 탈퇴와 익명화 |
-| 13 | Dashboard & Notification | 예정 | 조치 중심 Dashboard와 알림 |
-| 14 | Production Release | 예정 | 운영 보안, Backup, DR, 관측성과 main 배포 |
+| Phase | 이름                                   | 상태 | 핵심 결과                                      |
+| ----: | -------------------------------------- | ---- | ---------------------------------------------- |
+|     0 | Repository Foundation                  | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
+|     1 | Server Boundary & Platform Kernel Lite | 다음 | API·Worker 공유 코드 경계와 최소 공통 기반     |
+|     2 | Admin Identity & Shell                 | 예정 | OWNER 로그인, MFA, Session, 기본 관리자 Shell  |
+|     3 | Workspace, Site & API Client           | 예정 | 다중 Site와 Site별 Server-to-server 인증       |
+|     4 | Project & Deployment Read Model        | 예정 | 프로젝트 이력과 CI 배포 상태 조회              |
+|     5 | Resource & Member Directory MVP        | 예정 | 개인 자료와 Site별 기본 회원 관리              |
+|     6 | Content Draft & Revision               | 예정 | Autosave Draft와 불변 Revision                 |
+|     7 | Publication & Delivery API             | 예정 | Site별 게시와 외부 읽기 API                    |
+|     8 | MinIO Media                            | 예정 | 원본 Upload, Variant와 Asset Picker            |
+|     9 | Outbox, Webhook & Scheduling           | 예정 | 신뢰성 있는 비동기 처리와 예약 게시            |
+|    10 | Content Operations                     | 예정 | Taxonomy, Redirect, Navigation, Feed와 Search  |
+|    11 | Deployment Control & Incident          | 예정 | 제한된 재배포·Rollback과 장애 관리             |
+|    12 | Member Authentication & Privacy        | 예정 | 회원가입, 로그인, Consent, 탈퇴와 익명화       |
+|    13 | Dashboard & Notification               | 예정 | 조치 중심 Dashboard와 알림                     |
+|    14 | Production Release                     | 예정 | 운영 보안, Backup, DR, 관측성과 main 배포      |
 
 의존 관계:
 
