@@ -109,6 +109,12 @@ import {
     AdminCsrfGuard,
     AdminPermissionGuard,
   ],
-  exports: [ADMIN_SESSION_SERVICE, AdminSessionGuard, AdminCsrfGuard, AdminPermissionGuard],
+  exports: [
+    ADMIN_SESSION_SERVICE,
+    ADMIN_SESSION_COOKIE_CONFIGURATION,
+    AdminSessionGuard,
+    AdminCsrfGuard,
+    AdminPermissionGuard,
+  ],
 })
 export class AdminSessionModule {}
