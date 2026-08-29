@@ -1,8 +1,4 @@
-import {
-  AtlasApiError,
-  createNetworkProblem,
-  readProblemDetails,
-} from './problem-details';
+import { AtlasApiError, createNetworkProblem, readProblemDetails } from './problem-details';
 
 export type ApiResponseType = 'json' | 'text' | 'void' | 'response';
 
@@ -136,9 +132,7 @@ export interface CreateAdminApiClientOptions extends Omit<AtlasApiClientOptions,
   baseUrl?: string;
 }
 
-export function createAdminApiClient(
-  options: CreateAdminApiClientOptions = {},
-): AtlasApiClient {
+export function createAdminApiClient(options: CreateAdminApiClientOptions = {}): AtlasApiClient {
   const { baseUrl, getCsrfToken, ...rest } = options;
   const apiRoot = (process.env.NEXT_PUBLIC_ATLAS_API_URL ?? '/api').replace(/\/+$/, '');
 

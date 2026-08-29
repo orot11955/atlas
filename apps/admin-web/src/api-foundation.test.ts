@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import {
-  AtlasApiClient,
-  AtlasApiError,
-  problemToFormErrors,
-} from './lib/api';
+import { AtlasApiClient, AtlasApiError, problemToFormErrors } from './lib/api';
 
 test('AtlasApiClient serializes JSON, includes credentials and attaches CSRF tokens', async () => {
   let capturedUrl = '';
