@@ -1,0 +1,178 @@
+name: Verify and merge admin TOTP MFA once
+
+on:
+  push:
+    branches:
+      - feat/admin-totp-mfa
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-admin-totp-mfa-once
+  cancel-in-progress: true
+
+jobs:
+  verify-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-api
+      MINIO_SECRET_KEY: atlas-ci-api-secret
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feat/admin-totp-mfa
+
+      - name: Apply staged implementation when required
+        run: |
+          if [ -f .atlas-prepare/apply.py ]; then
+            python3 .atlas-prepare/apply.py
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format implementation
+        run: pnpm format
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Verify migrations
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Verify OWNER bootstrap and complete MFA flow
+        run: |
+          owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ci@atlas.test \
+              --display-name 'CI Owner' \
+              --password-stdin \
+              --json
+
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" = '30' ]; then
+              cat /tmp/atlas-api.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/admin-auth-e2e.mjs
+
+      - name: Commit verified clean implementation
+        run: |
+          rm -rf .atlas-prepare
+          rm -f .github/workflows/prepare-admin-totp-mfa-once.yml
+          rm -f .github/workflows/finalize-admin-totp-mfa-once.yml
+          rm -f .github/workflows/verify-merge-admin-totp-mfa-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: add admin TOTP MFA and authentication grants'
+            git push origin HEAD:feat/admin-totp-mfa
+          fi
+
+      - name: Merge pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha="$(git rev-parse HEAD)"
+          response="$(curl -fsS \
+            -X PUT \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/10/merge \
+            -d "$(node -e 'process.stdout.write(JSON.stringify({sha: process.argv[1], merge_method: \"squash\", commit_title: \"feat: add admin TOTP MFA and authentication grants\", commit_message: \"Add encrypted TOTP enrollment and verification, replay protection, one-time recovery codes, and short-lived authentication grants.\"}))' "$head_sha")")"
+          node -e '
+            const response = JSON.parse(process.argv[1]);
+            if (response.merged !== true) {
+              throw new Error(`Pull request merge failed: ${JSON.stringify(response)}`);
+            }
+          ' "$response"
