@@ -1,0 +1,46 @@
+{
+  "name": "atlas",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "predev": "pnpm build:packages",
+    "dev": "turbo run dev --parallel",
+    "dev:admin": "pnpm build:packages && pnpm --filter @atlas/admin-web dev",
+    "dev:api": "pnpm build:packages && pnpm --filter @atlas/api dev",
+    "dev:worker": "pnpm build:packages && pnpm --filter @atlas/worker dev",
+    "build": "turbo run build",
+    "build:packages": "pnpm --filter './packages/**' build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:up": "docker compose up -d postgres redis minio && docker compose run --rm minio-init",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v --remove-orphans",
+    "infra:logs": "docker compose logs -f postgres redis minio",
+    "stack:up": "pnpm infra:up && docker compose --profile app up -d --build admin-web api worker nginx",
+    "stack:down": "docker compose --profile app down",
+    "stack:logs": "docker compose --profile app logs -f",
+    "db:migration:create": "pnpm --filter @atlas/database migration:create",
+    "db:migration:generate": "pnpm --filter @atlas/database migration:generate",
+    "db:migration:run": "pnpm --filter @atlas/database migration:run",
+    "db:migration:revert": "pnpm --filter @atlas/database migration:revert",
+    "db:migration:show": "pnpm --filter @atlas/database migration:show"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.35.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.10.12",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0"
+  }
+}

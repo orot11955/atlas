@@ -2,31 +2,80 @@
 
 Atlas는 개인 자료, 프로젝트 이력, 배포 상태, 여러 Site의 콘텐츠와 회원을 한곳에서 관리하는 개인 관리 플랫폼입니다.
 
-관리자 패널을 우선 구축합니다. 이후 추가되는 블로그, 포트폴리오와 문서 사이트는 Atlas의 Delivery API와 Webhook을 통해 게시된 콘텐츠를 제공받습니다.
+관리자 패널을 우선 구축하고, 이후 추가되는 블로그·포트폴리오·문서 사이트는 Atlas의 Delivery API와 Webhook을 통해 게시된 콘텐츠를 제공받습니다.
 
-## 문서
-
-- [플랫폼 설계](docs/atlas-platform-design.md)
-- [브랜치 전략](docs/branch-strategy.md)
-
-## 기본 기술 방향
+## 기술 구성
 
 - Admin Web: Next.js + TypeScript
 - Backend: NestJS + TypeScript
 - Database: PostgreSQL + TypeORM
 - Queue/Worker: Redis + BullMQ
 - Object Storage: MinIO
+- Monorepo: pnpm Workspace + Turborepo
 - API Contract: OpenAPI
-- Deployment: Docker Compose + Nginx
+- Local Infrastructure: Docker Compose + Nginx
 
-## 핵심 원칙
+## 빠른 시작
 
-- 관리자 API, 콘텐츠 Delivery API, 시스템 Integration API를 분리합니다.
-- 여러 블로그와 외부 애플리케이션을 `Site` 단위로 관리합니다.
-- 하나의 원본 콘텐츠를 여러 Site에 서로 다른 slug와 SEO로 게시할 수 있습니다.
-- 편집 중인 콘텐츠와 외부에 제공되는 불변 Publication Snapshot을 분리합니다.
-- MinIO의 원본 객체는 비공개로 저장하고 공개용 Variant만 전달합니다.
-- 관리자 계정, 일반 회원과 API Client의 인증 경계를 분리합니다.
+```bash
+git clone https://github.com/orot11955/atlas.git
+cd atlas
+git switch develop
+
+cp .env.example .env
+corepack enable
+corepack prepare pnpm@11.24.0 --activate
+pnpm install
+
+pnpm infra:up
+pnpm db:migration:run
+pnpm dev
+```
+
+또는 Bootstrap Script를 사용합니다.
+
+```bash
+./scripts/bootstrap.sh
+pnpm dev
+```
+
+기본 주소:
+
+```text
+Admin Web       http://localhost:3000
+API             http://localhost:4000/api
+Swagger         http://localhost:4000/api/docs
+Health          http://localhost:4000/api/health/ready
+MinIO API       http://localhost:9000
+MinIO Console   http://localhost:9001
+Full Stack      http://localhost:8080
+Public Assets   http://localhost:8080/assets/{objectKey}
+```
+
+## 주요 명령
+
+```bash
+pnpm dev                    # 전체 애플리케이션 개발 모드
+pnpm dev:admin              # Admin Web만 실행
+pnpm dev:api                # NestJS API만 실행
+pnpm dev:worker             # Worker만 실행
+
+pnpm infra:up               # PostgreSQL, Redis, MinIO 시작 및 Bucket 초기화
+pnpm infra:down             # 로컬 인프라 종료
+pnpm infra:reset            # Volume까지 삭제
+pnpm stack:up               # 애플리케이션 포함 전체 Docker Stack 시작
+pnpm stack:down             # 전체 Docker Stack 종료
+
+pnpm db:migration:run       # Migration 적용
+pnpm db:migration:revert    # 마지막 Migration 되돌리기
+pnpm db:migration:show      # Migration 상태 확인
+
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check
+```
 
 ## 브랜치
 
@@ -41,17 +90,11 @@ main
 
 - `develop`: 기본 개발 및 통합 브랜치
 - `main`: 운영 배포 기준 브랜치
-- 운영 배포 전까지 일반 기능과 문서 변경은 `develop`에 반영합니다.
 
-## 현재 단계
+## 문서
 
-```text
-Repository Foundation
-→ Admin Foundation
-→ Site와 API Client
-→ 콘텐츠 작성·게시·Delivery API
-→ MinIO Media
-→ Webhook과 예약 게시
-→ 프로젝트와 배포
-→ 자료실과 회원
-```
+- [플랫폼 설계](docs/atlas-platform-design.md)
+- [프로젝트 구조](docs/project-structure.md)
+- [로컬 개발 환경](docs/local-development.md)
+- [브랜치 전략](docs/branch-strategy.md)
+- [인프라 구성](infra/README.md)

@@ -1,0 +1,182 @@
+name: atlas
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-atlas}
+      POSTGRES_USER: ${POSTGRES_USER:-atlas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atlas-local-password}
+      TZ: ${TZ:-Asia/Seoul}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - atlas-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-atlas} -d ${POSTGRES_DB:-atlas}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - atlas
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - atlas-redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - atlas
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-atlas-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-atlas-root-local-password}
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - atlas-minio:/data
+    networks:
+      - atlas
+
+  minio-init:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-atlas-root}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-atlas-root-local-password}
+      MINIO_API_ACCESS_KEY: ${MINIO_API_ACCESS_KEY:-atlas-api}
+      MINIO_API_SECRET_KEY: ${MINIO_API_SECRET_KEY:-atlas-api-local-secret}
+      MINIO_WORKER_ACCESS_KEY: ${MINIO_WORKER_ACCESS_KEY:-atlas-worker}
+      MINIO_WORKER_SECRET_KEY: ${MINIO_WORKER_SECRET_KEY:-atlas-worker-local-secret}
+    entrypoint: ['/bin/sh', '/opt/atlas/init.sh']
+    volumes:
+      - ./infra/minio/init.sh:/opt/atlas/init.sh:ro
+      - ./infra/minio/policies:/opt/atlas/policies:ro
+    networks:
+      - atlas
+
+  admin-web:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: apps/admin-web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_ATLAS_API_URL: /api
+      ATLAS_API_INTERNAL_URL: http://api:4000/api
+    expose:
+      - '3000'
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - atlas
+
+  api:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Seoul}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:${NGINX_PORT:-8080}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-password}@postgres:5432/${POSTGRES_DB:-atlas}
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_API_ACCESS_KEY:-atlas-api}
+      MINIO_SECRET_KEY: ${MINIO_API_SECRET_KEY:-atlas-api-local-secret}
+      MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET:-atlas-private}
+      MINIO_PROCESSING_BUCKET: ${MINIO_PROCESSING_BUCKET:-atlas-processing}
+      MINIO_PUBLIC_BUCKET: ${MINIO_PUBLIC_BUCKET:-atlas-public}
+      MINIO_PUBLIC_BASE_URL: http://localhost:${NGINX_PORT:-8080}/assets
+    expose:
+      - '4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - atlas
+
+  worker:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Seoul}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-password}@postgres:5432/${POSTGRES_DB:-atlas}
+      REDIS_URL: redis://redis:6379/0
+      SYSTEM_QUEUE_NAME: ${SYSTEM_QUEUE_NAME:-atlas-system}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_WORKER_ACCESS_KEY:-atlas-worker}
+      MINIO_SECRET_KEY: ${MINIO_WORKER_SECRET_KEY:-atlas-worker-local-secret}
+      MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET:-atlas-private}
+      MINIO_PROCESSING_BUCKET: ${MINIO_PROCESSING_BUCKET:-atlas-processing}
+      MINIO_PUBLIC_BUCKET: ${MINIO_PUBLIC_BUCKET:-atlas-public}
+      MINIO_PUBLIC_BASE_URL: http://localhost:${NGINX_PORT:-8080}/assets
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - atlas
+
+  nginx:
+    profiles: ['app']
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - '${NGINX_PORT:-8080}:80'
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - admin-web
+      - api
+      - minio
+    networks:
+      - atlas
+
+volumes:
+  atlas-postgres:
+  atlas-redis:
+  atlas-minio:
+
+networks:
+  atlas:
+    driver: bridge

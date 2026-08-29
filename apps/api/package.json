@@ -1,0 +1,36 @@
+{
+  "name": "@atlas/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "lint": "eslint src --max-warnings=0",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@atlas/config": "workspace:*",
+    "@atlas/object-storage": "workspace:*",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.0",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/swagger": "^12.0.1",
+    "@nestjs/typeorm": "^12.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "ioredis": "^6.0.0",
+    "minio": "^8.0.7",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typeorm": "^1.1.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.2"
+  }
+}
