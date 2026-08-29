@@ -3,10 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { apiEnvironmentSchema, type ApiEnvironment } from '@atlas/config';
+import { ATLAS_LOGGER, createAtlasLogger } from '@atlas/server';
 
 import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { HttpLoggingMiddleware } from './middleware/http-logging.middleware';
 import { RequestContextMiddleware } from './middleware/request-context.middleware';
 import { PlatformModule } from './platform/platform.module';
 
@@ -34,10 +36,24 @@ import { PlatformModule } from './platform/platform.module';
     PlatformModule,
     HealthModule,
   ],
+  providers: [
+    RequestContextMiddleware,
+    HttpLoggingMiddleware,
+    {
+      provide: ATLAS_LOGGER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<ApiEnvironment, true>) =>
+        createAtlasLogger({
+          service: 'atlas-api',
+          environment: config.get('NODE_ENV', { infer: true }),
+          level: config.get('LOG_LEVEL', { infer: true }),
+        }),
+    },
+  ],
 })
 export class AppModule implements NestModule {
   public configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestContextMiddleware).forRoutes({
+    consumer.apply(RequestContextMiddleware, HttpLoggingMiddleware).forRoutes({
       path: '{*splat}',
       method: RequestMethod.ALL,
     });
