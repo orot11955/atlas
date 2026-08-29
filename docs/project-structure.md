@@ -91,28 +91,70 @@ HTTP 요청과 분리해야 하는 작업을 처리합니다.
 
 ## 공통 패키지 규칙
 
-- `packages/shared`는 NestJS, Next.js, TypeORM에 의존하지 않습니다.
+- `packages/shared`는 NestJS, Next.js와 TypeORM에 의존하지 않습니다.
 - `packages/contracts`에는 영속 Entity를 노출하지 않습니다.
 - `packages/object-storage`의 Port는 MinIO SDK 타입을 외부에 노출하지 않습니다.
 - `packages/database`는 Migration 실행과 생성의 단일 기준점입니다.
 - 패키지 간 순환 의존성을 만들지 않습니다.
 
-## 도메인 모듈 추가 순서
+## 구현 의존 순서
 
 ```text
+platform-core
+├─ request-context
+├─ error-contract
+├─ transaction
+├─ idempotency
+├─ audit foundation
+└─ outbox foundation
+  ↓
 identity
-→ workspace
-→ site
-→ content
-→ publication
-→ media
-→ webhook
-→ project
-→ deployment
-→ resource
-→ member
-→ audit/outbox
+  ↓
+workspace
+  ↓
+site
+  ↓
+api-client
+  ↓
+content
+  ↓
+publication + delivery
+  ↓
+media
+  ↓
+webhook + scheduler
+  ↓
+content-operations
+  ↓
+project
+  ↓
+deployment
+  ↓
+resource
+  ↓
+member
+  ↓
+dashboard + notification
+  ↓
+production-hardening
 ```
 
-각 모듈의 Entity는 `apps/api/src/modules/**/infrastructure/persistence`에 두고,
-Migration은 `packages/database/src/migrations`에 둡니다.
+`Audit`와 `Outbox`는 독립된 최종 기능이 아니라 초기 공통 기반으로 먼저 구성합니다. 이후 각 도메인 Event Consumer와 관리자 운영 화면을 단계적으로 추가합니다.
+
+전체 작업과 완료 기준은 [전체 구현 로드맵](implementation-roadmap.md)을 기준으로 합니다.
+
+## Entity와 Migration 위치
+
+각 모듈의 Entity와 Adapter는 다음 위치에 둡니다.
+
+```text
+apps/api/src/modules/{module}/infrastructure/persistence
+```
+
+Migration은 다음 위치를 단일 기준으로 사용합니다.
+
+```text
+packages/database/src/migrations
+```
+
+Worker가 API와 동일한 Domain·Application 코드를 사용해야 하는 경우 Module을 공유하되 HTTP Presentation 계층에는 의존하지 않습니다.
