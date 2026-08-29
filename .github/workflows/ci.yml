@@ -103,3 +103,24 @@ jobs:
           pnpm db:migration:revert
           pnpm db:migration:run
           pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Verify OWNER bootstrap and duplicate guard
+        run: |
+          owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ci@atlas.test \
+              --display-name 'CI Owner' \
+              --password-stdin \
+              --json
+
+          if printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email second-owner-ci@atlas.test \
+              --display-name 'Second CI Owner' \
+              --password-stdin \
+              --json; then
+            echo 'Duplicate OWNER bootstrap unexpectedly succeeded.'
+            exit 1
+          fi

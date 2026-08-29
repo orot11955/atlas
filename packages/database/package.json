@@ -13,6 +13,7 @@
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --test",
+    "admin:bootstrap-owner": "ts-node --project tsconfig.json src/admin-owner-bootstrap-cli.ts",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
     "migration:run": "ts-node --project tsconfig.json src/migration-cli.ts run",
@@ -20,6 +21,7 @@
     "migration:show": "ts-node --project tsconfig.json src/migration-cli.ts show"
   },
   "dependencies": {
+    "@atlas/server": "workspace:*",
     "dotenv": "^17.2.2",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",

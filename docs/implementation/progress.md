@@ -40,26 +40,36 @@ Admin Web API Client 경계:
 - [#4 Structured logging and secret redaction](https://github.com/orot11955/atlas/pull/4)
 - [#5 Admin Web API and feedback foundation](https://github.com/orot11955/atlas/pull/5)
 
-## 다음
+## 진행 중
 
 ### Phase 2. Admin Identity & Shell
 
-첫 구현 흐름:
+첫 구현 단위:
 
-```text
-AdminAccount, Role, Permission Migration
-→ OWNER Bootstrap CLI
-→ Password Login
-→ Pending MFA Challenge
-→ TOTP 등록과 검증
-→ Admin Session
-→ CSRF
-→ Permission Guard
-→ Login UI와 Admin Shell
-```
+- `admin_accounts` Migration과 TypeORM Entity
+- `OWNER`, `ADMIN`, `EDITOR`, `OPERATOR`, `VIEWER` Role Registry
+- 코드 기반 Permission Registry
+- Node.js Argon2id Password Hasher와 PHC 문자열 저장
+- OWNER Bootstrap CLI
+- OWNER Bootstrap Transaction Lock과 중복 실행 차단
+- Bootstrap Audit
+- CI에서 Migration `up → down → up`과 OWNER Bootstrap 검증
 
-Phase 2 첫 권장 Branch:
+현재 Branch:
 
 ```text
 feat/admin-identity-schema
+```
+
+## 다음
+
+```text
+Password Login
+→ Login Attempt와 Rate Limit
+→ Pending MFA Challenge
+→ TOTP 등록과 검증
+→ Admin Session과 Cookie
+→ CSRF
+→ Permission Guard
+→ Login UI와 Admin Shell
 ```

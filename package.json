@@ -28,6 +28,7 @@
     "stack:up": "pnpm infra:up && docker compose --profile app up -d --build admin-web api worker nginx",
     "stack:down": "docker compose --profile app down",
     "stack:logs": "docker compose --profile app logs -f",
+    "admin:bootstrap-owner": "pnpm --filter @atlas/server build && pnpm --filter @atlas/database admin:bootstrap-owner",
     "db:migration:create": "pnpm --filter @atlas/database migration:create",
     "db:migration:generate": "pnpm --filter @atlas/database migration:generate",
     "db:migration:run": "pnpm --filter @atlas/database migration:run",
