@@ -56,9 +56,21 @@ jobs:
 
   migration:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
       DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-api
+      MINIO_SECRET_KEY: atlas-ci-api-secret
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
 
     services:
       postgres:
@@ -71,6 +83,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -124,3 +146,68 @@ jobs:
             echo 'Duplicate OWNER bootstrap unexpectedly succeeded.'
             exit 1
           fi
+
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+      - name: Verify Admin Password Login API
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password /tmp/atlas-login-request.json /tmp/atlas-login-response.json' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" = '30' ]; then
+              cat /tmp/atlas-api.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" node <<'NODE' > /tmp/atlas-login-request.json
+          process.stdout.write(JSON.stringify({
+            email: 'owner-ci@atlas.test',
+            password: process.env.OWNER_PASSWORD,
+          }));
+          NODE
+          chmod 600 /tmp/atlas-login-request.json
+
+          status_code="$(curl -sS \
+            -o /tmp/atlas-login-response.json \
+            -w '%{http_code}' \
+            -H 'content-type: application/json' \
+            --data-binary @/tmp/atlas-login-request.json \
+            http://localhost:4000/api/admin/v1/auth/login)"
+
+          if [ "$status_code" != '202' ]; then
+            cat /tmp/atlas-api.log
+            cat /tmp/atlas-login-response.json
+            exit 1
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const response = JSON.parse(fs.readFileSync('/tmp/atlas-login-response.json', 'utf8'));
+          const data = response.data;
+
+          if (
+            !data ||
+            typeof data.challengeId !== 'string' ||
+            typeof data.challengeToken !== 'string' ||
+            typeof data.expiresAt !== 'string' ||
+            data.nextStep !== 'mfa'
+          ) {
+            throw new Error('Admin Password Login API returned an invalid response.');
+          }
+
+          if (!data.challengeToken.startsWith(`atlas_mfa_${data.challengeId}.`)) {
+            throw new Error('Admin Password Login API returned an invalid challenge token.');
+          }
+          NODE

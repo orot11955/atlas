@@ -11,6 +11,10 @@ import { ATLAS_LOGGER, AtlasLogLevel, type AtlasLogger } from '@atlas/server';
 import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './filters/problem-details.filter';
 
+interface TrustProxyApplication {
+  set(name: 'trust proxy', value: boolean | number | string): void;
+}
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
@@ -19,7 +23,12 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService<ApiEnvironment, true>);
   const logger = app.get<AtlasLogger>(ATLAS_LOGGER);
   const port = config.get('PORT', { infer: true });
+  const expressApplication = app.getHttpAdapter().getInstance() as TrustProxyApplication;
 
+  expressApplication.set(
+    'trust proxy',
+    parseTrustProxy(config.get('TRUST_PROXY', { infer: true })),
+  );
   app.useLogger(logger);
   app.flushLogs();
   app.setGlobalPrefix('api');
@@ -60,6 +69,21 @@ async function bootstrap(): Promise<void> {
     },
     'Atlas API started.',
   );
+}
+
+function parseTrustProxy(value: string): boolean | number | string {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === 'false') {
+    return false;
+  }
+
+  if (normalized === 'true') {
+    return true;
+  }
+
+  const hops = Number(normalized);
+  return Number.isSafeInteger(hops) && hops >= 0 ? hops : value;
 }
 
 bootstrap().catch((error: unknown) => {

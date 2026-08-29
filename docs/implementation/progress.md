@@ -26,13 +26,6 @@
 - Loading, Empty/Not Found, Error 상태 기반
 - PostgreSQL Migration `up → down → up` CI
 
-Admin Web API Client 경계:
-
-- Admin API 상대 경로만 허용
-- 절대 URL과 직접·인코딩된 Path Traversal 차단
-- 경계 오류는 Network Error로 변환하지 않고 요청 전에 거부
-- `csrfToken`, `responseType` 같은 Client 전용 옵션은 `fetch`에 전달하지 않음
-
 주요 Pull Request:
 
 - [#2 Shared server package boundary](https://github.com/orot11955/atlas/pull/2)
@@ -44,30 +37,37 @@ Admin Web API Client 경계:
 
 ### Phase 2. Admin Identity & Shell
 
-첫 구현 단위:
+완료된 구현 단위:
 
 - `admin_accounts` Migration과 TypeORM Entity
 - `OWNER`, `ADMIN`, `EDITOR`, `OPERATOR`, `VIEWER` Role Registry
 - 코드 기반 Permission Registry
-- Node.js Argon2id Password Hasher와 PHC 문자열 저장
-- OWNER Bootstrap CLI
-- OWNER Bootstrap Transaction Lock과 중복 실행 차단
-- Bootstrap Audit
-- CI에서 Migration `up → down → up`과 OWNER Bootstrap 검증
+- Node.js Argon2id Password Hasher
+- OWNER Bootstrap CLI와 중복 생성 차단
+- `admin_login_attempts`와 개인정보 비식별 Fingerprint
+- 짧은 수명의 `admin_login_challenges`
+- Password Login Use Case
+- 존재하지 않는 Email의 Dummy Hash 검증
+- 실패 횟수와 Account Lock
+- Redis 기반 IP·Account Rate Limit
+- Password 검증 후 MFA Challenge 발급
+- Login Audit와 `Retry-After`
+- `POST /api/admin/v1/auth/login`
+- CI의 실제 PostgreSQL·Redis 기반 Password Login API 검증
 
 현재 Branch:
 
 ```text
-feat/admin-identity-schema
+feat/admin-password-login
 ```
 
 ## 다음
 
 ```text
-Password Login
-→ Login Attempt와 Rate Limit
-→ Pending MFA Challenge
-→ TOTP 등록과 검증
+MFA Method Schema
+→ TOTP 등록
+→ MFA Challenge 검증과 1회 소비
+→ Recovery Code
 → Admin Session과 Cookie
 → CSRF
 → Permission Guard

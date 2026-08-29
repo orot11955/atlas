@@ -16,6 +16,7 @@ import {
 } from '@atlas/server';
 
 interface HttpResponseLike {
+  setHeader(name: string, value: string): void;
   status(statusCode: number): HttpResponseLike;
   type(contentType: string): HttpResponseLike;
   send(body: unknown): void;
@@ -53,10 +54,17 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<HttpResponseLike>();
     const problem = normalizeException(exception);
     const requestId = requestContext.get()?.requestId ?? createUuidV7();
+    const retryAfterSeconds = readRetryAfterSeconds(problem);
 
     if (problem.status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       const stack = exception instanceof Error ? exception.stack : undefined;
       this.logger.error(`Unhandled request error (${requestId}).`, stack);
+    }
+
+    response.setHeader('Cache-Control', 'no-store');
+
+    if (retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(retryAfterSeconds));
     }
 
     response
@@ -129,6 +137,17 @@ function normalizeHttpException(exception: HttpException): NormalizedProblem {
     detail,
     errors: errors && errors.length > 0 ? errors : undefined,
   };
+}
+
+function readRetryAfterSeconds(problem: NormalizedProblem): number | undefined {
+  if (problem.status !== HttpStatus.TOO_MANY_REQUESTS) {
+    return undefined;
+  }
+
+  const value = problem.details?.retryAfterSeconds;
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(1, Math.ceil(value))
+    : undefined;
 }
 
 function httpStatusToErrorCode(status: number): string {
