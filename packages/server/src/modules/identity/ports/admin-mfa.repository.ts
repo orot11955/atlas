@@ -37,7 +37,7 @@ export interface AdminTotpMethod {
   updatedAt: Date;
 }
 
-export interface InsertAdminTotpMethodRecord extends AdminTotpMethod {}
+export type InsertAdminTotpMethodRecord = AdminTotpMethod;
 
 export interface ActivateAdminTotpMethodInput {
   lastUsedStep: number;
