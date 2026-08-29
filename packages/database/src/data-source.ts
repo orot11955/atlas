@@ -12,6 +12,7 @@ import {
   AdminLoginChallengeEntity,
   AdminMfaMethodEntity,
   AdminRecoveryCodeEntity,
+  AdminSessionEntity,
   AuditLogEntity,
 } from '@atlas/server';
 
@@ -39,6 +40,7 @@ export const atlasDataSource = new DataSource({
     AdminMfaMethodEntity,
     AdminRecoveryCodeEntity,
     AdminAuthenticationGrantEntity,
+    AdminSessionEntity,
   ],
   migrations: [
     path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),
