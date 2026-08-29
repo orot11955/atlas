@@ -75,7 +75,9 @@ export class AtlasApiClient {
       responseType = 'json',
       ...requestInit
     } = options;
-    const method = (requestInit.method ?? (requestBody === undefined ? 'GET' : 'POST')).toUpperCase();
+    const method = (
+      requestInit.method ?? (requestBody === undefined ? 'GET' : 'POST')
+    ).toUpperCase();
 
     if ((method === 'GET' || method === 'HEAD') && requestBody !== undefined) {
       throw new TypeError(`${method} requests cannot include a body.`);
