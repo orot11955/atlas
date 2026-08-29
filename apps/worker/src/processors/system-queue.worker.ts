@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Inject, Injectable, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Job, Worker } from 'bullmq';
 
@@ -35,14 +30,10 @@ export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
     const queueName = this.config.get('SYSTEM_QUEUE_NAME', { infer: true });
     this.queueName = queueName;
 
-    this.worker = new Worker(
-      queueName,
-      async (job: Job) => this.processJob(queueName, job),
-      {
-        connection: parseRedisUrl(this.config.get('REDIS_URL', { infer: true })),
-        concurrency: 2,
-      },
-    );
+    this.worker = new Worker(queueName, async (job: Job) => this.processJob(queueName, job), {
+      connection: parseRedisUrl(this.config.get('REDIS_URL', { infer: true })),
+      concurrency: 2,
+    });
 
     this.worker.on('ready', () => {
       this.logger.write(
@@ -163,7 +154,5 @@ function getCorrelationId(job: Job, fallback: string): string {
 
   const correlationId = (job.data as Record<string, unknown>).correlationId;
 
-  return typeof correlationId === 'string' && correlationId.length > 0
-    ? correlationId
-    : fallback;
+  return typeof correlationId === 'string' && correlationId.length > 0 ? correlationId : fallback;
 }

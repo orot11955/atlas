@@ -1,15 +1,7 @@
-import pino, {
-  type DestinationStream,
-  type Logger as PinoLogger,
-  type LoggerOptions,
-} from 'pino';
+import pino, { type DestinationStream, type Logger as PinoLogger, type LoggerOptions } from 'pino';
 
 import { requestContext } from '../request-context';
-import {
-  REDACTED_LOG_VALUE,
-  redactLogBindings,
-  redactLogMessage,
-} from './log-redaction';
+import { REDACTED_LOG_VALUE, redactLogBindings, redactLogMessage } from './log-redaction';
 
 export const ATLAS_LOGGER = Symbol.for('@atlas/server/logger');
 

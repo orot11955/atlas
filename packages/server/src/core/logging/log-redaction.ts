@@ -71,7 +71,12 @@ function sanitizeRecord(
 }
 
 function sanitizeValue(value: unknown, depth: number, seen: WeakSet<object>): unknown {
-  if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'number') {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === 'boolean' ||
+    typeof value === 'number'
+  ) {
     return value;
   }
 

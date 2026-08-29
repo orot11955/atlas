@@ -6,11 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { parseOriginList, type ApiEnvironment } from '@atlas/config';
-import {
-  ATLAS_LOGGER,
-  AtlasLogLevel,
-  type AtlasLogger,
-} from '@atlas/server';
+import { ATLAS_LOGGER, AtlasLogLevel, type AtlasLogger } from '@atlas/server';
 
 import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './filters/problem-details.filter';

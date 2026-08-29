@@ -1,10 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  ATLAS_LOGGER,
-  AtlasLogLevel,
-  type AtlasLogger,
-} from '@atlas/server';
+import { ATLAS_LOGGER, AtlasLogLevel, type AtlasLogger } from '@atlas/server';
 
 type NextFunction = (error?: unknown) => void;
 
