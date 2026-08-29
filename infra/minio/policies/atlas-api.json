@@ -3,34 +3,18 @@
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetBucketLocation",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::atlas-private",
-        "arn:aws:s3:::atlas-public"
-      ]
+      "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::atlas-private", "arn:aws:s3:::atlas-public"]
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:AbortMultipartUpload",
-        "s3:GetObject",
-        "s3:PutObject"
-      ],
-      "Resource": [
-        "arn:aws:s3:::atlas-private/*"
-      ]
+      "Action": ["s3:AbortMultipartUpload", "s3:GetObject", "s3:PutObject"],
+      "Resource": ["arn:aws:s3:::atlas-private/*"]
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject"
-      ],
-      "Resource": [
-        "arn:aws:s3:::atlas-public/*"
-      ]
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::atlas-public/*"]
     }
   ]
 }

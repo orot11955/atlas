@@ -12,10 +12,7 @@ export class MinioObjectStorageAdapter implements ObjectStoragePort {
     return this.client.bucketExists(bucket);
   }
 
-  public async statObject(
-    bucket: string,
-    objectKey: string,
-  ): Promise<StoredObjectMetadata> {
+  public async statObject(bucket: string, objectKey: string): Promise<StoredObjectMetadata> {
     const result = await this.client.statObject(bucket, objectKey);
 
     return {

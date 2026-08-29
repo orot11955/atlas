@@ -12,3 +12,8 @@ allowBuilds:
   '@scarf/scarf': false
   esbuild: true
   msgpackr-extract: true
+
+minimumReleaseAgeExclude:
+  - '@nestjs/swagger@12.0.1'
+  - bullmq@6.3.2
+  - zod@4.5.1

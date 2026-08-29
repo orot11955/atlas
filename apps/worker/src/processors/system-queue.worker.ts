@@ -1,27 +1,15 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type Job, Worker } from 'bullmq';
 
-import {
-  parseRedisUrl,
-  type WorkerEnvironment,
-} from '@atlas/config';
+import { parseRedisUrl, type WorkerEnvironment } from '@atlas/config';
 
 @Injectable()
-export class SystemQueueWorker
-  implements OnModuleInit, OnApplicationShutdown
-{
+export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(SystemQueueWorker.name);
   private worker?: Worker;
 
-  public constructor(
-    private readonly config: ConfigService<WorkerEnvironment, true>,
-  ) {}
+  public constructor(private readonly config: ConfigService<WorkerEnvironment, true>) {}
 
   public onModuleInit(): void {
     const queueName = this.config.get('SYSTEM_QUEUE_NAME', { infer: true });
@@ -39,9 +27,7 @@ export class SystemQueueWorker
         };
       },
       {
-        connection: parseRedisUrl(
-          this.config.get('REDIS_URL', { infer: true }),
-        ),
+        connection: parseRedisUrl(this.config.get('REDIS_URL', { infer: true })),
         concurrency: 2,
       },
     );
@@ -55,10 +41,7 @@ export class SystemQueueWorker
     });
 
     this.worker.on('failed', (job, error) => {
-      this.logger.error(
-        `Failed job ${job?.id ?? 'unknown'}: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Failed job ${job?.id ?? 'unknown'}: ${error.message}`, error.stack);
     });
   }
 

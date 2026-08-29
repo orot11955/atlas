@@ -4,13 +4,13 @@
 
 ## 서비스
 
-| 서비스 | 용도 | 기본 포트 |
-|---|---|---:|
-| PostgreSQL | 영속 데이터와 Migration | 5432 |
-| Redis | BullMQ, Lock, 짧은 Cache | 6379 |
-| MinIO API | Object Storage | 9000 |
-| MinIO Console | 로컬 관리 UI | 9001 |
-| Nginx | 전체 Stack 진입점 | 8080 |
+| 서비스        | 용도                     | 기본 포트 |
+| ------------- | ------------------------ | --------: |
+| PostgreSQL    | 영속 데이터와 Migration  |      5432 |
+| Redis         | BullMQ, Lock, 짧은 Cache |      6379 |
+| MinIO API     | Object Storage           |      9000 |
+| MinIO Console | 로컬 관리 UI             |      9001 |
+| Nginx         | 전체 Stack 진입점        |      8080 |
 
 ## MinIO Bucket
 

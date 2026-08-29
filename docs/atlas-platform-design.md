@@ -1047,11 +1047,11 @@ atlas-public
 
 Bucket 정책:
 
-| Bucket | API | Worker | 외부 익명 접근 |
-|---|---:|---:|---:|
-| `atlas-private` | 업로드·조회 검증 | 읽기 | 차단 |
-| `atlas-processing` | 제한 | 읽기·쓰기·삭제 | 차단 |
-| `atlas-public` | Metadata 조회 | 읽기·쓰기·삭제 | Nginx 경유 GET/HEAD만 |
+| Bucket             |              API |         Worker |        외부 익명 접근 |
+| ------------------ | ---------------: | -------------: | --------------------: |
+| `atlas-private`    | 업로드·조회 검증 |           읽기 |                  차단 |
+| `atlas-processing` |             제한 | 읽기·쓰기·삭제 |                  차단 |
+| `atlas-public`     |    Metadata 조회 | 읽기·쓰기·삭제 | Nginx 경유 GET/HEAD만 |
 
 `atlas-public`을 MinIO Endpoint로 직접 공개하지 않고 `assets.example.dev`를 통해 제공한다.
 

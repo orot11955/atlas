@@ -1,16 +1,9 @@
-import {
-  Inject,
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 
 import type { ApiEnvironment } from '@atlas/config';
-import {
-  OBJECT_STORAGE,
-  type ObjectStoragePort,
-} from '@atlas/object-storage';
+import { OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
 
 import { RedisClientService } from '../infrastructure/redis/redis.module';
 
@@ -59,9 +52,7 @@ export class HealthService {
     );
 
     const result: ReadyResult = {
-      status: Object.values(checks).every((check) => check.status === 'up')
-        ? 'up'
-        : 'down',
+      status: Object.values(checks).every((check) => check.status === 'up') ? 'up' : 'down',
       checks,
       timestamp: new Date().toISOString(),
     };

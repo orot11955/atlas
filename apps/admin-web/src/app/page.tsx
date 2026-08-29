@@ -34,8 +34,8 @@ export default async function HomePage() {
         <p className="eyebrow">ATLAS CONTROL PLANE</p>
         <h1>관리자 패널 기반 준비 완료</h1>
         <p className="description">
-          콘텐츠, Site, 프로젝트, 배포, 자료와 회원 기능을 모듈 단위로 추가할 수 있는
-          기본 Monorepo입니다.
+          콘텐츠, Site, 프로젝트, 배포, 자료와 회원 기능을 모듈 단위로 추가할 수 있는 기본
+          Monorepo입니다.
         </p>
       </section>
 

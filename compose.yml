@@ -14,11 +14,7 @@ services:
     volumes:
       - atlas-postgres:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-atlas} -d ${POSTGRES_DB:-atlas}',
-        ]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-atlas} -d ${POSTGRES_DB:-atlas}']
       interval: 5s
       timeout: 5s
       retries: 20
