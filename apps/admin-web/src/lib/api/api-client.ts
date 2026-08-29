@@ -124,11 +124,11 @@ export class AtlasApiClient {
       throw new TypeError('API path cannot be empty.');
     }
 
-    if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith('//')) {
+    if (/^[a-z][a-z0-9+.-]*:/iu.test(trimmed) || trimmed.startsWith('//')) {
       throw new TypeError('Absolute API URLs are not allowed.');
     }
 
-    const pathname = trimmed.split(/[?#]/, 1)[0] ?? '';
+    const pathname = trimmed.split(/[?#]/u, 1)[0] ?? '';
     let decodedPathname: string;
 
     try {
@@ -151,25 +151,61 @@ export interface CreateAdminApiClientOptions extends Omit<AtlasApiClientOptions,
 
 export function createAdminApiClient(options: CreateAdminApiClientOptions = {}): AtlasApiClient {
   const { baseUrl, getCsrfToken, ...rest } = options;
-  const apiRoot = (process.env.NEXT_PUBLIC_ATLAS_API_URL ?? '/api').replace(/\/+$/, '');
+  const apiRoot = (process.env.NEXT_PUBLIC_ATLAS_API_URL ?? '/api').replace(/\/+$/u, '');
 
   return new AtlasApiClient({
     ...rest,
     baseUrl: baseUrl ?? `${apiRoot}/admin/v1`,
-    getCsrfToken: getCsrfToken ?? readCsrfTokenFromMeta,
+    getCsrfToken: getCsrfToken ?? readCsrfTokenFromBrowser,
   });
 }
 
-function readCsrfTokenFromMeta(): string | undefined {
+export function readCookieValue(cookieHeader: string, name: string): string | undefined {
+  if (!cookieHeader || !name) {
+    return undefined;
+  }
+
+  let match: string | undefined;
+
+  for (const segment of cookieHeader.split(';')) {
+    const separator = segment.indexOf('=');
+
+    if (separator < 1 || segment.slice(0, separator).trim() !== name) {
+      continue;
+    }
+
+    if (match !== undefined) {
+      return undefined;
+    }
+
+    try {
+      match = decodeURIComponent(segment.slice(separator + 1).trim());
+    } catch {
+      return undefined;
+    }
+  }
+
+  return match;
+}
+
+function readCsrfTokenFromBrowser(): string | undefined {
   if (typeof document === 'undefined') {
     return undefined;
+  }
+
+  const cookieName =
+    process.env.NEXT_PUBLIC_ATLAS_CSRF_COOKIE_NAME ?? 'atlas_admin_csrf';
+  const cookieToken = readCookieValue(document.cookie, cookieName);
+
+  if (cookieToken) {
+    return cookieToken;
   }
 
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || undefined;
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
-  const normalized = baseUrl.trim().replace(/\/+$/, '');
+  const normalized = baseUrl.trim().replace(/\/+$/u, '');
 
   if (!normalized) {
     throw new TypeError('API base URL cannot be empty.');
