@@ -11,9 +11,7 @@ import { AdminAccountEntity } from './admin-account.entity';
 import { AdminLoginAttemptEntity } from './admin-login-attempt.entity';
 import { AdminLoginChallengeEntity } from './admin-login-challenge.entity';
 
-export class TypeOrmAdminAuthenticationRepository
-  implements AdminAuthenticationRepositoryPort<EntityManager>
-{
+export class TypeOrmAdminAuthenticationRepository implements AdminAuthenticationRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async findByEmail(email: string): Promise<AdminAuthenticationAccount | undefined> {

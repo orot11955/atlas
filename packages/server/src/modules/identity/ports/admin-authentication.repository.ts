@@ -58,10 +58,7 @@ export interface AdminAuthenticationRepositoryPort<TTransaction = unknown> {
     invalidatedAt: Date,
     transaction: TTransaction,
   ): Promise<void>;
-  insertLoginAttempt(
-    attempt: AdminLoginAttemptRecord,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insertLoginAttempt(attempt: AdminLoginAttemptRecord, transaction: TTransaction): Promise<void>;
   insertLoginChallenge(
     challenge: AdminLoginChallengeRecord,
     transaction: TTransaction,

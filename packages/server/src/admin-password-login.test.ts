@@ -37,9 +37,7 @@ class TestTransactionRunner implements TransactionRunner<TestTransaction> {
   }
 }
 
-class MemoryAuthenticationRepository
-  implements AdminAuthenticationRepositoryPort<TestTransaction>
-{
+class MemoryAuthenticationRepository implements AdminAuthenticationRepositoryPort<TestTransaction> {
   public readonly accounts = new Map<string, AdminAuthenticationAccount>();
   public readonly attempts: AdminLoginAttemptRecord[] = [];
   public readonly challenges: AdminLoginChallengeRecord[] = [];
@@ -229,11 +227,7 @@ test('valid password resets failure state and issues only a digested MFA challen
     createdAt: new Date('2026-08-29T12:00:00.000Z'),
   });
 
-  const result = await executeLogin(
-    harness.service,
-    ' OWNER@example.com ',
-    'correct password',
-  );
+  const result = await executeLogin(harness.service, ' OWNER@example.com ', 'correct password');
 
   assert.equal(result.nextStep, 'mfa');
   assert.equal(result.challengeToken.includes('secret'), true);
@@ -249,15 +243,9 @@ test('valid password resets failure state and issues only a digested MFA challen
     harness.repository.challenges[1]?.tokenDigest.includes(result.challengeToken),
     false,
   );
-  assert.equal(
-    harness.repository.attempts[0]?.outcome,
-    AdminLoginAttemptOutcome.PASSWORD_VERIFIED,
-  );
+  assert.equal(harness.repository.attempts[0]?.outcome, AdminLoginAttemptOutcome.PASSWORD_VERIFIED);
   assert.deepEqual(harness.rateLimiter.resets, ['owner@example.com']);
-  assert.equal(
-    JSON.stringify(harness.auditRepository.records).includes('correct password'),
-    false,
-  );
+  assert.equal(JSON.stringify(harness.auditRepository.records).includes('correct password'), false);
   assert.equal(
     JSON.stringify(harness.auditRepository.records).includes('owner@example.com'),
     false,
@@ -284,10 +272,7 @@ test('unknown email performs dummy password verification and returns a generic e
     harness.repository.attempts[0]?.outcome,
     AdminLoginAttemptOutcome.INVALID_CREDENTIALS,
   );
-  assert.equal(
-    JSON.stringify(harness.repository.attempts).includes('missing@example.com'),
-    false,
-  );
+  assert.equal(JSON.stringify(harness.repository.attempts).includes('missing@example.com'), false);
 });
 
 test('the threshold failure locks the account and returns retry metadata', async () => {
@@ -308,10 +293,7 @@ test('the threshold failure locks the account and returns retry metadata', async
   const updated = harness.repository.accounts.get(account.id);
   assert.equal(updated?.failedLoginCount, 3);
   assert.equal(updated?.lockedUntil?.toISOString(), '2026-08-29T12:35:00.000Z');
-  assert.equal(
-    harness.repository.attempts[0]?.outcome,
-    AdminLoginAttemptOutcome.ACCOUNT_LOCKED,
-  );
+  assert.equal(harness.repository.attempts[0]?.outcome, AdminLoginAttemptOutcome.ACCOUNT_LOCKED);
 });
 
 test('rate limiting rejects before account lookup or password hashing', async () => {

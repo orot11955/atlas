@@ -19,9 +19,7 @@ import {
   type AdminPasswordLoginPolicy,
 } from '../domain/admin-login';
 import type { AdminAuthenticationRepositoryPort } from '../ports/admin-authentication.repository';
-import type {
-  AdminLoginChallengeTokenIssuerPort,
-} from '../ports/admin-login-challenge-token-issuer.port';
+import type { AdminLoginChallengeTokenIssuerPort } from '../ports/admin-login-challenge-token-issuer.port';
 import type { AdminLoginRateLimiterPort } from '../ports/admin-login-rate-limiter.port';
 import type { PasswordHasher } from '../ports/password-hasher.port';
 
