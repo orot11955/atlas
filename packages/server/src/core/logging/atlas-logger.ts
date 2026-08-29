@@ -42,8 +42,8 @@ const PINO_REDACT_PATHS = [
   'req.headers.cookie',
   'request.headers.authorization',
   'request.headers.cookie',
-  'res.headers.set-cookie',
-  'response.headers.set-cookie',
+  'res.headers["set-cookie"]',
+  'response.headers["set-cookie"]',
 ];
 
 export class AtlasLogger {
