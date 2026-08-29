@@ -1,0 +1,9 @@
+export interface IssuedAdminLoginChallengeToken {
+  id: string;
+  token: string;
+  tokenDigest: string;
+}
+
+export interface AdminLoginChallengeTokenIssuerPort {
+  issue(issuedAt: Date): Readonly<IssuedAdminLoginChallengeToken>;
+}
