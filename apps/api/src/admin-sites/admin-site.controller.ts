@@ -129,7 +129,9 @@ export class AdminSiteController {
   @Post(':siteId/activate')
   @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Activates the Site.' })
   public activateSite(
     @Req() request: AdminWorkspaceHttpRequest,
     @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
@@ -141,7 +143,9 @@ export class AdminSiteController {
   @Post(':siteId/maintenance')
   @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Puts the Site in maintenance mode.' })
   public putSiteInMaintenance(
     @Req() request: AdminWorkspaceHttpRequest,
     @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
@@ -153,7 +157,9 @@ export class AdminSiteController {
   @Post(':siteId/disable')
   @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Disables the Site.' })
   public disableSite(
     @Req() request: AdminWorkspaceHttpRequest,
     @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
@@ -165,7 +171,9 @@ export class AdminSiteController {
   @Post(':siteId/archive')
   @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Archives the Site.' })
   public archiveSite(
     @Req() request: AdminWorkspaceHttpRequest,
     @Param('siteId', new ParseUUIDPipe({ version: '7' })) siteId: string,
