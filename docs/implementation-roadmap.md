@@ -86,24 +86,24 @@ Migration 적용과 이전 버전 애플리케이션 호환성도 확인한다.
 
 ## 2. 전체 순서
 
-| Phase | 이름 | 상태 | 핵심 결과 |
-|---:|---|---|---|
-| 0 | Repository Foundation | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
-| 1 | Platform Core | 다음 | 공통 API·DB·Transaction·Audit·Outbox 기반 |
-| 2 | Admin Identity & Security | 예정 | OWNER 로그인, MFA, Session, RBAC |
-| 3 | Workspace & Site | 예정 | 다중 Site 등록과 설정 |
-| 4 | API Client & Delivery Boundary | 예정 | Site별 Server-to-server 인증 |
-| 5 | Content Core | 예정 | Markdown Content와 불변 Revision |
-| 6 | Publication & Delivery MVP | 예정 | Site별 게시와 Delivery API |
-| 7 | MinIO Media | 예정 | 원본 Upload와 공개 Variant |
-| 8 | Event, Webhook & Scheduling | 예정 | 예약 게시와 Site Revalidation |
-| 9 | Content Operations | 예정 | 분류, Redirect, Navigation, Search, Feed |
-| 10 | Project & History | 예정 | 프로젝트, Repository, Release, Timeline |
-| 11 | Deployment & Operations | 예정 | 배포 Callback, 상태, Health, Rollback 기록 |
-| 12 | Personal Resource Library | 예정 | 개인 자료, Collection, 관계, 검색 |
-| 13 | Member Management | 예정 | 다중 Site 회원과 Session·Consent 관리 |
-| 14 | Dashboard & Notification | 예정 | 조치 중심 Dashboard와 알림 |
-| 15 | Production Hardening | 예정 | Backup, 보안, 관측성, 운영 배포 |
+| Phase | 이름                           | 상태 | 핵심 결과                                      |
+| ----: | ------------------------------ | ---- | ---------------------------------------------- |
+|     0 | Repository Foundation          | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
+|     1 | Platform Core                  | 다음 | 공통 API·DB·Transaction·Audit·Outbox 기반      |
+|     2 | Admin Identity & Security      | 예정 | OWNER 로그인, MFA, Session, RBAC               |
+|     3 | Workspace & Site               | 예정 | 다중 Site 등록과 설정                          |
+|     4 | API Client & Delivery Boundary | 예정 | Site별 Server-to-server 인증                   |
+|     5 | Content Core                   | 예정 | Markdown Content와 불변 Revision               |
+|     6 | Publication & Delivery MVP     | 예정 | Site별 게시와 Delivery API                     |
+|     7 | MinIO Media                    | 예정 | 원본 Upload와 공개 Variant                     |
+|     8 | Event, Webhook & Scheduling    | 예정 | 예약 게시와 Site Revalidation                  |
+|     9 | Content Operations             | 예정 | 분류, Redirect, Navigation, Search, Feed       |
+|    10 | Project & History              | 예정 | 프로젝트, Repository, Release, Timeline        |
+|    11 | Deployment & Operations        | 예정 | 배포 Callback, 상태, Health, Rollback 기록     |
+|    12 | Personal Resource Library      | 예정 | 개인 자료, Collection, 관계, 검색              |
+|    13 | Member Management              | 예정 | 다중 Site 회원과 Session·Consent 관리          |
+|    14 | Dashboard & Notification       | 예정 | 조치 중심 Dashboard와 알림                     |
+|    15 | Production Hardening           | 예정 | Backup, 보안, 관측성, 운영 배포                |
 
 의존 관계:
 
@@ -1369,30 +1369,30 @@ Member API는 실제 Site에서 회원 기능을 사용할 시점에 활성화�
 
 # 4. 모듈별 목록
 
-| 모듈 | 주요 책임 | 선행 모듈 |
-|---|---|---|
-| `platform-core` | 오류, Context, Transaction, Pagination, Idempotency | Foundation |
-| `audit` | 운영 변경 감사 기록 | platform-core |
-| `outbox` | Transactional Event 저장과 전달 | platform-core |
-| `identity` | 관리자 인증, MFA, Session, RBAC | audit |
-| `workspace` | 최상위 데이터 경계 | identity |
-| `site` | 다중 외부 Site와 Domain·Setting | workspace |
-| `api-client` | Delivery·Integration API Key | site, identity |
-| `content` | 원본 Content와 Revision | workspace, identity |
-| `publication` | Site 배치, Snapshot, 게시 상태 | content, site, audit, outbox |
-| `delivery` | 외부 읽기 API | publication, api-client |
-| `media` | MinIO Asset와 Variant | workspace, outbox |
-| `webhook` | Site Revalidation과 Retry | site, outbox |
-| `scheduler` | 예약 게시와 정기 Job | publication, outbox |
-| `taxonomy` | Site별 Category와 Tag | site, content |
-| `navigation` | Site Navigation과 Home Curation | site, publication |
-| `search` | 공개·관리 검색 | content, publication, resource |
-| `project` | 프로젝트와 Timeline | workspace |
-| `deployment` | Release, 환경, 배포, Health | project, api-client, outbox |
-| `resource` | 개인 자료와 관계 | workspace, media |
-| `member` | 일반 회원과 Site Membership | workspace, site, audit |
-| `notification` | 실패·경고·조치 알림 | 전체 Event |
-| `dashboard` | 운영 Summary와 Quick Action | 각 도메인 Query |
+| 모듈            | 주요 책임                                           | 선행 모듈                      |
+| --------------- | --------------------------------------------------- | ------------------------------ |
+| `platform-core` | 오류, Context, Transaction, Pagination, Idempotency | Foundation                     |
+| `audit`         | 운영 변경 감사 기록                                 | platform-core                  |
+| `outbox`        | Transactional Event 저장과 전달                     | platform-core                  |
+| `identity`      | 관리자 인증, MFA, Session, RBAC                     | audit                          |
+| `workspace`     | 최상위 데이터 경계                                  | identity                       |
+| `site`          | 다중 외부 Site와 Domain·Setting                     | workspace                      |
+| `api-client`    | Delivery·Integration API Key                        | site, identity                 |
+| `content`       | 원본 Content와 Revision                             | workspace, identity            |
+| `publication`   | Site 배치, Snapshot, 게시 상태                      | content, site, audit, outbox   |
+| `delivery`      | 외부 읽기 API                                       | publication, api-client        |
+| `media`         | MinIO Asset와 Variant                               | workspace, outbox              |
+| `webhook`       | Site Revalidation과 Retry                           | site, outbox                   |
+| `scheduler`     | 예약 게시와 정기 Job                                | publication, outbox            |
+| `taxonomy`      | Site별 Category와 Tag                               | site, content                  |
+| `navigation`    | Site Navigation과 Home Curation                     | site, publication              |
+| `search`        | 공개·관리 검색                                      | content, publication, resource |
+| `project`       | 프로젝트와 Timeline                                 | workspace                      |
+| `deployment`    | Release, 환경, 배포, Health                         | project, api-client, outbox    |
+| `resource`      | 개인 자료와 관계                                    | workspace, media               |
+| `member`        | 일반 회원과 Site Membership                         | workspace, site, audit         |
+| `notification`  | 실패·경고·조치 알림                                 | 전체 Event                     |
+| `dashboard`     | 운영 Summary와 Quick Action                         | 각 도메인 Query                |
 
 ---
 
