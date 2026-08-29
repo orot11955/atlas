@@ -1,18 +1,69 @@
 # Atlas 전체 구현 로드맵
 
-- 문서 상태: Draft v0.1
+- 문서 상태: Draft v0.2
 - 기준 브랜치: `develop`
-- 기준 아키텍처: Next.js Admin Web + NestJS Modular Monolith + NestJS Worker
+- 기준 아키텍처: Next.js Admin Web + NestJS API + NestJS Worker
 - 데이터 저장소: PostgreSQL + Redis + MinIO
-- 목표: 관리자 패널을 먼저 완성하고, 이후 여러 Site가 Delivery API를 통해 콘텐츠를 제공받도록 구성한다.
+- 목표: 관리자 패널의 실사용 시점을 앞당기고, 이후 다중 Site용 Headless CMS와 운영 제어 기능을 점진적으로 확장한다.
+- 상세 체크리스트: [Phase별 구현 체크리스트](implementation/phase-checklists.md)
+- 선행 결정: [구현 아키텍처 결정](implementation/architecture-decisions.md)
+- 검증 기준: [Acceptance와 Release Gate](implementation/acceptance-gates.md)
+
+이 문서는 기존 Draft v0.1의 순서를 대체한다. 기존 계획의 다중 Site, 불변 Publication, MinIO, NestJS Modular Monolith 방향은 유지하되 다음 내용을 수정한다.
+
+```text
+CMS 고도화보다 관리자 패널 실사용 기능을 먼저 제공
+Platform Core를 필요한 최소 범위로 축소
+ContentDraft와 ContentRevision 분리
+Publication 상태의 단일 Source of Truth 확정
+Project/Deployment Read Model을 앞당김
+Member Directory와 Member Authentication 분리
+보안과 Backup을 마지막 Phase가 아닌 단계별 Gate로 적용
+API와 Worker가 공유하는 Server Module을 apps/api 밖으로 이동
+```
 
 ---
 
-## 1. 구현 원칙
+## 1. 제품 구현 우선순위
 
-### 1.1 수평 계층보다 수직 기능을 먼저 완성한다
+Atlas는 다음 순서로 가치를 제공한다.
 
-Entity를 전부 만든 뒤 UI를 한꺼번에 붙이지 않는다. 각 단계는 아래 흐름을 끝까지 완성한다.
+```text
+1. 안전하게 로그인할 수 있는 관리자 패널
+2. 프로젝트, 배포 상태, 개인 자료와 회원 목록을 관리하는 개인 운영 화면
+3. 글을 작성하고 여러 Site에 게시하는 Headless CMS
+4. MinIO 미디어, 예약 게시, Webhook과 콘텐츠 운영 기능
+5. 배포 제어, 회원 인증, 알림과 운영 안정화
+```
+
+첫 번째 실사용 목표는 단순히 로그인 가능한 빈 관리자 화면이 아니다.
+
+```text
+OWNER 로그인
+→ Site 등록
+→ 프로젝트 등록
+→ CI Deployment Callback 수신
+→ 개인 자료 저장
+→ Site별 회원 상태 조회
+```
+
+첫 번째 CMS 목표는 다음 수직 흐름이다.
+
+```text
+ContentDraft Autosave
+→ ContentRevision 생성
+→ Site 배치
+→ Publication 생성
+→ Delivery API 조회
+```
+
+---
+
+## 2. 구현 원칙
+
+### 2.1 수직 기능 단위로 완료한다
+
+각 기능은 가능한 한 다음 흐름을 한 PR 또는 연속된 작은 PR로 완성한다.
 
 ```text
 Migration
@@ -25,54 +76,87 @@ Migration
 → OpenAPI / 문서
 ```
 
-### 1.2 첫 번째 제품 목표는 텍스트 콘텐츠 게시다
+Foundation과 Package Boundary처럼 사용자 화면이 없는 작업만 수평 PR을 허용한다.
 
-고급 에디터, 이미지 변환, 회원 기능보다 아래 흐름을 먼저 완성한다.
+### 2.2 사용 시점에 공통 기능을 구현한다
 
-```text
-OWNER 로그인
-→ Site 생성
-→ Delivery API Client 발급
-→ Markdown 글 작성
-→ Revision 생성
-→ Site 배치
-→ Publish
-→ Delivery API 조회
-```
+초기 Platform Kernel에는 모든 미래 기능을 넣지 않는다.
 
-이 흐름이 Atlas의 첫 번째 실질적 MVP다.
-
-### 1.3 공통 기반은 초기에 만든다
-
-다음 기능은 후반에 덧붙이지 않고 초기부터 모든 모듈이 사용하도록 한다.
+Phase 1에서 구현:
 
 ```text
 Request Context
-Error Contract
-Transaction Boundary
-Permission Guard
-Audit Log
-Idempotency
-Optimistic Lock
-Transactional Outbox
-Structured Logging
+Problem Details
+Error Code
+UUIDv7
+UTC Clock
+Transaction Runner
+기본 Audit Write
+Pino Logging
+Secret Redaction
 ```
 
-단, Outbox의 다양한 Consumer와 운영 화면은 필요한 단계에서 점진적으로 추가한다.
-
-### 1.4 Site와 Workspace 경계를 모든 조회에 적용한다
-
-- Workspace 범위 데이터는 모든 Query에서 `workspaceId`를 제한한다.
-- Site 범위 데이터는 `workspaceId + siteId`를 제한한다.
-- 관리자 요청에서 Client가 보낸 Workspace ID를 그대로 신뢰하지 않는다.
-- Delivery API는 API Client의 Site Access와 요청 `siteKey`가 일치하는지 검사한다.
-- Repository Port에 Scope가 빠진 범용 `findAll()`을 만들지 않는다.
-
-### 1.5 배포 가능한 단위를 유지한다
-
-각 Phase가 끝날 때 다음 조건을 만족해야 한다.
+실제 사용 시점으로 이동:
 
 ```text
+Cursor Pagination      → 첫 목록 API
+Optimistic Lock        → ContentDraft와 설정 편집
+Idempotency Storage    → Deployment Callback와 Publish
+Outbox Relay           → Webhook과 예약 작업
+Dead Letter UI         → 비동기 Consumer 운영 시점
+```
+
+### 2.3 데이터 경계를 Query의 입력으로 강제한다
+
+```text
+Workspace 범위 Query
+→ workspaceId 필수
+
+Site 범위 Query
+→ workspaceId + siteId 필수
+
+Delivery Query
+→ apiClientId + siteId 필수
+```
+
+Scope 없는 범용 `findAll()` Repository Method는 만들지 않는다.
+
+### 2.4 편집본과 이력과 공개본을 분리한다
+
+```text
+ContentDraft
+└─ Mutable Autosave Working Copy
+
+ContentRevision
+└─ Immutable Checkpoint
+
+ContentPublication
+└─ Immutable Site별 공개 Snapshot
+```
+
+Autosave는 `ContentDraft`만 수정한다. 수동 저장, READY 전환, 게시 직전에 명시적으로 Revision을 만든다.
+
+### 2.5 실행보다 조회를 먼저 구현한다
+
+```text
+Deployment Read Model
+├─ Release
+├─ Deployment
+├─ Event
+└─ Health
+
+Deployment Control
+├─ Workflow Trigger
+├─ Redeploy
+├─ Lock
+└─ Rollback
+```
+
+초기 관리자 패널은 상태 수집과 조회부터 제공한다. 원격 실행과 Rollback은 재인증, Allowlist와 Audit가 준비된 이후에만 제공한다.
+
+### 2.6 각 Phase는 독립적으로 배포 가능해야 한다
+
+```bash
 pnpm format:check
 pnpm lint
 pnpm typecheck
@@ -80,595 +164,424 @@ pnpm test
 pnpm build
 ```
 
-Migration 적용과 이전 버전 애플리케이션 호환성도 확인한다.
+Schema 변경이 있으면 Migration Up 검증이 추가되고, 운영 데이터에 영향을 주면 호환성과 복구 절차를 함께 검증한다.
 
 ---
 
-## 2. 전체 순서
+## 3. 전체 Phase
 
-| Phase | 이름                           | 상태 | 핵심 결과                                      |
-| ----: | ------------------------------ | ---- | ---------------------------------------------- |
-|     0 | Repository Foundation          | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
-|     1 | Platform Core                  | 다음 | 공통 API·DB·Transaction·Audit·Outbox 기반      |
-|     2 | Admin Identity & Security      | 예정 | OWNER 로그인, MFA, Session, RBAC               |
-|     3 | Workspace & Site               | 예정 | 다중 Site 등록과 설정                          |
-|     4 | API Client & Delivery Boundary | 예정 | Site별 Server-to-server 인증                   |
-|     5 | Content Core                   | 예정 | Markdown Content와 불변 Revision               |
-|     6 | Publication & Delivery MVP     | 예정 | Site별 게시와 Delivery API                     |
-|     7 | MinIO Media                    | 예정 | 원본 Upload와 공개 Variant                     |
-|     8 | Event, Webhook & Scheduling    | 예정 | 예약 게시와 Site Revalidation                  |
-|     9 | Content Operations             | 예정 | 분류, Redirect, Navigation, Search, Feed       |
-|    10 | Project & History              | 예정 | 프로젝트, Repository, Release, Timeline        |
-|    11 | Deployment & Operations        | 예정 | 배포 Callback, 상태, Health, Rollback 기록     |
-|    12 | Personal Resource Library      | 예정 | 개인 자료, Collection, 관계, 검색              |
-|    13 | Member Management              | 예정 | 다중 Site 회원과 Session·Consent 관리          |
-|    14 | Dashboard & Notification       | 예정 | 조치 중심 Dashboard와 알림                     |
-|    15 | Production Hardening           | 예정 | Backup, 보안, 관측성, 운영 배포                |
+| Phase | 이름 | 상태 | 핵심 결과 |
+| ---: | --- | --- | --- |
+| 0 | Repository Foundation | 완료 | Monorepo, CI, Docker, PostgreSQL, Redis, MinIO |
+| 1 | Server Boundary & Platform Kernel Lite | 다음 | API·Worker 공유 코드 경계와 최소 공통 기반 |
+| 2 | Admin Identity & Shell | 예정 | OWNER 로그인, MFA, Session, 기본 관리자 Shell |
+| 3 | Workspace, Site & API Client | 예정 | 다중 Site와 Site별 Server-to-server 인증 |
+| 4 | Project & Deployment Read Model | 예정 | 프로젝트 이력과 CI 배포 상태 조회 |
+| 5 | Resource & Member Directory MVP | 예정 | 개인 자료와 Site별 기본 회원 관리 |
+| 6 | Content Draft & Revision | 예정 | Autosave Draft와 불변 Revision |
+| 7 | Publication & Delivery API | 예정 | Site별 게시와 외부 읽기 API |
+| 8 | MinIO Media | 예정 | 원본 Upload, Variant와 Asset Picker |
+| 9 | Outbox, Webhook & Scheduling | 예정 | 신뢰성 있는 비동기 처리와 예약 게시 |
+| 10 | Content Operations | 예정 | Taxonomy, Redirect, Navigation, Feed와 Search |
+| 11 | Deployment Control & Incident | 예정 | 제한된 재배포·Rollback과 장애 관리 |
+| 12 | Member Authentication & Privacy | 예정 | 회원가입, 로그인, Consent, 탈퇴와 익명화 |
+| 13 | Dashboard & Notification | 예정 | 조치 중심 Dashboard와 알림 |
+| 14 | Production Release | 예정 | 운영 보안, Backup, DR, 관측성과 main 배포 |
 
 의존 관계:
 
 ```text
-Phase 0
+Phase 0 Repository Foundation
   ↓
-Phase 1 Platform Core
+Phase 1 Server Boundary / Kernel Lite
   ↓
-Phase 2 Admin Identity
+Phase 2 Admin Identity / Shell
   ↓
-Phase 3 Workspace / Site
-  ↓
-Phase 4 API Client
-  ↓
-Phase 5 Content Core
-  ↓
-Phase 6 Publication / Delivery MVP
-  ├─→ Phase 7 MinIO Media
+Phase 3 Workspace / Site / API Client
+  ├─→ Phase 4 Project / Deployment Read
   │     ↓
-  └─→ Phase 8 Event / Webhook / Scheduling
-         ↓
-       Phase 9 Content Operations
+  ├─→ Phase 5 Resource / Member Directory
+  │
+  └─→ Phase 6 Content Draft / Revision
+          ↓
+        Phase 7 Publication / Delivery
+          ↓
+        Phase 8 MinIO Media
+          ↓
+        Phase 9 Outbox / Webhook / Scheduling
+          ↓
+        Phase 10 Content Operations
 
-Phase 3
-  ├─→ Phase 10 Project
-  │     ↓
-  │   Phase 11 Deployment
-  ├─→ Phase 12 Resource
-  └─→ Phase 13 Member
-
-전체 기능
-  ↓
-Phase 14 Dashboard
-  ↓
-Phase 15 Production Hardening
+Phase 4 → Phase 11 Deployment Control / Incident
+Phase 5 → Phase 12 Member Authentication / Privacy
+전체 Query와 Event → Phase 13 Dashboard / Notification
+전체 기능과 운영 Gate → Phase 14 Production Release
 ```
 
 ---
 
-# 3. Phase별 구현 목록
+## 4. Phase별 결과와 경계
 
 ## Phase 0. Repository Foundation
 
-### 목표
+### 현재 완료
 
-개발자가 같은 명령과 같은 인프라에서 작업할 수 있는 기준선을 만든다.
+```text
+pnpm Workspace
+Turborepo
+apps/admin-web
+apps/api
+apps/worker
+PostgreSQL
+Redis
+MinIO
+Docker Compose
+Nginx
+TypeORM Migration CLI
+Object Storage Adapter 골격
+Health Check
+GitHub Actions CI
+```
 
-### 현재 완료 항목
+### 남은 정리
 
-- [x] pnpm Workspace
-- [x] Turborepo
-- [x] `apps/admin-web`
-- [x] `apps/api`
-- [x] `apps/worker`
-- [x] 공통 TypeScript 설정
-- [x] ESLint와 Prettier
-- [x] PostgreSQL, Redis, MinIO Docker Compose
-- [x] MinIO Bucket과 Policy Bootstrap
-- [x] TypeORM DataSource와 Migration 명령 기반
-- [x] Object Storage Port와 MinIO Adapter 골격
-- [x] API Health Check
-- [x] Dockerfile과 Nginx 골격
-- [x] GitHub Actions CI
-- [x] Frozen Lockfile 검증
-
-### 보완 항목
-
-- [ ] Local Bootstrap Script를 macOS와 Ubuntu에서 각각 검증
-- [ ] `docker compose config`를 CI에 추가
-- [ ] Testcontainers 또는 Integration Test용 Compose 정책 결정
-- [ ] `.env.example`과 Config Schema 일치 Test
+- [ ] macOS와 Ubuntu에서 `scripts/bootstrap.sh` 검증
+- [ ] CI에 `docker compose config` 추가
+- [ ] Config Schema와 `.env.example` 일치 Test
+- [ ] Integration Test용 Database 격리 방식 확정
 - [ ] Dependency Update 정책 문서화
 
 ### 완료 기준
 
-- 새 환경에서 README 순서만으로 실행할 수 있다.
-- `pnpm check`가 통과한다.
-- PostgreSQL, Redis, MinIO Readiness가 정상이다.
+새 환경에서 README 순서만으로 인프라와 세 애플리케이션을 실행할 수 있다.
 
 ---
 
-## Phase 1. Platform Core
+## Phase 1. Server Boundary & Platform Kernel Lite
 
-### 목표
+### 결과
 
-이후 모든 도메인 모듈이 같은 방식으로 API, DB, 오류, Audit와 Event를 처리하게 한다.
+`apps/api`와 `apps/worker`가 같은 Domain과 Application 코드를 안전하게 공유한다. 이후 모든 기능은 같은 오류, Transaction, Context와 Audit 규칙을 사용한다.
 
-### Backend 구조
+### 범위
 
-- [ ] `RequestContextModule`
-  - [ ] `requestId`
-  - [ ] `traceId`
-  - [ ] `actorType`
-  - [ ] `actorId`
-  - [ ] `workspaceId`
-  - [ ] `siteId`
-- [ ] 전역 `ExceptionFilter`
-- [ ] `application/problem+json` 오류 계약
+```text
+packages/server
+├─ core
+└─ modules
+
+apps/api
+├─ HTTP Bootstrap
+├─ Controller / DTO
+└─ OpenAPI
+
+apps/worker
+├─ Queue Bootstrap
+├─ Processor
+└─ Scheduler
+```
+
+구현 항목:
+
+- [ ] `packages/server` 생성
+- [ ] `RequestContext`를 `AsyncLocalStorage` 기반으로 구현
+- [ ] `application/problem+json` 전역 오류 계약
 - [ ] 공통 Error Code Registry
-- [ ] Cursor Pagination DTO와 Codec
-- [ ] Sort·Filter Allowlist
-- [ ] UUIDv7 생성기
-- [ ] UTC Clock Port
-- [ ] Optimistic Lock 규칙
-- [ ] `If-Match` 또는 `version` 처리
-- [ ] 공통 Transaction Runner
-- [ ] Idempotency Interceptor와 저장소
-- [ ] Pino Request Logging
-- [ ] Secret Redaction
+- [ ] UUIDv7과 UTC Clock Port
+- [ ] TypeORM Transaction Runner
+- [ ] 보안·관리 명령용 최소 `AuditService`
+- [ ] Pino Request Logging과 Secret Redaction
+- [ ] TypeORM Entity Scan 경로를 `packages/server` 기준으로 변경
+- [ ] API와 Worker Build Reference 정리
 
-### 데이터 모델
+이번 Phase에서 제외:
 
-- [ ] `audit_logs`
-- [ ] `outbox_events`
-- [ ] `idempotency_records`
-- [ ] 공통 Timestamp와 Version 규칙
-- [ ] Migration naming 규칙
-- [ ] Partial Unique Index 작성 방식
-
-### Audit 기반
-
-- [ ] `AuditService`
-- [ ] 성공·실패 결과 기록
-- [ ] Actor Snapshot
-- [ ] Before·After JSON Redaction
-- [ ] Audit 대상 Decorator
-- [ ] Audit 조회 Repository Port
-
-### Outbox 기반
-
-- [ ] Domain Event 공통 Envelope
-- [ ] 동일 Transaction 내 Outbox 저장
-- [ ] Outbox Poller 기본 골격
-- [ ] Lock과 중복 처리 규칙
-- [ ] Retry Count와 `availableAt`
-- [ ] Dead 상태 정의
-
-### Admin Web 기반
-
-- [ ] API Client 공통 Fetcher
-- [ ] Problem Details Parser
-- [ ] Query Key 규칙
-- [ ] 전역 Error Boundary
-- [ ] Toast와 Form Error 표시
-- [ ] Loading·Empty·Error 공통 상태
-
-### Test
-
-- [ ] Error Contract Integration Test
-- [ ] Pagination Unit Test
-- [ ] Optimistic Lock Integration Test
-- [ ] Idempotency Integration Test
-- [ ] Audit Redaction Test
-- [ ] Outbox Transaction Test
+```text
+범용 Pagination Framework
+Outbox Relay
+Dead Letter UI
+전체 Idempotency Interceptor
+동적 RBAC 편집 기능
+```
 
 ### 완료 기준
 
-```text
-샘플 Command 실행
-→ DB 변경
-→ Audit 생성
-→ Outbox 생성
-→ 공통 성공 응답
-```
-
-실패 시 공통 오류 응답과 실패 Audit가 생성된다.
+샘플 Transaction Command가 DB 변경, Audit 기록과 공통 응답을 생성하고 API와 Worker가 같은 Server Package를 Build할 수 있다.
 
 ---
 
-## Phase 2. Admin Identity & Security
+## Phase 2. Admin Identity & Shell
 
-### 목표
+### 결과
 
-OWNER가 안전하게 로그인하고 관리자 Shell에 진입한다.
+OWNER가 Password와 TOTP로 로그인하고 관리자 Shell에 접근한다.
 
-### Entity
+### 초기 모델
 
-- [ ] `AdminAccount`
-- [ ] `Role`
-- [ ] `Permission`
-- [ ] `AdminAccountRole`
-- [ ] `RolePermission`
-- [ ] `AdminSession`
-- [ ] `MfaMethod`
-- [ ] `RecoveryCode`
-- [ ] `LoginAttempt`
-- [ ] `ReauthChallenge`
+```text
+AdminAccount
+AdminSession
+AdminMfaMethod
+AdminRecoveryCode
+LoginAttempt
+ReauthToken
+```
 
-### Bootstrap
+초기에는 Role 편집 UI를 만들지 않는다. `OWNER`, `ADMIN`, `EDITOR`, `OPERATOR`, `VIEWER` Role Enum과 Permission Registry를 코드로 관리한다.
 
-- [ ] 최초 OWNER 생성 CLI
-- [ ] 중복 Bootstrap 차단
-- [ ] Password 입력 시 Shell History 노출 방지
+### 핵심 기능
+
+- [ ] Interactive OWNER Bootstrap CLI
 - [ ] Argon2id Password Hash
-- [ ] 기본 Role·Permission Seed
-- [ ] Recovery Code 생성
-
-### 인증 API
-
-- [ ] `POST /api/admin/v1/auth/login`
-- [ ] `POST /api/admin/v1/auth/mfa/verify`
-- [ ] `POST /api/admin/v1/auth/logout`
-- [ ] `GET /api/admin/v1/auth/session`
-- [ ] `GET /api/admin/v1/auth/sessions`
-- [ ] `DELETE /api/admin/v1/auth/sessions/{id}`
-- [ ] `POST /api/admin/v1/auth/reauth`
-- [ ] Password 변경
-- [ ] TOTP 등록·재등록
-- [ ] Recovery Code 재발급
-
-### 보안
-
-- [ ] Server-side Session
-- [ ] Session Token Hash 저장
-- [ ] `HttpOnly`, `Secure`, `SameSite=Strict`
-- [ ] CSRF Token
-- [ ] Login Rate Limit
-- [ ] Account Lock 정책
-- [ ] Session Idle Timeout
-- [ ] Absolute Session Timeout
+- [ ] TOTP 등록과 검증
+- [ ] Recovery Code
+- [ ] Server-side Session과 Token Digest
+- [ ] Synchronizer CSRF Token
+- [ ] Idle Timeout과 Absolute Timeout
+- [ ] Login Rate Limit과 Lock 정책
 - [ ] 위험 작업 Reauthentication
-- [ ] 로그인·MFA·세션 폐기 Audit
+- [ ] Login·MFA·Session Audit
+- [ ] Login, MFA, Recovery 화면
+- [ ] Sidebar, Topbar, Session 화면
 
-### RBAC
+### Security Gate A
 
-- [ ] `PermissionGuard`
-- [ ] `@RequirePermissions()` Decorator
-- [ ] OWNER 우회 정책 금지 또는 명시적 정책 결정
-- [ ] API와 UI Permission Mapping
-- [ ] 권한 없는 메뉴 숨김과 API 403 처리
-
-### Admin UI
+관리자 주소를 외부에 노출하기 전에 다음을 완료한다.
 
 ```text
-/login
-/login/mfa
-/setup/mfa
-/admin
-/admin/security/sessions
-/admin/security/recovery-codes
+TLS
+Secure / HttpOnly / SameSite Cookie
+CSRF
+Login Rate Limit
+기본 CSP와 Security Header
+Admin Cookie와 Site Domain 분리
 ```
-
-- [ ] Login Form
-- [ ] MFA Form
-- [ ] 관리자 Layout
-- [ ] Sidebar
-- [ ] Topbar
-- [ ] 현재 사용자 메뉴
-- [ ] Session 관리 화면
-- [ ] 로그아웃
-
-### Test
-
-- [ ] 로그인 성공·실패
-- [ ] MFA Required
-- [ ] CSRF 차단
-- [ ] Session 만료와 폐기
-- [ ] Rate Limit
-- [ ] Permission Matrix
-- [ ] Cookie가 외부 Site Domain과 공유되지 않는지 확인
 
 ### 완료 기준
 
-- OWNER가 Password와 MFA로 로그인한다.
-- 미인증 요청은 `401`, 권한 없는 요청은 `403`을 반환한다.
-- 로그인과 세션 변경이 Audit에 기록된다.
+미인증 Admin API는 401, 권한 부족은 403을 반환하며 로그인과 Session 변경이 Audit에 남는다.
 
 ---
 
-## Phase 3. Workspace & Site
+## Phase 3. Workspace, Site & API Client
 
-### 목표
+### 결과
 
-하나의 Workspace에서 여러 블로그·포트폴리오·문서 Site를 독립 관리한다.
+단일 기본 Workspace 안에서 여러 Site를 등록하고 Site별 Delivery Client를 발급한다.
 
-### Entity
-
-- [ ] `Workspace`
-- [ ] `WorkspaceMember` 또는 Admin Workspace Access
-- [ ] `Site`
-- [ ] `SiteDomain`
-- [ ] `SiteSetting`
-- [ ] `SiteSecretReference`
-
-### Workspace
-
-- [ ] 기본 Workspace Bootstrap
-- [ ] Workspace 조회·수정
-- [ ] Timezone과 Locale
-- [ ] Workspace 상태
-- [ ] 향후 다중 Workspace를 막지 않는 Context Resolver
-
-### Site
-
-- [ ] Site CRUD
-- [ ] Site Type
-- [ ] 상태 전이
-  - [ ] `DRAFT`
-  - [ ] `ACTIVE`
-  - [ ] `MAINTENANCE`
-  - [ ] `DISABLED`
-  - [ ] `ARCHIVED`
-- [ ] Canonical Domain
-- [ ] Domain 중복 검증
-- [ ] Domain Verification 상태
-- [ ] Site Setting Version 관리
-- [ ] Branding 설정
-- [ ] SEO Default
-- [ ] Feed 설정
-- [ ] Member Feature Flag
-- [ ] Webhook Policy
-
-### Admin API
-
-- [ ] Workspace Endpoint
-- [ ] Site 목록·상세·생성·수정
-- [ ] Site 활성화·비활성화
-- [ ] Domain CRUD
-- [ ] Setting 조회·수정
-- [ ] Site별 사용량 Summary 골격
-
-### Admin UI
+### 초기 범위
 
 ```text
-/admin/sites
-/admin/sites/new
-/admin/sites/{siteId}
-/admin/sites/{siteId}/domains
-/admin/sites/{siteId}/settings
+Workspace
+├─ Bootstrap된 기본 Workspace 한 개
+└─ 다중 Workspace UI는 보류
+
+Site
+├─ BLOG
+├─ PORTFOLIO
+├─ DOCS
+├─ PHOTO
+└─ OTHER
 ```
 
-- [ ] Site List
-- [ ] Site Create Wizard
-- [ ] Site Detail Tabs
-- [ ] Domain 관리
-- [ ] Setting Form
-- [ ] 전역 Site Switcher
-- [ ] All Sites Filter
+### 핵심 기능
 
-### Test
-
-- [ ] `UNIQUE(workspace_id, key)`
-- [ ] Canonical Domain 한 개 제한
-- [ ] 다른 Workspace 접근 차단
-- [ ] Archived Site 수정 정책
-- [ ] Site 상태 전이
+- [ ] Workspace 조회와 기본 설정
+- [ ] Site CRUD와 상태 전이
+- [ ] Canonical Domain과 Domain Verification 상태
+- [ ] Site Timezone, Locale, Branding, SEO Default
+- [ ] Site Switcher
+- [ ] API Client 생성, 회전, 폐기와 만료
+- [ ] API Client Scope와 Site Access
+- [ ] HMAC-SHA-256 기반 Secret Digest
+- [ ] Site별 Delivery 인증 Guard
+- [ ] 첫 Cursor Pagination과 Filter 규칙
 
 ### 완료 기준
 
-- `main-blog`, `dev-log` 두 Site를 생성할 수 있다.
-- Site마다 Domain과 설정이 독립적으로 유지된다.
-- 모든 관리자 조회가 Workspace 범위로 제한된다.
+`main-blog`와 `dev-log`를 생성하고, `main-blog` Key로 `dev-log` API를 호출하면 403을 반환한다.
 
 ---
 
-## Phase 4. API Client & Delivery Boundary
+## Phase 4. Project & Deployment Read Model
 
-### 목표
+### 결과
 
-외부 Site와 CI가 관리자 Session과 분리된 자격증명으로 필요한 API만 호출한다.
+실제 프로젝트 이력과 CI/CD 배포 상태를 관리자 패널에서 조회한다. 이 단계에서는 원격 실행을 제공하지 않는다.
 
-### Entity
-
-- [ ] `ApiClient`
-- [ ] `ApiClientKey`
-- [ ] `ApiClientScope`
-- [ ] `ApiClientSiteAccess`
-- [ ] `ApiClientUsage`
-
-### Key 관리
-
-- [ ] Key Prefix와 Secret 생성
-- [ ] Secret 원문 1회 표시
-- [ ] Argon2id 또는 적절한 Key Hash
-- [ ] Key Rotation
-- [ ] Key Revocation
-- [ ] Expiration
-- [ ] Last Used At
-- [ ] 허용 IP 정책은 Optional로 설계
-
-### 인증 Guard
-
-- [ ] Bearer Parser
-- [ ] Key Prefix로 Candidate 조회
-- [ ] Constant-time 검증
-- [ ] Scope Guard
-- [ ] Site Access Guard
-- [ ] Rate Limit
-- [ ] Usage Audit
-
-### Scope
+### 핵심 모델
 
 ```text
-site:read
-content:read
-feed:read
-deployment:create
-deployment:update
-release:write
-health:write
+Project
+ProjectEvent
+RepositoryConnection
+Release
+Environment
+Service
+ServiceEnvironment
+Deployment
+DeploymentEvent
+HealthCheck
 ```
 
-### Admin UI
+### 핵심 기능
 
-```text
-/admin/sites/{siteId}/api-clients
-/admin/system/api-clients
-```
-
-- [ ] API Client 목록
-- [ ] 발급 Modal
-- [ ] Secret 1회 표시와 복사 경고
-- [ ] Scope 선택
-- [ ] Site Access 선택
-- [ ] Rotate
-- [ ] Revoke
-- [ ] Last Used 표시
-
-### Test
-
-- [ ] Site A Key로 Site A 접근
-- [ ] Site A Key로 Site B 접근 시 `403 SITE_NOT_ACCESSIBLE`
-- [ ] Scope 부족 시 403
-- [ ] 만료·폐기 Key 거부
-- [ ] 원문 Secret DB 미저장 확인
+- [ ] Project CRUD와 Timeline
+- [ ] Repository, Release와 Site 연결
+- [ ] CI 전용 API Client Scope
+- [ ] Deployment 시작·Event·완료 Callback
+- [ ] `Idempotency-Key` 저장과 중복 응답
+- [ ] 환경별 현재 Release
+- [ ] Deployment 상태와 Health 상태 분리
+- [ ] ServiceEnvironment에 사전 등록된 Health URL만 사용
+- [ ] Deployment 목록, 상세와 Timeline 화면
 
 ### 완료 기준
 
-Site별 Delivery Client를 발급하고 인증된 빈 Delivery Endpoint를 호출할 수 있다.
+CI가 같은 `Idempotency-Key`로 두 번 요청해도 Deployment는 하나만 생성되며, 배포 성공과 Health 실패를 별도로 표시한다.
 
 ---
 
-## Phase 5. Content Core
+## Phase 5. Resource & Member Directory MVP
 
-### 목표
+### 결과
 
-Site와 분리된 원본 Content를 작성하고 불변 Revision으로 이력을 보존한다.
+Atlas를 개인 운영 패널로 실제 사용하기 위한 자료실과 회원 관리의 얇은 버전을 제공한다.
 
-### 초기 Content Type
+### Resource 범위
 
 ```text
-POST
-PAGE
-PROJECT
-RESUME
-PRIVATE_DOCUMENT
+ResourceCollection
+Resource
+ResourceTag
+ResourceRelation
+ResourceAsset
 ```
 
-첫 구현은 `POST`만 UI까지 완성하고 나머지는 Schema 확장 가능성만 유지한다.
-
-### Entity
-
-- [ ] `Content`
-- [ ] `ContentRevision`
-- [ ] `ContentRelation`
-- [ ] `ContentRedirect` 골격
-
-### Domain 규칙
-
-- [ ] `DRAFT → READY → ARCHIVED`
-- [ ] Revision 생성 후 수정 금지
-- [ ] Revision Number 단조 증가
-- [ ] Content Hash 중복 처리
-- [ ] 현재 Revision Pointer
-- [ ] Optimistic Lock
-- [ ] Archive 정책
-- [ ] Markdown Sanitization 정책
-- [ ] 허용 HTML·MDX 정책
-
-### Admin API
-
-- [ ] Content 목록
-- [ ] Content 상세
-- [ ] Content 생성
-- [ ] Metadata 수정
-- [ ] Revision 생성
-- [ ] Revision 목록·상세
-- [ ] Revision Restore
-- [ ] READY 전환
-- [ ] DRAFT 복귀
+- [ ] Markdown 메모와 문서
+- [ ] 외부 Link
+- [ ] Collection과 Tag
+- [ ] Project·Content 연결을 위한 Relation 골격
+- [ ] Visibility와 Sensitivity
 - [ ] Archive
-- [ ] Validation Endpoint
+- [ ] Secret 입력 경고와 Secret Store Reference
 
-### Editor 1차 범위
-
-고급 WYSIWYG보다 안정적인 Markdown Source Mode부터 구현한다.
-
-- [ ] Title
-- [ ] Summary
-- [ ] Markdown Textarea 또는 Code Editor
-- [ ] Server Preview
-- [ ] Autosave
-- [ ] Save State
-- [ ] Version Conflict UI
-- [ ] Local Draft Recovery
-- [ ] Metadata Panel
-- [ ] Revision Note
-
-### Admin UI
+### Member Directory 범위
 
 ```text
-/admin/contents
-/admin/contents/new
-/admin/contents/{contentId}
-/admin/contents/{contentId}/revisions
-/admin/contents/{contentId}/revisions/{revisionId}
+Member
+SiteMembership
+MemberAdminNote
 ```
 
-### Test
+- [ ] 수동 생성 또는 외부 Import를 위한 기본 API
+- [ ] 전체·Site별 회원 목록
+- [ ] `PENDING`, `ACTIVE`, `SUSPENDED`, `WITHDRAWN`
+- [ ] Site별 상태 변경
+- [ ] 관리자 메모
 
-- [ ] Revision 불변성
-- [ ] 동시 수정 충돌
-- [ ] READY 검증
-- [ ] Restore가 새 Revision을 생성하는지 확인
-- [ ] 다른 Workspace Content 접근 차단
-- [ ] Markdown Sanitization
+회원 Password, Session, Email Verification은 Phase 12에서 구현한다.
+
+### Data Gate B
+
+실제 개인 자료나 회원 데이터를 넣기 전에 다음을 완료한다.
+
+```text
+PostgreSQL Backup Job
+최소 1회 Restore Test
+MinIO Backup 경로 확정
+Backup Secret 분리
+삭제와 보존 정책 문서화
+```
 
 ### 완료 기준
 
-- Markdown 글을 작성하고 Revision을 생성한다.
-- 이전 Revision을 조회하고 복구할 수 있다.
-- READY 조건을 통과하지 못한 글은 READY로 전환할 수 없다.
+프로젝트에 개인 자료를 연결하고 동일 Member를 Site별로 서로 다른 상태로 관리할 수 있다.
 
 ---
 
-## Phase 6. Publication & Delivery MVP
+## Phase 6. Content Draft & Revision
 
-### 목표
+### 결과
 
-하나의 Content를 하나 이상의 Site에 배치하고, Site별 불변 Publication을 Delivery API로 제공한다.
+Markdown 글을 Autosave하면서 명시적인 불변 Revision을 생성하고 복구할 수 있다.
 
-### Entity
+### 모델
 
-- [ ] `ContentSite`
-- [ ] `ContentPublication`
-- [ ] `PublicationAttempt`
-- [ ] `ContentSiteTerm` 골격
+```text
+Content
+ContentDraft
+ContentRevision
+ContentRelation
+```
 
-### Site 배치
+### 규칙
 
-- [ ] Site별 `slug`
-- [ ] Site별 `route`
-- [ ] Title Override
-- [ ] Summary Override
-- [ ] SEO Override
-- [ ] Visibility
-- [ ] Scheduled At 필드
-- [ ] Active Publication Pointer
-- [ ] `UNIQUE(site_id, route)`
+```text
+Autosave
+→ ContentDraft UPDATE with version
 
-### Publication
+수동 Checkpoint 또는 READY
+→ ContentRevision INSERT
 
+과거 Revision 복구
+→ ContentDraft에 복사
+→ 다음 저장 시 새 Revision 생성
+```
+
+### 핵심 기능
+
+- [ ] POST Content 생성
+- [ ] Draft Autosave와 Optimistic Lock
+- [ ] Local Recovery
+- [ ] Markdown Source Editor와 Server Preview
+- [ ] Revision Checkpoint
+- [ ] READY Validation
+- [ ] Revision 목록, Diff용 데이터와 Restore
+- [ ] Markdown Sanitization
+- [ ] 다른 Workspace 접근 차단
+
+### 완료 기준
+
+Autosave는 Revision을 무한 생성하지 않으며, READY 전환 시 불변 Revision이 생성된다.
+
+---
+
+## Phase 7. Publication & Delivery API
+
+### 결과
+
+하나의 Content를 여러 Site에 배치하고 Site별 게시본을 Delivery API로 제공한다.
+
+### 모델
+
+```text
+ContentSite
+└─ Site별 route, slug, override와 visibility만 보유
+
+ContentPublication
+└─ 게시 상태의 단일 Source of Truth
+
+PublicationAttempt
+└─ 게시 검증과 실패 기록
+```
+
+`ContentSite.activePublicationId`와 중복 게시 상태 컬럼은 사용하지 않는다. `ACTIVE` Partial Unique Index로 Site 배치당 활성 게시본 하나를 보장한다.
+
+### 핵심 기능
+
+- [ ] Site Assignment
+- [ ] Site별 slug, route, 제목·요약·SEO Override
 - [ ] Publish Validation
-- [ ] Revision Snapshot
-- [ ] 이전 ACTIVE를 SUPERSEDED 처리
-- [ ] ACTIVE Partial Unique Index
-- [ ] Unpublish
-- [ ] Withdraw
-- [ ] Republish
-- [ ] 이전 Publication 복구
-- [ ] ETag 생성
-- [ ] Publication Audit
-- [ ] 동일 요청 Idempotency
+- [ ] 불변 Publication Snapshot
+- [ ] ACTIVE, SUPERSEDED, WITHDRAWN, FAILED
+- [ ] Publish Idempotency
+- [ ] ETag와 `304 Not Modified`
+- [ ] Cursor Pagination과 Cache-Control
+- [ ] 공개 DTO Version 고정
+- [ ] 내부 Entity와 MinIO 정보 미노출
 
-### Delivery API 1차
+### Delivery API MVP
 
 ```http
 GET /api/delivery/v1/sites/{siteKey}
@@ -676,1023 +589,440 @@ GET /api/delivery/v1/sites/{siteKey}/posts
 GET /api/delivery/v1/sites/{siteKey}/posts/{slug}
 ```
 
-- [ ] ACTIVE Publication만 반환
-- [ ] Cursor Pagination
-- [ ] ETag와 `304 Not Modified`
-- [ ] Cache-Control
-- [ ] 내부 Entity와 Storage 정보 미노출
-- [ ] 공개 DTO Version 고정
-- [ ] Not Found와 Withdraw 정책
-
-### Admin UI
+### Public Delivery Gate C
 
 ```text
-/admin/contents/{contentId}/sites
-/admin/content-sites/{contentSiteId}
-/admin/content-sites/{contentSiteId}/publications
-```
-
-- [ ] Site 배치 Dialog
-- [ ] Site별 slug·SEO Form
-- [ ] Publish Validation 표시
-- [ ] Publish 확인 Dialog
-- [ ] Site별 현재 게시 상태
-- [ ] Publication History
-- [ ] Unpublish와 Restore
-
-### E2E 핵심 시나리오
-
-```text
-Content 생성
-→ Revision 생성
-→ READY
-→ main-blog 배치
-→ Publish
-→ main-blog API Key로 조회
-→ 새 Revision 생성
-→ 기존 공개 응답 유지
-→ Republish
-→ 새 응답과 ETag 확인
+Site Key 격리 Test
+API Key 회전·폐기 Test
+Rate Limit
+Cache Header 검증
+비공개 Metadata 노출 Test
+Nginx/API Security Header
 ```
 
 ### 완료 기준
 
-이 Phase가 완료되면 텍스트 기반 다중 Site CMS로 실제 사용할 수 있다.
+새 Draft와 Revision을 작성해도 기존 공개 응답은 유지되고, 재게시 후에만 새 Publication과 ETag가 반환된다.
 
 ---
 
-## Phase 7. MinIO Media
+## Phase 8. MinIO Media
 
-### 목표
+### 결과
 
-원본을 안전하게 보관하고 공개 Site에는 가공된 Variant만 제공한다.
+원본을 Private Bucket에 저장하고 가공된 Variant만 외부 Site에 제공한다.
 
-### Entity
+### 핵심 모델
 
-- [ ] `Asset`
-- [ ] `AssetVariant`
-- [ ] `AssetUsage`
-- [ ] `UploadSession`
-- [ ] `AssetProcessingAttempt`
+```text
+Asset
+AssetVariant
+AssetUsage
+UploadSession
+AssetProcessingAttempt
+```
 
-### Upload
+### 핵심 기능
 
-- [ ] Upload Session 생성
-- [ ] MIME Allowlist
-- [ ] 크기 제한
-- [ ] 안전한 Object Key
-- [ ] Presigned PUT
-- [ ] Upload Complete
-- [ ] `statObject` 검증
-- [ ] Checksum 검증
-- [ ] 만료 Session 정리
-- [ ] 중복 파일 감지
-
-### Worker
-
-- [ ] `media.process` Queue
-- [ ] 이미지 Decode 검증
+- [ ] `atlas-private`, `atlas-processing`, `atlas-public`
+- [ ] API와 Worker Service Account 분리
+- [ ] Presigned PUT와 Multipart Upload
+- [ ] MIME, 크기, Checksum과 실제 Decode 검증
+- [ ] 미완료 Multipart 정리
+- [ ] WebP·AVIF Variant
 - [ ] EXIF 위치 정보 제거
-- [ ] Thumbnail 320 WebP
-- [ ] Card 768 WebP
-- [ ] Content 1280 WebP
-- [ ] Content 1920 AVIF
-- [ ] 실패 Retry
-- [ ] Quarantine
-- [ ] Processing Object 정리
-
-### Content 연동
-
-- [ ] `asset://{assetId}` Parser
-- [ ] Asset Picker
-- [ ] Alt Text
-- [ ] Caption
-- [ ] Cover Asset
-- [ ] Publication Asset Manifest
-- [ ] Publish 시 Asset READY 검사
-- [ ] Public URL 변환
-- [ ] ACTIVE Publication 사용량 추적
-
-### Admin UI
-
-```text
-/admin/media
-/admin/media/{assetId}
-```
-
-- [ ] Upload Dropzone
-- [ ] Upload Progress
-- [ ] Asset Grid
-- [ ] 검색과 Filter
-- [ ] Asset Detail
-- [ ] Variant 상태
-- [ ] 사용 위치
-- [ ] Regenerate
-- [ ] 삭제 가능 여부
-
-### 운영
-
-- [ ] MinIO Usage Metrics
-- [ ] Bucket Versioning
-- [ ] Garbage Collection 후보 조회
-- [ ] Soft Delete
-- [ ] NAS Mirror Job
-- [ ] 복구 Runbook
+- [ ] Decode Bomb 제한
+- [ ] SVG·HTML 기본 차단
+- [ ] `asset://{assetId}`
+- [ ] Asset Picker와 Cover Image
+- [ ] ACTIVE Publication 사용 중 삭제 차단
+- [ ] Public Bucket은 `GetObject`만 허용하고 `ListBucket` 금지
+- [ ] MinIO API는 직접 인터넷에 노출하지 않고 Nginx가 GET/HEAD만 전달
 
 ### 완료 기준
 
-- 브라우저가 Atlas API를 경유하지 않고 MinIO로 원본을 업로드한다.
-- Worker가 공개 Variant를 생성한다.
-- Delivery API에 내부 Bucket·Object Key가 포함되지 않는다.
-- 사용 중인 Variant는 삭제되지 않는다.
+Delivery API와 공개 Asset URL에 내부 Endpoint, Bucket과 Object Key가 노출되지 않는다.
 
 ---
 
-## Phase 8. Event, Webhook & Scheduling
+## Phase 9. Outbox, Webhook & Scheduling
 
-### 목표
+### 결과
 
-게시 후 Site Cache를 갱신하고 예약 작업을 신뢰성 있게 처리한다.
+DB Transaction 이후의 부작용을 At-least-once로 처리하되 결과는 Idempotent하게 한 번만 반영한다.
 
-### Outbox Worker
+### 전달 규칙
 
-- [ ] Polling과 Claim Lock
-- [ ] Worker Crash 복구
-- [ ] At-least-once 처리
-- [ ] Consumer Idempotency
-- [ ] Retry Backoff
-- [ ] Dead Letter 상태
-- [ ] 수동 재처리
+```text
+Business Transaction
+├─ Domain 변경
+└─ OutboxEvent INSERT
+        ↓
+Outbox Relay
+├─ FOR UPDATE SKIP LOCKED
+├─ BullMQ enqueue, jobId = eventId
+└─ dispatchedAt 기록
+        ↓
+Consumer
+├─ Event 중복 확인
+├─ 부작용 실행
+└─ Consumer Receipt 저장
+```
 
-### Webhook
+### 핵심 모델
 
-- [ ] `WebhookEndpoint`
-- [ ] `WebhookDelivery`
-- [ ] HMAC SHA-256 서명
-- [ ] Timestamp Header
-- [ ] Event ID
+```text
+OutboxEvent
+EventConsumption
+WebhookEndpoint
+WebhookDelivery
+PublicationSchedule
+```
+
+### 핵심 기능
+
+- [ ] Relay Claim과 Crash Recovery
+- [ ] Retry Backoff와 Dead 상태
+- [ ] HMAC Webhook
 - [ ] Site별 구독 Event
-- [ ] 응답 Body 제한 저장
-- [ ] Secret 암호화 저장
-- [ ] Retry Schedule
-- [ ] Disable 정책
-
-### Event
-
-```text
-content.published
-content.unpublished
-content.slug.changed
-media.ready
-site.activated
-```
-
-### 예약 게시
-
-- [ ] `SCHEDULED` 상태
-- [ ] Site Timezone 입력
-- [ ] UTC 저장
-- [ ] Due Job Scanner
-- [ ] 실행 직전 재검증
-- [ ] 중복 실행 방지
-- [ ] 실패 상태와 관리자 재시도
-- [ ] 예약 취소
-
-### Admin UI
-
-```text
-/admin/content/scheduled
-/admin/sites/{siteId}/webhooks
-/admin/system/webhook-deliveries
-/admin/system/outbox
-```
-
-- [ ] 예약 목록
-- [ ] Webhook Endpoint CRUD
-- [ ] Delivery Timeline
-- [ ] Payload와 응답 요약
 - [ ] 수동 재전송
-- [ ] Outbox 실패 조회
+- [ ] 별도 PublicationSchedule
+- [ ] Site Timezone 입력과 UTC 저장
+- [ ] 조건부 UPDATE와 Unique Constraint 기반 중복 방지
 
 ### 완료 기준
 
-- Site A 게시 시 Site A Webhook만 호출한다.
-- 같은 Event가 재처리되어도 중복 부작용이 없다.
-- 예약 시간이 되면 Publication이 정확히 한 번 활성화된다.
+Job은 중복 실행될 수 있지만 같은 Event의 Webhook과 Publication 활성화 결과는 중복 반영되지 않는다.
 
 ---
 
-## Phase 9. Content Operations
+## Phase 10. Content Operations
 
-### 목표
+### 결과
 
-장기적으로 콘텐츠를 운영하고 여러 Site를 구성하는 기능을 추가한다.
+여러 Site가 Delivery API만으로 일반적인 블로그 화면을 구성할 수 있다.
 
-### Taxonomy
+### 범위
 
-- [ ] Site별 Category
-- [ ] Site별 Tag
-- [ ] 계층 Category
-- [ ] Slug 충돌 검사
-- [ ] ContentSite 연결
-- [ ] Delivery 목록 Filter
-
-### URL 운영
-
-- [ ] Slug 변경 이력
-- [ ] Redirect
-- [ ] 301·302·410 정책
+- [ ] Site별 Category와 Tag
+- [ ] Slug 변경 이력과 Redirect
+- [ ] 301, 302, 410 정책
 - [ ] Broken Link 검사
-- [ ] 내부 Link Resolver
-
-### Site 구성
-
-- [ ] Navigation
-- [ ] Home Section
+- [ ] Navigation과 Home Curation
 - [ ] Featured Content
-- [ ] Site별 Section 순서
-- [ ] Banner와 공지
-- [ ] SEO Default Merge
-
-### Delivery 확장
-
-```http
-GET /home
-GET /pages/{slug}
-GET /categories
-GET /categories/{slug}/posts
-GET /tags
-GET /tags/{slug}/posts
-GET /archive
-GET /feed
-GET /sitemap
-```
-
-- [ ] RSS
-- [ ] JSON Feed
-- [ ] Sitemap
-- [ ] Search Index
-- [ ] OpenGraph Data
-- [ ] JSON-LD Data
-
-### Editor 고도화
-
-- [ ] Split Preview
-- [ ] Outline
+- [ ] RSS, JSON Feed와 Sitemap
+- [ ] PostgreSQL Full Text Search
+- [ ] OpenGraph와 JSON-LD 데이터
+- [ ] Revision Diff UI
 - [ ] Internal Link Autocomplete
-- [ ] Asset Slash Command
-- [ ] Revision Diff
-- [ ] Find and Replace
-- [ ] Keyboard Shortcut
-- [ ] 선택적으로 Milkdown 또는 동등 Editor 도입
 
 ### 완료 기준
 
-Site가 Atlas Delivery API만으로 기본 블로그 Navigation, 목록, 상세, Feed와 Sitemap을 구성할 수 있다.
+외부 Site가 Home, 목록, 상세, 분류, Feed, Sitemap과 Search를 Atlas API로 구성할 수 있다.
 
 ---
 
-## Phase 10. Project & History
+## Phase 11. Deployment Control & Incident
 
-### 목표
+### 결과
 
-개인 프로젝트의 현재 상태와 결정·릴리스·운영 이력을 한 Timeline에서 관리한다.
+Phase 4의 Read Model 위에 제한된 운영 명령과 장애 기록을 추가한다.
 
-### Entity
-
-- [ ] `Project`
-- [ ] `ProjectEvent`
-- [ ] `RepositoryConnection`
-- [ ] `Release`
-- [ ] `ProjectLink`
-- [ ] `ProjectRelation`
-
-### Project
-
-- [ ] 상태 전이
-- [ ] Visibility
-- [ ] 시작·완료 일자
-- [ ] 기술 스택
-- [ ] Repository 연결
-- [ ] Site 연결
-- [ ] 관련 Content 연결
-- [ ] 대표 Asset
-
-### Timeline
+### 핵심 모델
 
 ```text
-PROJECT_STARTED
-MILESTONE_COMPLETED
-DECISION_RECORDED
-ARCHITECTURE_CHANGED
-RELEASED
-DEPLOYED
-INCIDENT_OCCURRED
-MAINTENANCE
-PROJECT_PAUSED
-PROJECT_COMPLETED
+DeploymentCommand
+DeploymentLock
+Incident
+IncidentEvent
 ```
 
-- [ ] 수동 Event
-- [ ] Release·Deployment 자동 Event
-- [ ] 시간순 조회
-- [ ] Filter
-- [ ] 관련 Resource 연결
+### 핵심 기능
 
-### Admin UI
+- [ ] Allowlist 기반 Workflow Trigger
+- [ ] Redeploy
+- [ ] Maintenance Metadata
+- [ ] Rollback 요청과 결과 기록
+- [ ] Production Lock
+- [ ] 위험 작업 Reauthentication
+- [ ] 대상, 환경, Release SHA 재확인
+- [ ] 실행 결과 Audit
+- [ ] Incident와 Deployment 연결
+
+금지:
 
 ```text
-/admin/projects
-/admin/projects/new
-/admin/projects/{projectId}
-/admin/projects/{projectId}/timeline
-/admin/projects/{projectId}/repositories
-/admin/projects/{projectId}/releases
+브라우저에서 Docker Socket 접근
+임의 Shell Command
+Client가 전달한 임의 Health URL 호출
+DB Down Migration 자동 실행
 ```
+
+### Control Gate E
+
+운영 명령을 활성화하기 전에 Reauthentication, Allowlist, Lock, Audit, Dry-run과 Rollback Runbook을 검증한다.
 
 ### 완료 기준
 
-프로젝트 상세에서 설명, Repository, Release, 관련 글과 전체 Timeline을 조회할 수 있다.
+허용된 Project와 Environment에 대해서만 명령을 실행하고 모든 요청과 결과가 Audit와 Incident Timeline에 남는다.
 
 ---
 
-## Phase 11. Deployment & Operations
+## Phase 12. Member Authentication & Privacy
 
-### 목표
+### 결과
 
-CI/CD가 전송한 배포 정보와 실제 서비스 Health를 분리해 기록하고 운영 상태를 관리한다.
+외부 Site가 회원가입과 로그인을 사용할 수 있고 개인정보 Lifecycle을 관리한다.
 
-### Entity
-
-- [ ] `Environment`
-- [ ] `Service`
-- [ ] `ServiceEnvironment`
-- [ ] `Deployment`
-- [ ] `DeploymentEvent`
-- [ ] `HealthCheck`
-- [ ] `DeploymentLock`
-- [ ] `Incident`
-
-### Integration API
-
-- [ ] Release 생성
-- [ ] Deployment 시작
-- [ ] Event 추가
-- [ ] Deployment 완료
-- [ ] Health Check 결과
-- [ ] Idempotency-Key
-- [ ] CI 전용 Scope
-- [ ] Callback Signature 또는 API Key
-
-### 상태
+### 모델
 
 ```text
-Deployment
-QUEUED
-RUNNING
-SUCCEEDED
-FAILED
-CANCELED
-ROLLED_BACK
-
-Service Health
-HEALTHY
-DEGRADED
-DOWN
-UNKNOWN
+MemberIdentity
+MemberSession
+MemberConsent
+EmailVerificationToken
+PasswordResetToken
+MemberExportJob
+MemberAnonymizationJob
 ```
 
-### 운영 기능
+### 핵심 기능
 
-- [ ] 현재 환경별 Release
-- [ ] 최근 성공 Deployment
-- [ ] 최근 실패 원인
-- [ ] Deployment Lock
-- [ ] Maintenance Mode Metadata
-- [ ] Rollback Request Record
-- [ ] Rollback 결과
-- [ ] Health History
-- [ ] Incident 연결
-- [ ] 배포 전후 오류 비교는 후속 연동으로 분리
-
-### Admin UI
-
-```text
-/admin/operations/services
-/admin/operations/environments
-/admin/operations/deployments
-/admin/operations/deployments/{deploymentId}
-/admin/operations/incidents
-```
-
-- [ ] Deployment 목록
-- [ ] 진행 Timeline
-- [ ] Release·Commit SHA
-- [ ] Workflow·Log Link
-- [ ] Health 결과
-- [ ] 실패 Error Code
-- [ ] Rollback 확인 Dialog
-
-### 안전 경계
-
-- [ ] 초기에는 CI Workflow Trigger와 상태 수집만 지원
-- [ ] Browser에서 Docker Socket 접근 금지
-- [ ] 임의 Shell 명령 금지
-- [ ] Rollback은 Reauthentication 요구
-- [ ] DB Down Migration 자동 실행 금지
-
-### 완료 기준
-
-- CI Callback으로 중복 없이 Deployment를 생성한다.
-- 배포 성공과 Health 실패를 별도로 표시한다.
-- 현재 Site가 어떤 Release로 운영되는지 확인할 수 있다.
-
----
-
-## Phase 12. Personal Resource Library
-
-### 목표
-
-개인 문서·메모·링크·참조 자료를 프로젝트와 콘텐츠에 연결해 관리한다.
-
-### Entity
-
-- [ ] `ResourceCollection`
-- [ ] `Resource`
-- [ ] `ResourceAsset`
-- [ ] `ResourceRelation`
-- [ ] `ResourceTag`
-
-### Resource Type
-
-```text
-NOTE
-DOCUMENT
-LINK
-REFERENCE
-CHECKLIST
-SNIPPET
-```
-
-### 기능
-
-- [ ] 계층 Collection
-- [ ] Markdown 본문
-- [ ] 외부 URL
-- [ ] Asset 첨부
-- [ ] Tag
-- [ ] Project 연결
-- [ ] Content 연결
-- [ ] Related Resource
-- [ ] Visibility
-- [ ] Sensitivity
-- [ ] Archive
-- [ ] Full Text Search
-- [ ] PUBLIC_CANDIDATE에서 Content 생성
-
-### 보안
-
-- [ ] 비밀번호·Token·Private Key 입력 경고
-- [ ] Secret Pattern Redaction 또는 차단 정책
-- [ ] Secret Store Reference만 허용
-- [ ] 민감 자료 조회 Audit
-
-### Admin UI
-
-```text
-/admin/resources
-/admin/resources/{resourceId}
-/admin/resource-collections/{collectionId}
-```
-
-### 완료 기준
-
-자료를 Collection에 정리하고 프로젝트·콘텐츠와 양방향으로 탐색할 수 있다.
-
----
-
-## Phase 13. Member Management
-
-### 목표
-
-회원 Identity는 Workspace에서 공유하고 가입 상태와 역할은 Site별로 독립 관리한다.
-
-### Entity
-
-- [ ] `Member`
-- [ ] `MemberIdentity`
-- [ ] `SiteMembership`
-- [ ] `MemberSession`
-- [ ] `MemberConsent`
-- [ ] `MemberAdminNote`
-- [ ] `EmailVerificationToken`
-- [ ] `PasswordResetToken`
-
-### 관리자 기능
-
-- [ ] 전체 회원 목록
-- [ ] Site별 회원 Filter
-- [ ] 회원 상세
-- [ ] Site Membership
-- [ ] 활성화
-- [ ] 정지
-- [ ] 탈퇴
-- [ ] Session 강제 폐기
-- [ ] Consent History
-- [ ] 관리자 메모
-- [ ] 개인정보 Export
-- [ ] 익명화 Job
-
-### Member API
-
-```http
-POST /api/member/v1/auth/register
-POST /api/member/v1/auth/login
-POST /api/member/v1/auth/logout
-GET  /api/member/v1/me
-GET  /api/member/v1/memberships
-```
-
-Member API는 실제 Site에서 회원 기능을 사용할 시점에 활성화한다.
-
-### 다중 Site 규칙
-
-- [ ] 동일 이메일의 Workspace Identity 통합 정책
-- [ ] Site별 상태 독립
-- [ ] Site별 역할 독립
-- [ ] Site별 Consent 문서 버전
-- [ ] Site A 정지가 Site B 로그인에 미치는 영향 정의
-- [ ] Global Suspension 정책
-
-### 보안과 개인정보
-
+- [ ] 회원가입과 Email Verification
+- [ ] Argon2id Password Hash
 - [ ] Member Session과 Admin Session 완전 분리
-- [ ] Password Hash
-- [ ] Email Verification
-- [ ] Login Rate Limit
+- [ ] Site Membership 생성
+- [ ] 동일 이메일 연결은 검증 완료 후 수행
+- [ ] Site별 정지와 Global Suspension 정책
+- [ ] Consent Version
+- [ ] Password Reset
+- [ ] 회원 데이터 Export
+- [ ] 탈퇴와 익명화
 - [ ] 회원 정보 조회 Audit
-- [ ] 탈퇴 보존 기간
-- [ ] 익명화와 법적 보존 필드 분리
+
+### Privacy Gate D
+
+개인정보 최소 수집, Consent, Export, 탈퇴, 보존 기간과 익명화가 검증되기 전에는 회원 인증 기능을 외부에 활성화하지 않는다.
 
 ### 완료 기준
 
-한 Member가 여러 Site에 가입하고 Site별 상태를 독립적으로 관리할 수 있다.
+한 Member가 여러 Site에 가입하고 Site별 상태와 Consent를 독립적으로 관리할 수 있다.
 
 ---
 
-## Phase 14. Dashboard & Notification
+## Phase 13. Dashboard & Notification
 
-### 목표
+### 결과
 
-단순 통계가 아니라 관리자가 조치해야 할 항목을 우선 보여준다.
+로그인 직후 조치가 필요한 항목을 확인한다.
 
-### Dashboard Widget
+### Widget
 
-- [ ] Draft 개수
-- [ ] READY 콘텐츠
-- [ ] 예약 게시
-- [ ] 최근 Publication
-- [ ] Webhook 실패
-- [ ] Media 처리 실패
-- [ ] 최근 Deployment
-- [ ] 실패 Deployment
-- [ ] 비정상 Service
-- [ ] 활성 Incident
-- [ ] MinIO 사용량
-- [ ] Backup 상태
-- [ ] 관리자 최근 작업
+```text
+Draft와 READY Content
+예약 Publication
+Webhook 실패
+Media 실패
+최근 Deployment
+실패 Deployment
+비정상 Service
+활성 Incident
+Backup 상태
+MinIO 사용량
+최근 관리자 작업
+```
 
-### Notification
+### 핵심 기능
 
-- [ ] `Notification`
-- [ ] 읽음·미읽음
-- [ ] Severity
-- [ ] Target Link
+- [ ] Notification과 Severity
 - [ ] Deduplication Key
-- [ ] 실패 Job에서 Notification 생성
-- [ ] 배포 실패 Notification
-- [ ] 인증서·Backup 경고는 외부 Monitoring 연동 후 추가
-
-### UX
-
+- [ ] 읽음·미읽음
+- [ ] Target Link
+- [ ] 실패 Event 기반 알림
 - [ ] Quick Action
-- [ ] 최근 작업
 - [ ] Command Palette
-- [ ] 전역 검색
-- [ ] 즐겨찾기
-- [ ] Site Context 유지
+- [ ] 전역 Search
 
 ### 완료 기준
 
-로그인 직후 실패 작업과 필요한 조치를 한 화면에서 확인할 수 있다.
+실패 작업과 운영 조치를 Dashboard에서 상세 화면으로 바로 이동해 처리할 수 있다.
 
 ---
 
-## Phase 15. Production Hardening
+## Phase 14. Production Release
 
-### 목표
+### 결과
 
-`develop → main → Tag → Production` 흐름으로 안전하게 배포하고 복구할 수 있다.
+`develop → main → Tag → Production` 흐름으로 안전하게 배포하고 복구한다.
 
-### 보안
+이 Phase는 기본 보안을 처음 추가하는 단계가 아니다. 각 Security Gate에서 이미 적용한 설정을 운영 환경에서 종합 검증한다.
 
-- [ ] Admin Domain 분리
-- [ ] TLS
-- [ ] Security Header
-- [ ] CSP
-- [ ] Nginx Rate Limit
-- [ ] Request Body 제한
-- [ ] MinIO Console 내부망 제한
-- [ ] Credential Rotation Runbook
-- [ ] Dependency Audit
-- [ ] Container Non-root
-- [ ] Read-only Filesystem 적용 가능성 검증
-- [ ] Secret Scan
-- [ ] Backup 파일 암호화
+### 핵심 기능
 
-### 관측성
-
-- [ ] Prometheus Metrics
-- [ ] HTTP Latency
-- [ ] Queue Depth
-- [ ] Outbox Lag
-- [ ] Webhook Failure Rate
-- [ ] DB Pool
-- [ ] Redis Health
-- [ ] MinIO Health와 Usage
-- [ ] Structured Log → Loki
-- [ ] Alert Rule
-- [ ] Trace ID 연결
-
-### Backup
-
-- [ ] PostgreSQL 정기 Backup
-- [ ] Restore Drill
-- [ ] MinIO `mc mirror`
-- [ ] Bucket Versioning
-- [ ] Backup 결과 기록
-- [ ] DB와 MinIO 일관 시점 기록
-- [ ] Retention
-- [ ] Disaster Recovery Runbook
-
-### CI/CD
-
-- [ ] Pull Request Quality Gate
-- [ ] Container Image SHA Tag
-- [ ] SBOM
-- [ ] Vulnerability Scan
+- [ ] `main` Branch Protection과 Required CI
+- [ ] Container SHA Tag
+- [ ] SBOM과 Vulnerability Scan
 - [ ] Migration Precheck
 - [ ] LAB 자동 배포
-- [ ] PRODUCTION 수동 승인
-- [ ] Health Check
-- [ ] Deployment Record Callback
+- [ ] Production 수동 승인
+- [ ] Health Check와 Deployment Callback
 - [ ] 이전 Image Rollback
-- [ ] DB 자동 Down Migration 금지
-
-### 운영 검증
-
-- [ ] 관리자 Session 장애 시 대응
-- [ ] PostgreSQL 복구
-- [ ] Redis 초기화 후 복구
-- [ ] MinIO 장애 시 기존 Site Cache 유지
-- [ ] Worker 중단 시 예약 Job 복구
-- [ ] Webhook 수신 Site 장애 시 재시도
-- [ ] API 장애 시 외부 Site의 Stale Cache 제공
+- [ ] PostgreSQL Backup과 Restore Drill
+- [ ] MinIO Mirror와 Versioning 복구 Drill
+- [ ] Redis 초기화 후 Worker 복구 검증
+- [ ] Prometheus, Loki와 Alert Rule
+- [ ] Queue Depth, Outbox Lag와 Webhook Failure Metric
+- [ ] Container Non-root와 Secret Scan
+- [ ] Disaster Recovery Runbook
 
 ### 완료 기준
 
-- Production 배포와 이전 Image Rollback을 재현할 수 있다.
-- PostgreSQL과 MinIO Restore Drill이 성공한다.
-- 주요 장애가 Alert와 Runbook에 연결된다.
+운영 배포, 이전 Image Rollback, PostgreSQL Restore와 MinIO Object 복구를 재현할 수 있다.
 
 ---
 
-# 4. 모듈별 목록
+## 5. Milestone
 
-| 모듈            | 주요 책임                                           | 선행 모듈                      |
-| --------------- | --------------------------------------------------- | ------------------------------ |
-| `platform-core` | 오류, Context, Transaction, Pagination, Idempotency | Foundation                     |
-| `audit`         | 운영 변경 감사 기록                                 | platform-core                  |
-| `outbox`        | Transactional Event 저장과 전달                     | platform-core                  |
-| `identity`      | 관리자 인증, MFA, Session, RBAC                     | audit                          |
-| `workspace`     | 최상위 데이터 경계                                  | identity                       |
-| `site`          | 다중 외부 Site와 Domain·Setting                     | workspace                      |
-| `api-client`    | Delivery·Integration API Key                        | site, identity                 |
-| `content`       | 원본 Content와 Revision                             | workspace, identity            |
-| `publication`   | Site 배치, Snapshot, 게시 상태                      | content, site, audit, outbox   |
-| `delivery`      | 외부 읽기 API                                       | publication, api-client        |
-| `media`         | MinIO Asset와 Variant                               | workspace, outbox              |
-| `webhook`       | Site Revalidation과 Retry                           | site, outbox                   |
-| `scheduler`     | 예약 게시와 정기 Job                                | publication, outbox            |
-| `taxonomy`      | Site별 Category와 Tag                               | site, content                  |
-| `navigation`    | Site Navigation과 Home Curation                     | site, publication              |
-| `search`        | 공개·관리 검색                                      | content, publication, resource |
-| `project`       | 프로젝트와 Timeline                                 | workspace                      |
-| `deployment`    | Release, 환경, 배포, Health                         | project, api-client, outbox    |
-| `resource`      | 개인 자료와 관계                                    | workspace, media               |
-| `member`        | 일반 회원과 Site Membership                         | workspace, site, audit         |
-| `notification`  | 실패·경고·조치 알림                                 | 전체 Event                     |
-| `dashboard`     | 운영 Summary와 Quick Action                         | 각 도메인 Query                |
-
----
-
-# 5. Queue 목록
-
-초기부터 Queue 이름과 Payload Version을 고정한다.
+## Milestone A. Secure Admin
 
 ```text
-atlas-outbox
-├─ dispatch-event
-└─ recover-stale-event
-
-atlas-media
-├─ process-asset
-├─ regenerate-variants
-├─ cleanup-processing
-└─ garbage-collect
-
-atlas-publication
-├─ publish-scheduled
-├─ rebuild-feed
-├─ rebuild-sitemap
-└─ validate-links
-
-atlas-webhook
-├─ deliver
-├─ retry
-└─ disable-endpoint
-
-atlas-deployment
-├─ poll-external-status
-├─ run-health-check
-└─ summarize-failure
-
-atlas-member
-├─ anonymize-member
-└─ expire-sessions
-
-atlas-maintenance
-├─ cleanup-upload-sessions
-├─ cleanup-idempotency-records
-├─ backup-status-check
-└─ storage-usage-snapshot
+Phase 0 ~ 3
 ```
-
-모든 Job Payload에 포함할 필드:
 
 ```text
-jobId
-eventId nullable
-schemaVersion
-workspaceId
-siteId nullable
-requestedBy
-requestedAt
-correlationId
+OWNER Login
+MFA
+Admin Shell
+Site
+API Client
 ```
 
----
-
-# 6. Admin Web 화면 목록
+## Milestone B. Personal Operations MVP
 
 ```text
-/auth
-├─ /login
-├─ /mfa
-└─ /recovery
-
-/admin
-├─ /dashboard
-├─ /contents
-│  ├─ /new
-│  ├─ /{contentId}
-│  ├─ /{contentId}/revisions
-│  └─ /scheduled
-├─ /media
-│  └─ /{assetId}
-├─ /sites
-│  ├─ /new
-│  └─ /{siteId}
-│     ├─ /domains
-│     ├─ /settings
-│     ├─ /api-clients
-│     └─ /webhooks
-├─ /projects
-│  └─ /{projectId}
-│     ├─ /timeline
-│     ├─ /repositories
-│     └─ /releases
-├─ /operations
-│  ├─ /services
-│  ├─ /environments
-│  ├─ /deployments
-│  └─ /incidents
-├─ /resources
-│  └─ /{resourceId}
-├─ /members
-│  └─ /{memberId}
-└─ /system
-   ├─ /admins
-   ├─ /roles
-   ├─ /api-clients
-   ├─ /sessions
-   ├─ /audit
-   ├─ /outbox
-   ├─ /webhook-deliveries
-   └─ /storage
+Phase 4 ~ 5
 ```
-
-각 목록 화면의 공통 기능:
-
-- Cursor Pagination
-- 검색
-- Allowlist Filter
-- URL Query State
-- Empty State
-- Error State
-- Bulk Action은 실제 필요가 확인된 후 추가
-- Permission에 따른 Action 노출
-
----
-
-# 7. 공통 Definition of Done
-
-모든 기능 PR은 해당되는 항목을 만족해야 한다.
-
-## Backend
-
-- [ ] Migration이 있다.
-- [ ] Entity를 API Response에 직접 노출하지 않는다.
-- [ ] Controller가 TypeORM Repository를 직접 호출하지 않는다.
-- [ ] Workspace와 Site Scope가 적용된다.
-- [ ] Permission이 선언돼 있다.
-- [ ] 변경 작업에 Audit가 있다.
-- [ ] 비동기 부작용은 Outbox를 사용한다.
-- [ ] 오류 코드가 Registry에 등록돼 있다.
-- [ ] OpenAPI에 반영돼 있다.
-- [ ] Secret과 개인정보가 Log에서 Redact된다.
-
-## Frontend
-
-- [ ] Loading·Empty·Error 상태가 있다.
-- [ ] Form Validation이 Server 규칙과 일치한다.
-- [ ] API 오류 코드를 사용자 메시지로 변환한다.
-- [ ] 권한 없는 Action을 노출하지 않는다.
-- [ ] Version Conflict를 처리한다.
-- [ ] 키보드와 기본 접근성을 확인한다.
-
-## Test
-
-- [ ] Domain Unit Test
-- [ ] Repository Integration Test
-- [ ] Controller 또는 API Integration Test
-- [ ] 주요 사용자 흐름 E2E
-- [ ] 권한·Scope 격리 Test
-- [ ] 실패와 재시도 Test
-
-## 운영
-
-- [ ] Metric 또는 Log 필드가 정의돼 있다.
-- [ ] 실패 상태를 관리자에서 확인할 수 있다.
-- [ ] Retry 또는 복구 방법이 있다.
-- [ ] 데이터 삭제와 보존 정책이 있다.
-- [ ] 문서가 갱신됐다.
-
----
-
-# 8. 권장 PR 분할 순서
-
-큰 Phase를 한 PR로 만들지 않는다. 최초 구현은 다음 크기로 나눈다.
 
 ```text
-01 chore/platform-core-contracts
-02 feat/audit-outbox-foundation
-03 feat/admin-identity-schema
-04 feat/admin-auth-session
-05 feat/admin-mfa-rbac
-06 feat/admin-shell
-07 feat/workspace-bootstrap
-08 feat/site-management
-09 feat/api-client-management
-10 feat/delivery-auth-guard
-11 feat/content-schema
-12 feat/content-revision-api
-13 feat/content-editor
-14 feat/content-site-assignment
-15 feat/publication-snapshot
-16 feat/delivery-post-api
-17 test/content-publication-e2e
-18 feat/minio-upload-session
-19 feat/media-worker
-20 feat/asset-editor-integration
-21 feat/webhook-delivery
-22 feat/scheduled-publication
+Project
+Deployment Read Model
+Resource Library
+Member Directory
 ```
 
-각 PR은 가능하면 다음 중 하나를 중심으로 한다.
+이 시점부터 Atlas를 실제 개인 관리자 패널로 사용한다.
+
+## Milestone C. Headless CMS MVP
 
 ```text
-Schema + Migration
-Domain + Application
-API Contract
-Admin UI
-Worker / Integration
-Test / Hardening
+Phase 6 ~ 7
 ```
-
-단, 사용자에게 보이는 수직 기능을 끝내기 위해 작은 Schema·API·UI 변경을 하나의 PR에 묶는 것은 허용한다.
-
----
-
-# 9. 첫 번째 MVP와 이후 경계
-
-## MVP-1: 관리자 기반
 
 ```text
-Phase 0 ~ Phase 4
+ContentDraft
+ContentRevision
+ContentPublication
+Delivery API
 ```
 
-- 안전한 관리자 로그인
-- Workspace와 Site 관리
-- Site별 API Client
+이 시점부터 별도 블로그 애플리케이션 개발을 시작할 수 있다.
 
-## MVP-2: 콘텐츠 제공
+## Milestone D. Operable CMS
 
 ```text
-Phase 5 ~ Phase 6
+Phase 8 ~ 10
 ```
-
-- Markdown Content
-- Revision
-- Site별 Publication
-- Delivery API
-
-이 시점부터 텍스트 기반 외부 블로그를 개발할 수 있다.
-
-## MVP-3: 운영 가능한 CMS
 
 ```text
-Phase 7 ~ Phase 9
+MinIO Media
+Webhook
+Scheduled Publication
+Taxonomy
+Feed
+Sitemap
+Search
 ```
 
-- MinIO Media
-- 예약 게시
-- Webhook
-- Taxonomy
-- Feed·Sitemap·Search
-
-## MVP-4: 개인 운영 콘솔
+## Milestone E. Control and Membership
 
 ```text
-Phase 10 ~ Phase 14
+Phase 11 ~ 13
 ```
 
-- 프로젝트와 이력
-- 배포와 Health
-- 개인 자료
-- 회원
-- Dashboard
+```text
+Deployment Control
+Incident
+Member Authentication
+Dashboard
+Notification
+```
 
 ## Production Release
 
 ```text
-Phase 15
+Phase 14
 ```
-
-- 운영 보안
-- Backup과 Restore
-- Observability
-- CI/CD와 Rollback
 
 ---
 
-# 10. 바로 시작할 작업
-
-현재 Phase 0 이후 첫 작업은 다음 순서로 진행한다.
+## 6. 권장 PR 순서
 
 ```text
-1. Request Context와 Problem Details
-2. Base Migration 규칙과 UUIDv7
-3. AuditLog Entity와 AuditService
-4. OutboxEvent Entity와 Transaction Helper
-5. IdempotencyRecord와 Interceptor
-6. AdminAccount·Role·Permission Schema
-7. OWNER Bootstrap CLI
-8. Password Login
-9. TOTP MFA
-10. Admin Session과 CSRF
-11. Permission Guard
-12. Admin Layout과 Login UI
+01 refactor/server-package-boundary
+02 feat/platform-kernel-lite
+03 feat/audit-foundation
+04 feat/admin-owner-bootstrap
+05 feat/admin-auth-session
+06 feat/admin-mfa-reauth
+07 feat/admin-shell
+08 feat/site-management
+09 feat/api-client-management
+10 feat/project-management-mvp
+11 feat/deployment-callback-read-model
+12 feat/resource-library-mvp
+13 feat/member-directory-mvp
+14 feat/content-draft
+15 feat/content-revision
+16 feat/content-site-assignment
+17 feat/publication-snapshot
+18 feat/delivery-post-api
+19 test/publication-delivery-e2e
+20 feat/minio-upload-session
+21 feat/media-variant-worker
+22 feat/outbox-relay
+23 feat/site-webhook
+24 feat/publication-scheduler
 ```
 
-첫 번째 검증 시나리오:
+각 PR은 가능한 한 하나의 사용자 결과를 만든다. Schema만 만들고 사용되지 않은 채 오래 두지 않는다.
+
+---
+
+## 7. 바로 시작할 작업
+
+다음 작업은 Phase 1의 첫 구현 단위다.
+
+```text
+1. packages/server 생성
+2. apps/api와 apps/worker의 TypeScript Reference 연결
+3. TypeORM Entity Scan 대상 변경
+4. RequestContext와 Request ID
+5. Problem Details Filter와 Error Registry
+6. UUIDv7과 Clock Port
+7. Transaction Runner
+8. AuditLog 최소 Schema와 AuditService
+9. Pino Logging과 Redaction
+10. 샘플 Transaction Integration Test
+```
+
+첫 검증 흐름:
 
 ```gherkin
-Given OWNER 계정이 Bootstrap되어 있다
-When 올바른 Password와 TOTP로 로그인한다
-Then Admin Session Cookie가 발급된다
-And Dashboard Shell에 접근할 수 있다
-And 로그인 Audit가 저장된다
-When 미인증 사용자가 Admin API를 요청한다
-Then 401 AUTH_REQUIRED를 반환한다
+Given API와 Worker가 packages/server를 참조한다
+When 샘플 관리 Command를 실행한다
+Then 동일 Transaction에서 데이터 변경과 Audit가 저장된다
+And 성공 응답에는 requestId가 포함된다
+When Domain Error가 발생한다
+Then application/problem+json 응답을 반환한다
+And Secret 값은 Log와 Audit에 기록되지 않는다
 ```
