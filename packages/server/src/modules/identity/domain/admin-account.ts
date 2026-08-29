@@ -4,7 +4,6 @@ import type { AdminAccountStatus } from './admin-account-status';
 import type { AdminRole } from './admin-role';
 
 const ADMIN_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 
 export interface AdminAccount {
   id: string;
@@ -27,7 +26,7 @@ export function normalizeAdminEmail(value: string): string {
   if (
     email.length === 0 ||
     email.length > 320 ||
-    CONTROL_CHARACTER_PATTERN.test(email) ||
+    containsControlCharacter(email) ||
     !ADMIN_EMAIL_PATTERN.test(email)
   ) {
     throw new DomainError({
@@ -46,7 +45,7 @@ export function normalizeAdminDisplayName(value: string | undefined): string {
   if (
     displayName.length === 0 ||
     displayName.length > 120 ||
-    CONTROL_CHARACTER_PATTERN.test(displayName)
+    containsControlCharacter(displayName)
   ) {
     throw new DomainError({
       code: ErrorCode.VALIDATION_FAILED,
@@ -56,4 +55,11 @@ export function normalizeAdminDisplayName(value: string | undefined): string {
   }
 
   return displayName;
+}
+
+function containsControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f);
+  });
 }
