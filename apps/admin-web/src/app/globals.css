@@ -92,3 +92,75 @@ h1 {
 .status.down {
   color: #f57c7c;
 }
+
+.state-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.state-panel {
+  width: min(680px, 100%);
+  padding: 36px;
+  border: 1px solid #252a31;
+  border-radius: 20px;
+  background: rgba(20, 23, 28, 0.92);
+}
+
+.state-panel[data-tone='error'] {
+  border-color: rgba(245, 124, 124, 0.45);
+}
+
+.state-panel[data-tone='loading'] {
+  border-color: rgba(255, 177, 59, 0.4);
+}
+
+.state-eyebrow {
+  margin: 0 0 14px;
+  color: #ffb13b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.state-panel h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.state-description {
+  margin: 24px 0 0;
+  color: #9ea7b5;
+  line-height: 1.7;
+}
+
+.request-id {
+  display: block;
+  margin-top: 24px;
+  color: #c4cbd5;
+  overflow-wrap: anywhere;
+}
+
+.state-action {
+  margin-top: 28px;
+}
+
+.state-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid #3a414c;
+  border-radius: 10px;
+  background: #1a1f26;
+  color: #f4f7fb;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.state-button:hover,
+.state-button:focus-visible {
+  border-color: #ffb13b;
+  outline: none;
+}

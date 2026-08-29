@@ -78,7 +78,7 @@ pnpm build
 pnpm check
 ```
 
-## 수정된 구현 순서
+## 구현 순서
 
 ```text
 Repository Foundation
@@ -98,7 +98,7 @@ Repository Foundation
 → Production Release
 ```
 
-현재 Repository Foundation이 구성되어 있으며 다음 구현 대상은 `packages/server` 경계와 Platform Kernel Lite입니다.
+현재 `Repository Foundation`과 `Server Boundary & Platform Kernel Lite`를 완료했으며 다음 구현 대상은 `Admin Identity & Shell`입니다.
 
 ## Milestone
 
@@ -131,6 +131,7 @@ main
 
 - [플랫폼 설계](docs/atlas-platform-design.md)
 - [전체 구현 로드맵](docs/implementation-roadmap.md)
+- [구현 진행 현황](docs/implementation/progress.md)
 - [Phase별 구현 체크리스트](docs/implementation/phase-checklists.md)
 - [구현 아키텍처 결정](docs/implementation/architecture-decisions.md)
 - [Acceptance와 Release Gate](docs/implementation/acceptance-gates.md)
