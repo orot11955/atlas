@@ -62,6 +62,15 @@ jobs:
                   raise RuntimeError(f'Site transition fragment was not found: {old}')
               site_types_content = site_types_content.replace(old, new, 1)
           site_types_path.write_text(site_types_content, encoding='utf-8')
+
+          controller_path = Path('apps/api/src/admin-sites/admin-site.controller.ts')
+          controller_content = controller_path.read_text(encoding='utf-8')
+          if "version: 'all'" not in controller_content:
+              raise RuntimeError('Site UUID parser configuration was not found.')
+          controller_path.write_text(
+              controller_content.replace("version: 'all'", "version: '7'"),
+              encoding='utf-8',
+          )
           PY
 
       - name: Setup Node.js
