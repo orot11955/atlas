@@ -119,8 +119,10 @@ export function normalizeAdminSessionUserAgent(value?: string): string {
     return 'unknown';
   }
 
-  const normalized = value
-    .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+  const normalized = Array.from(value, (character) =>
+    isControlCharacter(character) ? ' ' : character,
+  )
+    .join('')
     .replace(/\s+/gu, ' ')
     .trim();
 
@@ -157,4 +159,9 @@ function assertPositiveInteger(value: number, field: string): void {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new RangeError(`${field} must be a positive safe integer.`);
   }
+}
+
+function isControlCharacter(character: string): boolean {
+  const codePoint = character.codePointAt(0);
+  return codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f);
 }
