@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 
 const packageRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(packageRoot, '../..');
+const compiledRuntime = path.basename(__dirname) === 'dist';
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -22,12 +23,16 @@ export const atlasDataSource = new DataSource({
   logging: process.env.NODE_ENV === 'development',
   migrationsTableName: 'atlas_migrations',
   entities: [
-    path.join(repositoryRoot, 'packages/server/src/**/*.entity.ts'),
-    path.join(repositoryRoot, 'packages/server/dist/**/*.entity.js'),
+    path.join(
+      repositoryRoot,
+      compiledRuntime ? 'packages/server/dist/**/*.entity.js' : 'packages/server/src/**/*.entity.ts',
+    ),
   ],
   migrations: [
-    path.join(packageRoot, 'src/migrations/*.ts'),
-    path.join(packageRoot, 'dist/migrations/*.js'),
+    path.join(
+      packageRoot,
+      compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts',
+    ),
   ],
 });
 
