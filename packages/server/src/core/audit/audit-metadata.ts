@@ -88,9 +88,7 @@ function sanitizeValue(value: unknown, depth: number, seen: WeakSet<object>): un
   }
 
   if (typeof value === 'object') {
-    return Object.freeze(
-      sanitizeRecord(value as Record<string, unknown>, depth, seen),
-    );
+    return Object.freeze(sanitizeRecord(value as Record<string, unknown>, depth, seen));
   }
 
   return `[UNSUPPORTED:${typeof value}]`;
