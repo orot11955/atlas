@@ -1,0 +1,47 @@
+name: Format roadmap once
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - docs/implementation-roadmap.md
+      - .github/workflows/format-roadmap-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format roadmap and remove this workflow
+        run: |
+          pnpm exec prettier --write docs/implementation-roadmap.md
+          rm .github/workflows/format-roadmap-once.yml
+
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/implementation-roadmap.md .github/workflows/format-roadmap-once.yml
+          git commit -m "style: format implementation roadmap"
+          git push origin HEAD:develop
