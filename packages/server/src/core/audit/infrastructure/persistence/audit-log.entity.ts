@@ -45,7 +45,7 @@ export class AuditLogEntity {
   public errorCode!: string | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  public metadata!: Record<string, unknown>;
+  public metadata!: object;
 
   @Column({ name: 'occurred_at', type: 'timestamptz' })
   public occurredAt!: Date;
