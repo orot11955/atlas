@@ -1,0 +1,96 @@
+name: Finalize Phase 7 once
+
+on:
+  push:
+    branches:
+      - feat/content-publication-delivery
+    paths:
+      - .github/workflows/finalize-phase7-once.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: finalize-phase7-once
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/content-publication-delivery
+          fetch-depth: 0
+
+      - name: Wait for verified Phase 7 product commit
+        run: |
+          ready=false
+          for attempt in $(seq 1 300); do
+            git fetch origin feat/content-publication-delivery develop
+            git reset --hard origin/feat/content-publication-delivery
+            if [ -f packages/database/src/migrations/1788076200000-CreateContentPublicationDelivery.ts ] && \
+               [ -f apps/api/src/content/content-publication.service.ts ] && \
+               [ -f apps/api/src/api-clients/delivery-content.controller.ts ] && \
+               [ ! -f .github/workflows/materialize-phase7-once.yml ] && \
+               [ ! -f .github/workflows/repair-phase7-once.yml ]; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          test "$ready" = true
+
+      - name: Remove finalizer and push clean branch
+        run: |
+          rm -f .github/workflows/finalize-phase7-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: finalize Phase 7 branch'
+          git push origin HEAD:feat/content-publication-delivery
+
+      - name: Create or reuse pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head feat/content-publication-delivery --base develop --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base develop \
+              --head feat/content-publication-delivery \
+              --title 'feat: add content publication and delivery API' \
+              --body 'Site-specific Content placement, immutable READY Publication snapshots, supersede/withdraw/rollback lifecycle, API Client Delivery list/detail, ETag and Admin publishing UI.'
+            pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head feat/content-publication-delivery --base develop --state open --json number --jq '.[0].number')"
+          fi
+          gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" || true
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for pull request checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          state=pending
+          for attempt in $(seq 1 120); do
+            state="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json state --jq 'if length == 0 then "pending" elif all(.[]; .state == "SUCCESS" or .state == "SKIPPED") then "success" elif any(.[]; .state == "FAILURE" or .state == "ERROR" or .state == "CANCELLED") then "failure" else "pending" end' 2>/dev/null || echo pending)"
+            echo "checks=$state"
+            if [ "$state" = success ]; then break; fi
+            if [ "$state" = failure ]; then exit 1; fi
+            sleep 10
+          done
+          test "$state" = success
+
+      - name: Merge Phase 7
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch \
+            --subject 'feat: add content publication and delivery API' \
+            --body 'Add verified Site-specific Publication snapshots and API Client Delivery endpoints.'
