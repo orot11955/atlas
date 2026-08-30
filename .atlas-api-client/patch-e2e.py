@@ -83,6 +83,14 @@ replace_once(
     "  const response = await fetch(`${baseUrl}${path}`, {",
 )
 
+replace_once(
+    'packages/server/src/api-client.test.ts',
+    "  assert.equal(issuer.matches(`${issued.apiKey.slice(0, -1)}A`, issued.secretDigest), false);",
+    "  const replacement = issued.apiKey.endsWith('A') ? 'B' : 'A';\n"
+    "  const tamperedApiKey = `${issued.apiKey.slice(0, -1)}${replacement}`;\n"
+    "  assert.equal(issuer.matches(tamperedApiKey, issued.secretDigest), false);",
+)
+
 manager = ROOT / 'apps/admin-web/src/features/api-clients/api-client-manager.tsx'
 manager_content = manager.read_text(encoding='utf-8')
 manager_content = manager_content.replace('  buildApiClientListPath,\n', '')
