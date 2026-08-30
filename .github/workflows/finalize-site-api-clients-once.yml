@@ -1,0 +1,81 @@
+name: Finalize site API clients once
+
+on:
+  push:
+    branches:
+      - feat/site-api-clients
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-site-api-clients-once
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/site-api-clients
+
+      - name: Connect API Client E2E to authenticated setup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/ci/admin-auth-e2e.mjs')
+          content = path.read_text(encoding='utf-8')
+          marker = 'const totpLogin = await login();'
+          addition = """const { runApiClientE2e } = await import('./api-client-e2e.mjs');
+          await runApiClientE2e({
+            baseUrl,
+            request,
+            session,
+            workspace,
+            site: devLogCreated.data,
+          });
+
+          """
+
+          if addition.strip() not in content:
+              if marker not in content:
+                  raise RuntimeError('API Client E2E insertion marker was not found.')
+              content = content.replace(marker, addition + marker, 1)
+              path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format repository
+        run: pnpm format
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Commit verified implementation
+        run: |
+          git rm .github/workflows/finalize-site-api-clients-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'test: finalize site-scoped API clients'
+          git push origin HEAD:feat/site-api-clients
