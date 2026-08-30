@@ -262,7 +262,7 @@ export function renderMarkdownPreview(markdown: string): Readonly<MarkdownPrevie
 function renderInline(value: string, warnings: Set<string>): string {
   let cursor = 0;
   let output = '';
-  const pattern = /\[([^\]]+)]\(([^)]+)\)/gu;
+  const pattern = /\[([^\]]+)\]\(([^)]+)\)/gu;
 
   for (const match of value.matchAll(pattern)) {
     const index = match.index ?? 0;
