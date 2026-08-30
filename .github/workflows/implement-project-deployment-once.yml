@@ -94,6 +94,27 @@ jobs:
           echo 'run=true' >> "$GITHUB_OUTPUT"
           python3 .atlas-project-deployment/apply.py
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'packages/server/src/modules/project-deployment/domain/'
+              'project-deployment.ts'
+          )
+          lines = path.read_text(encoding='utf-8').splitlines()
+
+          for index, line in enumerate(lines):
+              if ('\\u0000' in line or '\\x00' in line) and '/' in line:
+                  if index == 0 or 'eslint-disable-next-line no-control-regex' not in lines[index - 1]:
+                      indent = line[: len(line) - len(line.lstrip())]
+                      lines.insert(index, f'{indent}// eslint-disable-next-line no-control-regex')
+                  break
+          else:
+              raise RuntimeError('The expected control-character regular expression was not found.')
+
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
       - name: Setup Node.js
         if: steps.prepare.outputs.run == 'true'
         uses: actions/setup-node@v7
