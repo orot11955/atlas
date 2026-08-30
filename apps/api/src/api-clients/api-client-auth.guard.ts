@@ -19,9 +19,7 @@ export interface ApiClientAccessRequirement {
   siteParam?: string;
 }
 
-export const RequireApiClientAccess = (
-  requirement: ApiClientAccessRequirement,
-): MethodDecorator & ClassDecorator =>
+export const RequireApiClientAccess = (requirement: ApiClientAccessRequirement) =>
   SetMetadata(API_CLIENT_REQUIREMENT_METADATA, Object.freeze({ ...requirement }));
 
 @Injectable()
