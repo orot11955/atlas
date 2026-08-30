@@ -1,0 +1,47 @@
+name: Export Phase 7 dependencies once
+
+on:
+  push:
+    branches:
+      - feat/content-publication-delivery
+    paths:
+      - .github/workflows/export-phase7-deps-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Phase 7 branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/content-publication-delivery
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Archive installed dependencies
+        run: |
+          mapfile -t workspace_modules < <(find apps packages -mindepth 2 -maxdepth 2 -type d -name node_modules -print | sort)
+          tar --zstd -cf /tmp/atlas-phase7-node-modules.tar.zst node_modules "${workspace_modules[@]}"
+
+      - name: Upload dependency archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-phase7-node-modules
+          path: /tmp/atlas-phase7-node-modules.tar.zst
+          if-no-files-found: error
+          retention-days: 1
