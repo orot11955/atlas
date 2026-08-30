@@ -64,25 +64,24 @@ jobs:
 
           controller = Path('apps/api/src/resource-member/resource-member.controller.ts')
           value = controller.read_text(encoding='utf-8')
-          value = value.replace(
-              "import { AdminSessionGuard } from '../admin-session/admin-session.guard';",
-              "import {\n  AdminSessionGuard,\n  requireAdminSessionPrincipal,\n} from '../admin-session/admin-session.guard';",
-              1,
+          old_import = "import { AdminSessionGuard } from '../admin-session/admin-session.guard';"
+          new_import = (
+              "import {\n"
+              "  AdminSessionGuard,\n"
+              "  requireAdminSessionPrincipal,\n"
+              "} from '../admin-session/admin-session.guard';"
           )
-          old_call = (
-              '      data: toMemberNoteData(\n'
-              '        await this.service.addMemberNote(workspace.id, memberId, body.body),\n'
-              '      ),'
-          )
+          if old_import not in value:
+              raise RuntimeError('Admin Session Guard import was not found.')
+          value = value.replace(old_import, new_import, 1)
+          old_call = 'await this.service.addMemberNote(workspace.id, memberId, body.body)'
           new_call = (
-              '      data: toMemberNoteData(\n'
-              '        await this.service.addMemberNote(\n'
+              'await this.service.addMemberNote(\n'
               '          workspace.id,\n'
               '          memberId,\n'
               '          body.body,\n'
               '          requireAdminSessionPrincipal(request).adminAccountId,\n'
-              '        ),\n'
-              '      ),'
+              '        )'
           )
           if old_call not in value:
               raise RuntimeError('Member Note Controller call was not found.')
