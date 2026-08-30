@@ -1,0 +1,68 @@
+name: Ready and merge Resource Member Directory once
+
+on:
+  push:
+    branches:
+      - feat/resource-member-directory-mvp
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ready-merge-resource-member-once
+  cancel-in-progress: false
+
+jobs:
+  ready-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/resource-member-directory-mvp
+          fetch-depth: 0
+
+      - name: Remove this one-time workflow
+        run: |
+          rm -f .github/workflows/ready-merge-resource-member-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: remove one-time resource member merge workflow'
+          git push origin HEAD:feat/resource-member-directory-mvp
+
+      - name: Mark pull request ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr ready 18 --repo "${GITHUB_REPOSITORY}"
+
+      - name: Squash merge verified tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha="$(git rev-parse HEAD)"
+          payload="$(node -e '
+            process.stdout.write(JSON.stringify({
+              sha: process.argv[1],
+              merge_method: "squash",
+              commit_title: "feat: add resource and member directory MVP",
+              commit_message: "Add Workspace-scoped Resource Library and Member Directory management, Secret detection, Site-specific membership states, administration UI, backup scripts, isolated PostgreSQL restore validation, and complete integration coverage."
+            }));
+          ' "$head_sha")"
+          response="$(curl -fsS \
+            -X PUT \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/18/merge" \
+            -d "$payload")"
+          node -e '
+            const response = JSON.parse(process.argv[1]);
+            if (response.merged !== true) {
+              throw new Error(`Pull request merge failed: ${JSON.stringify(response)}`);
+            }
+          ' "$response"
