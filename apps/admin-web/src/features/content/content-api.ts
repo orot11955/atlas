@@ -33,7 +33,9 @@ export function buildContentListPath(input: ContentListInput = {}): string {
   return `/contents${suffix ? `?${suffix}` : ''}`;
 }
 
-export async function loadContents(input: ContentListInput = {}): Promise<ContentListResult> {
+export async function loadContents(
+  input: ContentListInput = {},
+): Promise<ContentListResult> {
   const response = await client().get<ApiEnvelope<ContentListResult>>(
     buildContentListPath(input),
   );
