@@ -25,10 +25,7 @@ import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.mo
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { ResourceMemberController } from './resource-member.controller';
-import {
-  RESOURCE_MEMBER_REPOSITORY,
-  RESOURCE_MEMBER_SERVICE,
-} from './resource-member.tokens';
+import { RESOURCE_MEMBER_REPOSITORY, RESOURCE_MEMBER_SERVICE } from './resource-member.tokens';
 
 @Module({
   imports: [
@@ -52,8 +49,7 @@ import {
     {
       provide: RESOURCE_MEMBER_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmResourceMemberRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmResourceMemberRepository(dataSource),
     },
     {
       provide: RESOURCE_MEMBER_SERVICE,

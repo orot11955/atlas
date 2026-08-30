@@ -19,9 +19,8 @@ function client() {
 }
 
 export async function loadResourceCollections(): Promise<readonly ResourceCollection[]> {
-  const response = await client().get<ApiEnvelope<readonly ResourceCollection[]>>(
-    '/resource-collections',
-  );
+  const response =
+    await client().get<ApiEnvelope<readonly ResourceCollection[]>>('/resource-collections');
   return response.data;
 }
 

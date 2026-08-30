@@ -37,7 +37,7 @@ export interface InsertResourceInput extends Omit<ResourceRecord, 'tags' | 'proj
   projectIds: readonly string[];
 }
 
-export interface UpdateResourceInput {
+export interface UpdateResourceRecordInput {
   collectionId?: string;
   type: ResourceType;
   title: string;
@@ -58,7 +58,7 @@ export interface InsertMemberInput extends Omit<MemberRecord, 'memberships' | 'n
   memberships: readonly SiteMembershipRecord[];
 }
 
-export interface UpdateMemberInput {
+export interface UpdateMemberRecordInput {
   email?: string;
   normalizedEmail?: string;
   displayName: string;
@@ -81,10 +81,7 @@ export interface ResourceMemberRepositoryPort<TTransaction = unknown> {
     excludeCollectionId?: string,
     transaction?: TTransaction,
   ): Promise<boolean>;
-  insertCollection(
-    collection: ResourceCollectionRecord,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insertCollection(collection: ResourceCollectionRecord, transaction: TTransaction): Promise<void>;
   updateCollection(
     workspaceId: string,
     collectionId: string,
@@ -106,10 +103,7 @@ export interface ResourceMemberRepositoryPort<TTransaction = unknown> {
     transaction: TTransaction,
   ): Promise<boolean>;
 
-  listResources(
-    workspaceId: string,
-    query: ResourceListQuery,
-  ): Promise<readonly ResourceRecord[]>;
+  listResources(workspaceId: string, query: ResourceListQuery): Promise<readonly ResourceRecord[]>;
   findResource(
     workspaceId: string,
     resourceId: string,
@@ -119,7 +113,7 @@ export interface ResourceMemberRepositoryPort<TTransaction = unknown> {
   updateResource(
     workspaceId: string,
     resourceId: string,
-    input: UpdateResourceInput,
+    input: UpdateResourceRecordInput,
     transaction: TTransaction,
   ): Promise<boolean>;
   archiveResource(
@@ -153,16 +147,12 @@ export interface ResourceMemberRepositoryPort<TTransaction = unknown> {
     subject: string,
     transaction?: TTransaction,
   ): Promise<boolean>;
-  siteExists(
-    workspaceId: string,
-    siteId: string,
-    transaction?: TTransaction,
-  ): Promise<boolean>;
+  siteExists(workspaceId: string, siteId: string, transaction?: TTransaction): Promise<boolean>;
   insertMember(member: InsertMemberInput, transaction: TTransaction): Promise<void>;
   updateMember(
     workspaceId: string,
     memberId: string,
-    input: UpdateMemberInput,
+    input: UpdateMemberRecordInput,
     transaction: TTransaction,
   ): Promise<boolean>;
   archiveMember(

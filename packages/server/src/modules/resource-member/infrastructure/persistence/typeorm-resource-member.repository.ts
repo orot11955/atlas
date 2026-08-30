@@ -22,13 +22,12 @@ import type {
   MemberListQuery,
   ResourceListQuery,
   ResourceMemberRepositoryPort,
-  UpdateMemberInput,
-  UpdateResourceInput,
+  UpdateMemberRecordInput,
+  UpdateResourceRecordInput,
 } from '../../ports/resource-member.repository';
 import {
   MemberAdminNoteEntity,
   MemberEntity,
-  ResourceAssetEntity,
   ResourceCollectionEntity,
   ResourceEntity,
   ResourceRelationEntity,
@@ -37,14 +36,10 @@ import {
   SiteMembershipEntity,
 } from './resource-member.entities';
 
-export class TypeOrmResourceMemberRepository
-  implements ResourceMemberRepositoryPort<EntityManager>
-{
+export class TypeOrmResourceMemberRepository implements ResourceMemberRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
-  public async listCollections(
-    workspaceId: string,
-  ): Promise<readonly ResourceCollectionRecord[]> {
+  public async listCollections(workspaceId: string): Promise<readonly ResourceCollectionRecord[]> {
     const entities = await this.dataSource.getRepository(ResourceCollectionEntity).find({
       where: { workspaceId },
       order: { status: 'ASC', name: 'ASC' },
@@ -287,7 +282,7 @@ export class TypeOrmResourceMemberRepository
   public async updateResource(
     workspaceId: string,
     resourceId: string,
-    input: UpdateResourceInput,
+    input: UpdateResourceRecordInput,
     transaction: EntityManager,
   ): Promise<boolean> {
     const result = await transaction.getRepository(ResourceEntity).update(
@@ -391,9 +386,7 @@ export class TypeOrmResourceMemberRepository
         )`,
         {
           siteId: query.siteId,
-          ...(query.membershipStatus
-            ? { membershipStatus: query.membershipStatus }
-            : {}),
+          ...(query.membershipStatus ? { membershipStatus: query.membershipStatus } : {}),
         },
       );
     }
@@ -464,10 +457,7 @@ export class TypeOrmResourceMemberRepository
     );
   }
 
-  public async insertMember(
-    member: InsertMemberInput,
-    transaction: EntityManager,
-  ): Promise<void> {
+  public async insertMember(member: InsertMemberInput, transaction: EntityManager): Promise<void> {
     await transaction.getRepository(MemberEntity).insert({
       id: member.id,
       workspaceId: member.workspaceId,
@@ -500,7 +490,7 @@ export class TypeOrmResourceMemberRepository
   public async updateMember(
     workspaceId: string,
     memberId: string,
-    input: UpdateMemberInput,
+    input: UpdateMemberRecordInput,
     transaction: EntityManager,
   ): Promise<boolean> {
     const result = await transaction.getRepository(MemberEntity).update(

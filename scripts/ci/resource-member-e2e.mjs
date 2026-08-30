@@ -149,21 +149,16 @@ export async function verifyResourceMemberDirectory({
   );
   assertEqual(pendingMembers.data.length, 1, 'Pending Site Member count');
 
-  const devMembership = member.memberships.find(
-    (membership) => membership.siteId === devLog.id,
-  );
+  const devMembership = member.memberships.find((membership) => membership.siteId === devLog.id);
   if (!devMembership) throw new Error('Dev Log Membership was not returned.');
 
-  const suspended = await request(
-    `/admin/v1/members/${member.id}/sites/${devLog.id}/status`,
-    {
-      method: 'POST',
-      body: { version: devMembership.version, status: 'suspended' },
-      expectedStatus: 200,
-      cookieHeader: session.cookieHeader,
-      csrfToken: session.csrfToken,
-    },
-  );
+  const suspended = await request(`/admin/v1/members/${member.id}/sites/${devLog.id}/status`, {
+    method: 'POST',
+    body: { version: devMembership.version, status: 'suspended' },
+    expectedStatus: 200,
+    cookieHeader: session.cookieHeader,
+    csrfToken: session.csrfToken,
+  });
   assertEqual(suspended.data.status, 'suspended', 'Site Membership status');
 
   await request(`/admin/v1/members/${member.id}/notes`, {

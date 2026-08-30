@@ -99,8 +99,12 @@ export class CreateResourceMemberDirectory1788031200000 implements MigrationInte
         )
       )
     `);
-    await queryRunner.query(`CREATE INDEX "idx_resources_workspace_status_updated" ON "resources" ("workspace_id", "status", "updated_at" DESC)`);
-    await queryRunner.query(`CREATE INDEX "idx_resources_workspace_collection" ON "resources" ("workspace_id", "collection_id")`);
+    await queryRunner.query(
+      `CREATE INDEX "idx_resources_workspace_status_updated" ON "resources" ("workspace_id", "status", "updated_at" DESC)`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "idx_resources_workspace_collection" ON "resources" ("workspace_id", "collection_id")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "resource_tag_assignments" (
@@ -139,7 +143,9 @@ export class CreateResourceMemberDirectory1788031200000 implements MigrationInte
         )
       )
     `);
-    await queryRunner.query(`CREATE INDEX "idx_resource_relations_target" ON "resource_relations" ("workspace_id", "target_type", "target_id")`);
+    await queryRunner.query(
+      `CREATE INDEX "idx_resource_relations_target" ON "resource_relations" ("workspace_id", "target_type", "target_id")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "resource_assets" (
@@ -189,9 +195,15 @@ export class CreateResourceMemberDirectory1788031200000 implements MigrationInte
         )
       )
     `);
-    await queryRunner.query(`CREATE UNIQUE INDEX "uq_members_workspace_email" ON "members" ("workspace_id", "normalized_email") WHERE "normalized_email" IS NOT NULL`);
-    await queryRunner.query(`CREATE UNIQUE INDEX "uq_members_workspace_external" ON "members" ("workspace_id", "external_provider", "external_subject") WHERE "external_provider" IS NOT NULL`);
-    await queryRunner.query(`CREATE INDEX "idx_members_workspace_status_created" ON "members" ("workspace_id", "status", "created_at" DESC)`);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "uq_members_workspace_email" ON "members" ("workspace_id", "normalized_email") WHERE "normalized_email" IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "uq_members_workspace_external" ON "members" ("workspace_id", "external_provider", "external_subject") WHERE "external_provider" IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "idx_members_workspace_status_created" ON "members" ("workspace_id", "status", "created_at" DESC)`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "site_memberships" (
@@ -213,7 +225,9 @@ export class CreateResourceMemberDirectory1788031200000 implements MigrationInte
         CONSTRAINT "chk_site_memberships_version" CHECK ("version" >= 1)
       )
     `);
-    await queryRunner.query(`CREATE INDEX "idx_site_memberships_site_status" ON "site_memberships" ("site_id", "status")`);
+    await queryRunner.query(
+      `CREATE INDEX "idx_site_memberships_site_status" ON "site_memberships" ("site_id", "status")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "member_admin_notes" (
@@ -230,7 +244,9 @@ export class CreateResourceMemberDirectory1788031200000 implements MigrationInte
           REFERENCES "admin_accounts" ("id") ON DELETE RESTRICT
       )
     `);
-    await queryRunner.query(`CREATE INDEX "idx_member_admin_notes_member_created" ON "member_admin_notes" ("member_id", "created_at" DESC)`);
+    await queryRunner.query(
+      `CREATE INDEX "idx_member_admin_notes_member_created" ON "member_admin_notes" ("member_id", "created_at" DESC)`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

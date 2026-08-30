@@ -18,10 +18,7 @@ test('Resource input normalizes tags, source URLs and Secret Store references', 
     'nestjs',
     'typescript',
   ]);
-  assert.equal(
-    normalizeResourceSourceUrl('https://example.com/docs'),
-    'https://example.com/docs',
-  );
+  assert.equal(normalizeResourceSourceUrl('https://example.com/docs'), 'https://example.com/docs');
   assert.equal(
     normalizeSecretReference('secret://atlas/production/database'),
     'secret://atlas/production/database',

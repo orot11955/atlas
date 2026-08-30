@@ -92,18 +92,22 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     response.setHeader('Cache-Control', 'no-store');
-    if (retryAfterSeconds !== undefined) response.setHeader('Retry-After', String(retryAfterSeconds));
-    response.status(problem.status).type('application/problem+json').send({
-      type: 'about:blank',
-      title: problem.title,
-      status: problem.status,
-      code: problem.code,
-      detail: problem.detail,
-      requestId,
-      timestamp: systemClock.now().toISOString(),
-      ...(problem.details ? { details: problem.details } : {}),
-      ...(problem.errors ? { errors: problem.errors } : {}),
-    });
+    if (retryAfterSeconds !== undefined)
+      response.setHeader('Retry-After', String(retryAfterSeconds));
+    response
+      .status(problem.status)
+      .type('application/problem+json')
+      .send({
+        type: 'about:blank',
+        title: problem.title,
+        status: problem.status,
+        code: problem.code,
+        detail: problem.detail,
+        requestId,
+        timestamp: systemClock.now().toISOString(),
+        ...(problem.details ? { details: problem.details } : {}),
+        ...(problem.errors ? { errors: problem.errors } : {}),
+      });
   }
 }
 

@@ -22,8 +22,7 @@ export const ResourceVisibility = {
   PRIVATE: 'private',
   WORKSPACE: 'workspace',
 } as const;
-export type ResourceVisibility =
-  (typeof ResourceVisibility)[keyof typeof ResourceVisibility];
+export type ResourceVisibility = (typeof ResourceVisibility)[keyof typeof ResourceVisibility];
 export const RESOURCE_VISIBILITIES = Object.freeze(
   Object.values(ResourceVisibility),
 ) as readonly ResourceVisibility[];
@@ -32,8 +31,7 @@ export const ResourceSensitivity = {
   NORMAL: 'normal',
   SENSITIVE: 'sensitive',
 } as const;
-export type ResourceSensitivity =
-  (typeof ResourceSensitivity)[keyof typeof ResourceSensitivity];
+export type ResourceSensitivity = (typeof ResourceSensitivity)[keyof typeof ResourceSensitivity];
 export const RESOURCE_SENSITIVITIES = Object.freeze(
   Object.values(ResourceSensitivity),
 ) as readonly ResourceSensitivity[];
@@ -61,15 +59,16 @@ export const ResourceRelationType = {
   REFERENCES: 'references',
   DERIVED_FROM: 'derived-from',
 } as const;
-export type ResourceRelationType =
-  (typeof ResourceRelationType)[keyof typeof ResourceRelationType];
+export type ResourceRelationType = (typeof ResourceRelationType)[keyof typeof ResourceRelationType];
 
 export const MemberStatus = {
   ACTIVE: 'active',
   ARCHIVED: 'archived',
 } as const;
 export type MemberStatus = (typeof MemberStatus)[keyof typeof MemberStatus];
-export const MEMBER_STATUSES = Object.freeze(Object.values(MemberStatus)) as readonly MemberStatus[];
+export const MEMBER_STATUSES = Object.freeze(
+  Object.values(MemberStatus),
+) as readonly MemberStatus[];
 
 export const SiteMembershipStatus = {
   PENDING: 'pending',
@@ -77,8 +76,7 @@ export const SiteMembershipStatus = {
   SUSPENDED: 'suspended',
   WITHDRAWN: 'withdrawn',
 } as const;
-export type SiteMembershipStatus =
-  (typeof SiteMembershipStatus)[keyof typeof SiteMembershipStatus];
+export type SiteMembershipStatus = (typeof SiteMembershipStatus)[keyof typeof SiteMembershipStatus];
 export const SITE_MEMBERSHIP_STATUSES = Object.freeze(
   Object.values(SiteMembershipStatus),
 ) as readonly SiteMembershipStatus[];
@@ -209,7 +207,10 @@ export function normalizeResourceSourceUrl(value: string | undefined): string | 
     }
     return url.toString();
   } catch {
-    throw validationError('sourceUrl', 'Source URL must be an HTTP or HTTPS URL without credentials.');
+    throw validationError(
+      'sourceUrl',
+      'Source URL must be an HTTP or HTTPS URL without credentials.',
+    );
   }
 }
 
@@ -226,17 +227,23 @@ export function normalizeSecretReference(value: string | undefined): string | un
 }
 
 export function normalizeResourceTags(values: readonly string[] | undefined): readonly string[] {
-  const normalized = [...new Set((values ?? []).map((value) =>
-    normalizeText(value, 1, 64, 'tags').toLocaleLowerCase('en-US'),
-  ))].sort();
-  if (normalized.length > 30) throw validationError('tags', 'A Resource can contain at most 30 tags.');
+  const normalized = [
+    ...new Set(
+      (values ?? []).map((value) => normalizeText(value, 1, 64, 'tags').toLocaleLowerCase('en-US')),
+    ),
+  ].sort();
+  if (normalized.length > 30)
+    throw validationError('tags', 'A Resource can contain at most 30 tags.');
   return Object.freeze(normalized);
 }
 
-export function normalizeUuidList(values: readonly string[] | undefined, field: string): readonly string[] {
+export function normalizeUuidList(
+  values: readonly string[] | undefined,
+  field: string,
+): readonly string[] {
   const normalized = [...new Set(values ?? [])].sort();
   if (normalized.length > 100) throw validationError(field, `${field} contains too many values.`);
-  if (normalized.some((value) => !isUuid(value))) {
+  if (normalized.some((value) => !isResourceMemberUuid(value))) {
     throw validationError(field, `${field} must contain UUID values.`);
   }
   return Object.freeze(normalized);
@@ -270,7 +277,11 @@ export function normalizeExternalIdentity(
   if (!/^[a-z0-9][a-z0-9._-]{1,63}$/u.test(normalizedProvider)) {
     throw validationError('externalProvider', 'External provider is invalid.');
   }
-  if (normalizedSubject.length > 240 || /[\u0000-\u001f\u007f]/u.test(normalizedSubject)) {
+  const hasControlCharacter = [...normalizedSubject].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127;
+  });
+  if (normalizedSubject.length > 240 || hasControlCharacter) {
     throw validationError('externalSubject', 'External subject is invalid.');
   }
   return Object.freeze({ provider: normalizedProvider, subject: normalizedSubject });
@@ -285,15 +296,15 @@ export function assertResourceContent(
     throw validationError('sourceUrl', 'Link Resources require a source URL.');
   }
   if (type !== ResourceType.LINK && !bodyMarkdown && !sourceUrl) {
-    throw validationError(
-      'bodyMarkdown',
-      'Resource requires Markdown content or a source URL.',
-    );
+    throw validationError('bodyMarkdown', 'Resource requires Markdown content or a source URL.');
   }
 }
 
 export function assertNoLikelySecret(values: readonly (string | undefined)[]): void {
-  const candidate = values.filter((value): value is string => Boolean(value)).join('\n');
+  const candidate = values
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.replace(/\bsecret:\/\/[A-Za-z0-9][A-Za-z0-9/_-]{2,255}\b/gu, ''))
+    .join('\n');
   if (SECRET_PATTERNS.some((pattern) => pattern.test(candidate))) {
     throw new DomainError({
       code: ErrorCode.RESOURCE_SECRET_DETECTED,
@@ -303,16 +314,17 @@ export function assertNoLikelySecret(values: readonly (string | undefined)[]): v
   }
 }
 
-export function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-    value,
-  );
+export function isResourceMemberUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
 function normalizeText(value: string, minimum: number, maximum: number, field: string): string {
   const normalized = value.trim().replace(/\s+/gu, ' ');
   if (normalized.length < minimum || normalized.length > maximum) {
-    throw validationError(field, `${field} must contain between ${minimum} and ${maximum} characters.`);
+    throw validationError(
+      field,
+      `${field} must contain between ${minimum} and ${maximum} characters.`,
+    );
   }
   return normalized;
 }

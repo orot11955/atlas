@@ -23,7 +23,8 @@ export class ResourceCollectionEntity {
   @Column({ type: 'varchar', length: 500, nullable: true }) public description!: string | null;
   @Column({ type: 'varchar', length: 16 }) public status!: ResourceCollectionStatus;
   @Column({ type: 'integer' }) public version!: number;
-  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true }) public archivedAt!: Date | null;
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  public archivedAt!: Date | null;
   @Column({ name: 'created_at', type: 'timestamptz' }) public createdAt!: Date;
   @Column({ name: 'updated_at', type: 'timestamptz' }) public updatedAt!: Date;
 }
@@ -44,18 +45,23 @@ export class ResourceTagEntity {
 export class ResourceEntity {
   @PrimaryColumn({ type: 'uuid' }) public id!: string;
   @Column({ name: 'workspace_id', type: 'uuid' }) public workspaceId!: string;
-  @Column({ name: 'collection_id', type: 'uuid', nullable: true }) public collectionId!: string | null;
+  @Column({ name: 'collection_id', type: 'uuid', nullable: true }) public collectionId!:
+    string | null;
   @Column({ type: 'varchar', length: 24 }) public type!: ResourceType;
   @Column({ type: 'varchar', length: 200 }) public title!: string;
   @Column({ type: 'varchar', length: 1_000, nullable: true }) public summary!: string | null;
-  @Column({ name: 'body_markdown', type: 'text', nullable: true }) public bodyMarkdown!: string | null;
-  @Column({ name: 'source_url', type: 'varchar', length: 2_000, nullable: true }) public sourceUrl!: string | null;
+  @Column({ name: 'body_markdown', type: 'text', nullable: true }) public bodyMarkdown!:
+    string | null;
+  @Column({ name: 'source_url', type: 'varchar', length: 2_000, nullable: true })
+  public sourceUrl!: string | null;
   @Column({ type: 'varchar', length: 24 }) public visibility!: ResourceVisibility;
   @Column({ type: 'varchar', length: 24 }) public sensitivity!: ResourceSensitivity;
-  @Column({ name: 'secret_reference', type: 'varchar', length: 300, nullable: true }) public secretReference!: string | null;
+  @Column({ name: 'secret_reference', type: 'varchar', length: 300, nullable: true })
+  public secretReference!: string | null;
   @Column({ type: 'varchar', length: 16 }) public status!: ResourceStatus;
   @Column({ type: 'integer' }) public version!: number;
-  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true }) public archivedAt!: Date | null;
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  public archivedAt!: Date | null;
   @Column({ name: 'created_at', type: 'timestamptz' }) public createdAt!: Date;
   @Column({ name: 'updated_at', type: 'timestamptz' }) public updatedAt!: Date;
 }
@@ -74,9 +80,11 @@ export class ResourceRelationEntity {
   @PrimaryColumn({ type: 'uuid' }) public id!: string;
   @Column({ name: 'workspace_id', type: 'uuid' }) public workspaceId!: string;
   @Column({ name: 'resource_id', type: 'uuid' }) public resourceId!: string;
-  @Column({ name: 'target_type', type: 'varchar', length: 24 }) public targetType!: ResourceRelationTargetType;
+  @Column({ name: 'target_type', type: 'varchar', length: 24 })
+  public targetType!: ResourceRelationTargetType;
   @Column({ name: 'target_id', type: 'uuid' }) public targetId!: string;
-  @Column({ name: 'relation_type', type: 'varchar', length: 32 }) public relationType!: ResourceRelationType;
+  @Column({ name: 'relation_type', type: 'varchar', length: 32 })
+  public relationType!: ResourceRelationType;
   @Column({ name: 'created_at', type: 'timestamptz' }) public createdAt!: Date;
 }
 
@@ -95,13 +103,17 @@ export class MemberEntity {
   @PrimaryColumn({ type: 'uuid' }) public id!: string;
   @Column({ name: 'workspace_id', type: 'uuid' }) public workspaceId!: string;
   @Column({ type: 'varchar', length: 320, nullable: true }) public email!: string | null;
-  @Column({ name: 'normalized_email', type: 'varchar', length: 320, nullable: true }) public normalizedEmail!: string | null;
+  @Column({ name: 'normalized_email', type: 'varchar', length: 320, nullable: true })
+  public normalizedEmail!: string | null;
   @Column({ name: 'display_name', type: 'varchar', length: 120 }) public displayName!: string;
-  @Column({ name: 'external_provider', type: 'varchar', length: 64, nullable: true }) public externalProvider!: string | null;
-  @Column({ name: 'external_subject', type: 'varchar', length: 240, nullable: true }) public externalSubject!: string | null;
+  @Column({ name: 'external_provider', type: 'varchar', length: 64, nullable: true })
+  public externalProvider!: string | null;
+  @Column({ name: 'external_subject', type: 'varchar', length: 240, nullable: true })
+  public externalSubject!: string | null;
   @Column({ type: 'varchar', length: 16 }) public status!: MemberStatus;
   @Column({ type: 'integer' }) public version!: number;
-  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true }) public archivedAt!: Date | null;
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  public archivedAt!: Date | null;
   @Column({ name: 'created_at', type: 'timestamptz' }) public createdAt!: Date;
   @Column({ name: 'updated_at', type: 'timestamptz' }) public updatedAt!: Date;
 }
@@ -125,6 +137,7 @@ export class MemberAdminNoteEntity {
   @Column({ name: 'workspace_id', type: 'uuid' }) public workspaceId!: string;
   @Column({ name: 'member_id', type: 'uuid' }) public memberId!: string;
   @Column({ type: 'varchar', length: 2_000 }) public body!: string;
-  @Column({ name: 'created_by_admin_account_id', type: 'uuid' }) public createdByAdminAccountId!: string;
+  @Column({ name: 'created_by_admin_account_id', type: 'uuid' })
+  public createdByAdminAccountId!: string;
   @Column({ name: 'created_at', type: 'timestamptz' }) public createdAt!: Date;
 }

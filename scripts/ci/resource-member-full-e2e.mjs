@@ -136,21 +136,13 @@ function challengeBody(challenge) {
 }
 
 function assertChallenge(value) {
-  if (
-    !value ||
-    typeof value.challengeId !== 'string' ||
-    typeof value.challengeToken !== 'string'
-  ) {
+  if (!value || typeof value.challengeId !== 'string' || typeof value.challengeToken !== 'string') {
     throw new Error('Password challenge response is invalid.');
   }
 }
 
 function assertGrant(value) {
-  if (
-    !value ||
-    typeof value.grantId !== 'string' ||
-    typeof value.grantToken !== 'string'
-  ) {
+  if (!value || typeof value.grantId !== 'string' || typeof value.grantToken !== 'string') {
     throw new Error('Authentication Grant response is invalid.');
   }
 }

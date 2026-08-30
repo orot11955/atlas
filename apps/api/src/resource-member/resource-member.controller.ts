@@ -52,12 +52,7 @@ import {
 import { RESOURCE_MEMBER_SERVICE } from './resource-member.tokens';
 
 const READ_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminPermissionGuard];
-const WRITE_GUARDS = [
-  AdminSessionGuard,
-  AdminWorkspaceGuard,
-  AdminCsrfGuard,
-  AdminPermissionGuard,
-];
+const WRITE_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard];
 
 @ApiTags('Admin Resources and Members')
 @Controller('admin/v1')
@@ -100,9 +95,7 @@ export class ResourceMemberController {
   ) {
     const workspace = requireAdminWorkspace(request);
     return {
-      data: toCollectionData(
-        await this.service.updateCollection(workspace.id, collectionId, body),
-      ),
+      data: toCollectionData(await this.service.updateCollection(workspace.id, collectionId, body)),
     };
   }
 
@@ -171,9 +164,7 @@ export class ResourceMemberController {
   ) {
     const workspace = requireAdminWorkspace(request);
     return {
-      data: toResourceData(
-        await this.service.updateResource(workspace.id, resourceId, body),
-      ),
+      data: toResourceData(await this.service.updateResource(workspace.id, resourceId, body)),
     };
   }
 
@@ -256,9 +247,7 @@ export class ResourceMemberController {
   ) {
     const workspace = requireAdminWorkspace(request);
     return {
-      data: toMemberData(
-        await this.service.archiveMember(workspace.id, memberId, body.version),
-      ),
+      data: toMemberData(await this.service.archiveMember(workspace.id, memberId, body.version)),
     };
   }
 
@@ -297,9 +286,7 @@ export class ResourceMemberController {
   ) {
     const workspace = requireAdminWorkspace(request);
     return {
-      data: toMemberNoteData(
-        await this.service.addMemberNote(workspace.id, memberId, body.body),
-      ),
+      data: toMemberNoteData(await this.service.addMemberNote(workspace.id, memberId, body.body)),
     };
   }
 }

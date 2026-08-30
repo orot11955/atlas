@@ -1,10 +1,4 @@
-export type ResourceType =
-  | 'note'
-  | 'document'
-  | 'link'
-  | 'reference'
-  | 'checklist'
-  | 'snippet';
+export type ResourceType = 'note' | 'document' | 'link' | 'reference' | 'checklist' | 'snippet';
 export type ResourceVisibility = 'private' | 'workspace';
 export type ResourceSensitivity = 'normal' | 'sensitive';
 export type ResourceStatus = 'active' | 'archived';

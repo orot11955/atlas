@@ -10,7 +10,6 @@ import {
 import {
   MemberStatus,
   ResourceCollectionStatus,
-  ResourceRelationType,
   ResourceSensitivity,
   ResourceStatus,
   ResourceType,
@@ -18,7 +17,7 @@ import {
   SiteMembershipStatus,
   assertNoLikelySecret,
   assertResourceContent,
-  isUuid,
+  isResourceMemberUuid,
   normalizeEmail,
   normalizeExternalIdentity,
   normalizeMarkdown,
@@ -113,7 +112,10 @@ export class ResourceMemberService<TTransaction> {
           transaction,
         )
       ) {
-        throw conflict(ErrorCode.RESOURCE_COLLECTION_NAME_EXISTS, 'Collection name already exists.');
+        throw conflict(
+          ErrorCode.RESOURCE_COLLECTION_NAME_EXISTS,
+          'Collection name already exists.',
+        );
       }
       const collection: ResourceCollectionRecord = {
         id: createUuidV7(now.getTime()),
@@ -162,7 +164,10 @@ export class ResourceMemberService<TTransaction> {
           transaction,
         )
       ) {
-        throw conflict(ErrorCode.RESOURCE_COLLECTION_NAME_EXISTS, 'Collection name already exists.');
+        throw conflict(
+          ErrorCode.RESOURCE_COLLECTION_NAME_EXISTS,
+          'Collection name already exists.',
+        );
       }
       const updated = await this.repository.updateCollection(
         workspaceId,
@@ -295,7 +300,10 @@ export class ResourceMemberService<TTransaction> {
       const current = await this.repository.findResource(workspaceId, resourceId, transaction);
       if (!current) throw notFound(ErrorCode.RESOURCE_NOT_FOUND, 'Resource was not found.');
       if (current.status === ResourceStatus.ARCHIVED) {
-        throw new DomainError({ code: ErrorCode.ACTION_NOT_ALLOWED, message: 'Archived Resources cannot be modified.' });
+        throw new DomainError({
+          code: ErrorCode.ACTION_NOT_ALLOWED,
+          message: 'Archived Resources cannot be modified.',
+        });
       }
       await this.validateResourceReferences(workspaceId, normalized, transaction);
       const updated = await this.repository.updateResource(
@@ -431,8 +439,7 @@ export class ResourceMemberService<TTransaction> {
           workspaceId,
           status: membership.status,
           version: 1,
-          joinedAt:
-            membership.status === SiteMembershipStatus.ACTIVE ? now : undefined,
+          joinedAt: membership.status === SiteMembershipStatus.ACTIVE ? now : undefined,
           updatedAt: now,
         });
       }
@@ -480,7 +487,10 @@ export class ResourceMemberService<TTransaction> {
       const current = await this.repository.findMember(workspaceId, memberId, transaction);
       if (!current) throw notFound(ErrorCode.MEMBER_NOT_FOUND, 'Member was not found.');
       if (current.status === MemberStatus.ARCHIVED) {
-        throw new DomainError({ code: ErrorCode.ACTION_NOT_ALLOWED, message: 'Archived Members cannot be modified.' });
+        throw new DomainError({
+          code: ErrorCode.ACTION_NOT_ALLOWED,
+          message: 'Archived Members cannot be modified.',
+        });
       }
       if (
         normalizedEmail &&
@@ -569,9 +579,7 @@ export class ResourceMemberService<TTransaction> {
         ...current,
         status,
         version: version + 1,
-        joinedAt:
-          current.joinedAt ??
-          (status === SiteMembershipStatus.ACTIVE ? now : undefined),
+        joinedAt: current.joinedAt ?? (status === SiteMembershipStatus.ACTIVE ? now : undefined),
         updatedAt: now,
       });
     });
@@ -579,10 +587,18 @@ export class ResourceMemberService<TTransaction> {
 
   public async addMemberNote(workspaceId: string, memberId: string, bodyValue: string) {
     const body = normalizeOptionalText(bodyValue, 2_000, 'body');
-    if (!body) throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: 'Note body is required.' });
+    if (!body)
+      throw new DomainError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'Note body is required.',
+      });
     assertNoLikelySecret([body]);
     const actorId = requestContext.require().actorId;
-    if (!actorId) throw new DomainError({ code: ErrorCode.AUTH_REQUIRED, message: 'Administrator actor is required.' });
+    if (!actorId)
+      throw new DomainError({
+        code: ErrorCode.AUTH_REQUIRED,
+        message: 'Administrator actor is required.',
+      });
     const now = this.clock.now();
     return this.transactionRunner.run(async (transaction) => {
       if (!(await this.repository.findMember(workspaceId, memberId, transaction))) {
@@ -655,7 +671,10 @@ export class ResourceMemberService<TTransaction> {
       throw notFound(ErrorCode.RESOURCE_COLLECTION_NOT_FOUND, 'Resource Collection was not found.');
     }
     if (collection.status === ResourceCollectionStatus.ARCHIVED) {
-      throw new DomainError({ code: ErrorCode.ACTION_NOT_ALLOWED, message: 'Archived Collections cannot be modified.' });
+      throw new DomainError({
+        code: ErrorCode.ACTION_NOT_ALLOWED,
+        message: 'Archived Collections cannot be modified.',
+      });
     }
     return collection;
   }
@@ -710,7 +729,7 @@ function normalizeMembershipInput(
 ): readonly { siteId: string; status: SiteMembershipStatus }[] {
   const seen = new Set<string>();
   const normalized = (values ?? []).map((membership) => {
-    if (!isUuid(membership.siteId) || seen.has(membership.siteId)) {
+    if (!isResourceMemberUuid(membership.siteId) || seen.has(membership.siteId)) {
       throw new DomainError({
         code: ErrorCode.VALIDATION_FAILED,
         message: 'Membership Site IDs must be unique UUID values.',
@@ -723,15 +742,22 @@ function normalizeMembershipInput(
     };
   });
   if (normalized.length > 100) {
-    throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: 'Member has too many Site Memberships.' });
+    throw new DomainError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'Member has too many Site Memberships.',
+    });
   }
   return Object.freeze(normalized);
 }
 
 function normalizeOptionalUuid(value: string | undefined, field: string) {
   if (!value) return undefined;
-  if (!isUuid(value)) {
-    throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: `${field} must be a UUID.`, details: { field } });
+  if (!isResourceMemberUuid(value)) {
+    throw new DomainError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: `${field} must be a UUID.`,
+      details: { field },
+    });
   }
   return value;
 }
@@ -739,7 +765,10 @@ function normalizeOptionalUuid(value: string | undefined, field: string) {
 function normalizeLimit(value: number | undefined) {
   if (value === undefined) return 100;
   if (!Number.isSafeInteger(value) || value < 1 || value > 200) {
-    throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: 'Limit must be between 1 and 200.' });
+    throw new DomainError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'Limit must be between 1 and 200.',
+    });
   }
   return value;
 }
@@ -748,7 +777,10 @@ function normalizeSearch(value: string | undefined) {
   const normalized = value?.trim().replace(/\s+/gu, ' ');
   if (!normalized) return undefined;
   if (normalized.length > 120) {
-    throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: 'Search query is too long.' });
+    throw new DomainError({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'Search query is too long.',
+    });
   }
   return normalized;
 }
