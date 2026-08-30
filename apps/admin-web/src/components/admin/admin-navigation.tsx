@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const activeItems = [
   { href: '/admin', label: 'Dashboard', exact: true },
   { href: '/admin/sites', label: 'Site', exact: false },
+  { href: '/admin/api-clients', label: 'API Client', exact: false },
   { href: '/admin/security/sessions', label: '활성 Session', exact: false },
 ] as const;
 
