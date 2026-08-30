@@ -1,0 +1,38 @@
+name: Export Phase 7 scaffolds once
+
+on:
+  push:
+    branches:
+      - feat/content-publication-delivery
+    paths:
+      - .github/workflows/export-phase7-scaffolds-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Phase 7 branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/content-publication-delivery
+
+      - name: Package scaffold sources
+        run: |
+          tar -czf atlas-phase7-scaffolds.tar.gz \
+            scripts/ci/phase7-scaffold.py \
+            scripts/ci/phase7-delivery-scaffold.py \
+            scripts/ci/phase7-wiring-scaffold.py \
+            .github/workflows/materialize-phase7-once.yml \
+            .github/workflows/repair-phase7-once.yml \
+            .github/workflows/finalize-phase7-once.yml
+
+      - name: Upload scaffold bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-phase7-scaffolds
+          path: atlas-phase7-scaffolds.tar.gz
+          retention-days: 1
