@@ -73,3 +73,7 @@ Editor는 1.2초 Debounce Autosave, 충돌 표시, Server Preview, Checkpoint, R
 - `javascript:`와 `data:` Link는 제거한다.
 - READY Revision에는 Sanitized HTML Snapshot을 저장한다.
 - Audit에는 본문 전체를 복제하지 않고 Revision 식별자와 Version만 기록한다.
+
+## 검증 Gate
+
+일반 Pull Request CI에서 Format, Lint, Typecheck, Unit Test, Production Build와 Migration `up → down → up`을 통과한 소스만 `develop`에 병합한다. 일회성 Workflow나 진단 파일은 구현 결과물에 포함하지 않는다.
