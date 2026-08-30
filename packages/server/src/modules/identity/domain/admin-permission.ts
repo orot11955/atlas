@@ -6,6 +6,7 @@ export const AdminPermission = {
   ADMIN_SESSIONS_READ: 'admin.sessions.read',
   ADMIN_SESSIONS_REVOKE: 'admin.sessions.revoke',
   API_CLIENTS_MANAGE: 'api-clients.manage',
+  API_CLIENTS_READ: 'api-clients.read',
   AUDIT_READ: 'audit.read',
   CONTENT_MANAGE: 'content.manage',
   CONTENT_PUBLISH: 'content.publish',
@@ -27,7 +28,8 @@ export const AdminPermission = {
   WORKSPACES_READ: 'workspaces.read',
 } as const;
 
-export type AdminPermission = (typeof AdminPermission)[keyof typeof AdminPermission];
+export type AdminPermission =
+  (typeof AdminPermission)[keyof typeof AdminPermission];
 
 export const ADMIN_PERMISSIONS = Object.freeze(
   Object.values(AdminPermission),
@@ -36,6 +38,7 @@ export const ADMIN_PERMISSIONS = Object.freeze(
 const READ_PERMISSIONS = Object.freeze([
   AdminPermission.ADMIN_ACCOUNTS_READ,
   AdminPermission.ADMIN_SESSIONS_READ,
+  AdminPermission.API_CLIENTS_READ,
   AdminPermission.AUDIT_READ,
   AdminPermission.CONTENT_READ,
   AdminPermission.DEPLOYMENTS_READ,
@@ -47,7 +50,9 @@ const READ_PERMISSIONS = Object.freeze([
   AdminPermission.WORKSPACES_READ,
 ]) as readonly AdminPermission[];
 
-const ROLE_PERMISSIONS: Readonly<Record<AdminRole, readonly AdminPermission[]>> = Object.freeze({
+const ROLE_PERMISSIONS: Readonly<
+  Record<AdminRole, readonly AdminPermission[]>
+> = Object.freeze({
   [AdminRole.OWNER]: ADMIN_PERMISSIONS,
   [AdminRole.ADMIN]: Object.freeze([
     ...READ_PERMISSIONS,
@@ -85,10 +90,15 @@ const ROLE_PERMISSIONS: Readonly<Record<AdminRole, readonly AdminPermission[]>> 
   [AdminRole.VIEWER]: READ_PERMISSIONS,
 });
 
-export function getAdminRolePermissions(role: AdminRole): readonly AdminPermission[] {
+export function getAdminRolePermissions(
+  role: AdminRole,
+): readonly AdminPermission[] {
   return ROLE_PERMISSIONS[role];
 }
 
-export function hasAdminPermission(role: AdminRole, permission: AdminPermission): boolean {
+export function hasAdminPermission(
+  role: AdminRole,
+  permission: AdminPermission,
+): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }
