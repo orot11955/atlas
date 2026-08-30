@@ -1,0 +1,119 @@
+name: Fix Member Note Author Once
+
+on:
+  push:
+    branches:
+      - feat/resource-member-directory-mvp
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-member-note-author-once
+  cancel-in-progress: true
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/resource-member-directory-mvp
+
+      - name: Pass authenticated administrator explicitly
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path('packages/server/src/modules/resource-member/application/resource-member.service.ts')
+          value = service.read_text(encoding='utf-8')
+          value = value.replace('  requestContext,\n', '')
+          old_signature = (
+              '  public async addMemberNote(workspaceId: string, memberId: string, bodyValue: string) {'
+          )
+          new_signature = (
+              '  public async addMemberNote(\n'
+              '    workspaceId: string,\n'
+              '    memberId: string,\n'
+              '    bodyValue: string,\n'
+              '    createdByAdminAccountId: string,\n'
+              '  ) {'
+          )
+          if old_signature not in value:
+              raise RuntimeError('Member Note Service signature was not found.')
+          value = value.replace(old_signature, new_signature, 1)
+          old_actor = (
+              '    const actorId = requestContext.require().actorId;\n'
+              '    if (!actorId)\n'
+              '      throw new DomainError({\n'
+              '        code: ErrorCode.AUTH_REQUIRED,\n'
+              "        message: 'Administrator actor is required.',\n"
+              '      });\n'
+          )
+          if old_actor not in value:
+              raise RuntimeError('Ambient Member Note actor block was not found.')
+          value = value.replace(old_actor, '', 1)
+          value = value.replace(
+              '        createdByAdminAccountId: actorId,',
+              '        createdByAdminAccountId,',
+              1,
+          )
+          service.write_text(value, encoding='utf-8')
+
+          controller = Path('apps/api/src/resource-member/resource-member.controller.ts')
+          value = controller.read_text(encoding='utf-8')
+          value = value.replace(
+              "import { AdminSessionGuard } from '../admin-session/admin-session.guard';",
+              "import {\n  AdminSessionGuard,\n  requireAdminSessionPrincipal,\n} from '../admin-session/admin-session.guard';",
+              1,
+          )
+          old_call = (
+              '      data: toMemberNoteData(\n'
+              '        await this.service.addMemberNote(workspace.id, memberId, body.body),\n'
+              '      ),'
+          )
+          new_call = (
+              '      data: toMemberNoteData(\n'
+              '        await this.service.addMemberNote(\n'
+              '          workspace.id,\n'
+              '          memberId,\n'
+              '          body.body,\n'
+              '          requireAdminSessionPrincipal(request).adminAccountId,\n'
+              '        ),\n'
+              '      ),'
+          )
+          if old_call not in value:
+              raise RuntimeError('Member Note Controller call was not found.')
+          value = value.replace(old_call, new_call, 1)
+          controller.write_text(value, encoding='utf-8')
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format and verify
+        run: |
+          pnpm format
+          pnpm format:check
+          pnpm check
+
+      - name: Commit verified fix
+        run: |
+          rm -f .github/workflows/fix-member-note-author-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: persist authenticated administrator on member notes'
+          git push origin HEAD:feat/resource-member-directory-mvp
