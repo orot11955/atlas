@@ -1,0 +1,168 @@
+name: Gate and merge content draft revision once
+
+on:
+  push:
+    branches:
+      - feat/content-draft-revision-v2
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gate-merge-content-draft-revision-once
+  cancel-in-progress: true
+
+jobs:
+  gate-and-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
+      AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+      AUTH_SESSION_IDLE_SECONDS: 1800
+      AUTH_SESSION_ABSOLUTE_SECONDS: 43200
+      AUTH_SESSION_TOUCH_SECONDS: 60
+      AUTH_SESSION_MAX_ACTIVE: 5
+      AUTH_SESSION_BIND_IP: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_COOKIE_SECURE: 'false'
+      AUTH_API_KEY_PEPPER: atlas-ci-api-key-pepper-secret-2026
+      API_CLIENT_USAGE_TOUCH_SECONDS: 60
+      API_CLIENT_KEY_GRACE_SECONDS: 3600
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-api
+      MINIO_SECRET_KEY: atlas-ci-api-secret
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+      GH_TOKEN: ${{ github.token }}
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/content-draft-revision-v2
+
+      - name: Detect verified implementation
+        id: verified
+        run: |
+          if [ -d .atlas-phase6 ]; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'The verification workflow has not committed the clean implementation yet.'
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        if: steps.verified.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        if: steps.verified.outputs.ready == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        if: steps.verified.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify final quality
+        if: steps.verified.outputs.ready == 'true'
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Verify final migrations
+        if: steps.verified.outputs.ready == 'true'
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Remove one-time merge workflow
+        if: steps.verified.outputs.ready == 'true'
+        run: |
+          git rm .github/workflows/merge-content-draft-revision-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: remove Phase 6 merge gate'
+          git push origin HEAD:feat/content-draft-revision-v2
+
+      - name: Create or locate pull request
+        if: steps.verified.outputs.ready == 'true'
+        id: pull-request
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          pr_number="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls?state=open&base=develop&head=${owner}:feat/content-draft-revision-v2" \
+              --jq '.[0].number // empty'
+          )"
+
+          if [ -z "$pr_number" ]; then
+            pr_number="$(
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/pulls" \
+                -f title='feat: add content draft and immutable revisions' \
+                -f head='feat/content-draft-revision-v2' \
+                -f base='develop' \
+                -f body='Implements Workspace Content, mutable autosaved Drafts, immutable Checkpoint and READY Revisions, server Markdown preview, revision restore, and the protected Admin editor.' \
+                --jq '.number'
+            )"
+          fi
+
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Squash merge verified pull request
+        if: steps.verified.outputs.ready == 'true'
+        run: |
+          gh api -X PUT \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ steps.pull-request.outputs.number }}/merge" \
+            -f merge_method='squash' \
+            -f commit_title='feat: add content draft and immutable revisions' \
+            -f commit_message='Add mutable Content Drafts, optimistic autosave, immutable Checkpoint and READY Revisions, sanitized server preview, revision restoration, and the protected Admin editor.' \
+            --jq 'if .merged then .sha else error(.message) end'
