@@ -22,7 +22,7 @@ jobs:
         with:
           ref: feat/resource-member-directory-mvp
 
-      - name: Apply export and lint fixes
+      - name: Apply export, lint and validation fixes
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -32,6 +32,14 @@ jobs:
           value = value.replace(
               'export function isUuid(value: string): boolean {',
               'export function isResourceMemberUuid(value: string): boolean {',
+          )
+          value = value.replace(
+              "  if (normalizedSubject.length > 240 || /[\\u0000-\\u001f\\u007f]/u.test(normalizedSubject)) {",
+              """  const hasControlCharacter = [...normalizedSubject].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint < 32 || codePoint === 127;
+  });
+  if (normalizedSubject.length > 240 || hasControlCharacter) {""",
           )
           domain.write_text(value, encoding='utf-8')
 
