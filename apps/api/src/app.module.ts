@@ -16,6 +16,7 @@ import { HttpLoggingMiddleware } from './middleware/http-logging.middleware';
 import { RequestContextMiddleware } from './middleware/request-context.middleware';
 import { PlatformModule } from './platform/platform.module';
 import { ProjectDeploymentModule } from './project-deployment/project-deployment.module';
+import { ResourceMemberModule } from './resource-member/resource-member.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ProjectDeploymentModule } from './project-deployment/project-deployment
     AdminWorkspaceSiteModule,
     ApiClientModule,
     ProjectDeploymentModule,
+    ResourceMemberModule,
     HealthModule,
   ],
   providers: [

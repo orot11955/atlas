@@ -42,15 +42,23 @@ const APPLICATION_ERROR_STATUS: Readonly<Record<string, number>> = {
   [ErrorCode.ENVIRONMENT_KEY_ALREADY_EXISTS]: HttpStatus.CONFLICT,
   [ErrorCode.ENVIRONMENT_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.IDEMPOTENCY_CONFLICT]: HttpStatus.CONFLICT,
+  [ErrorCode.MEMBER_EMAIL_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.MEMBER_EXTERNAL_IDENTITY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.MEMBER_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.PROJECT_KEY_ALREADY_EXISTS]: HttpStatus.CONFLICT,
   [ErrorCode.PROJECT_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.RELEASE_ALREADY_EXISTS]: HttpStatus.CONFLICT,
   [ErrorCode.RELEASE_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.REPOSITORY_CONNECTION_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.RESOURCE_COLLECTION_NAME_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.RESOURCE_COLLECTION_NOT_FOUND]: HttpStatus.NOT_FOUND,
+  [ErrorCode.RESOURCE_NOT_FOUND]: HttpStatus.NOT_FOUND,
+  [ErrorCode.RESOURCE_SECRET_DETECTED]: HttpStatus.BAD_REQUEST,
   [ErrorCode.SERVICE_ENVIRONMENT_ALREADY_EXISTS]: HttpStatus.CONFLICT,
   [ErrorCode.SERVICE_ENVIRONMENT_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.SERVICE_KEY_ALREADY_EXISTS]: HttpStatus.CONFLICT,
   [ErrorCode.SERVICE_NOT_FOUND]: HttpStatus.NOT_FOUND,
+  [ErrorCode.SITE_MEMBERSHIP_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.AUTH_REQUIRED]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.FORBIDDEN]: HttpStatus.FORBIDDEN,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -84,32 +92,24 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     response.setHeader('Cache-Control', 'no-store');
-
-    if (retryAfterSeconds !== undefined) {
-      response.setHeader('Retry-After', String(retryAfterSeconds));
-    }
-
-    response
-      .status(problem.status)
-      .type('application/problem+json')
-      .send({
-        type: 'about:blank',
-        title: problem.title,
-        status: problem.status,
-        code: problem.code,
-        detail: problem.detail,
-        requestId,
-        timestamp: systemClock.now().toISOString(),
-        ...(problem.details ? { details: problem.details } : {}),
-        ...(problem.errors ? { errors: problem.errors } : {}),
-      });
+    if (retryAfterSeconds !== undefined) response.setHeader('Retry-After', String(retryAfterSeconds));
+    response.status(problem.status).type('application/problem+json').send({
+      type: 'about:blank',
+      title: problem.title,
+      status: problem.status,
+      code: problem.code,
+      detail: problem.detail,
+      requestId,
+      timestamp: systemClock.now().toISOString(),
+      ...(problem.details ? { details: problem.details } : {}),
+      ...(problem.errors ? { errors: problem.errors } : {}),
+    });
   }
 }
 
 function normalizeException(exception: unknown): NormalizedProblem {
   if (isApplicationError(exception)) {
     const status = APPLICATION_ERROR_STATUS[exception.code] ?? HttpStatus.INTERNAL_SERVER_ERROR;
-
     return {
       status,
       title: exception.name,
@@ -121,11 +121,7 @@ function normalizeException(exception: unknown): NormalizedProblem {
       details: status < HttpStatus.INTERNAL_SERVER_ERROR ? exception.details : undefined,
     };
   }
-
-  if (exception instanceof HttpException) {
-    return normalizeHttpException(exception);
-  }
-
+  if (exception instanceof HttpException) return normalizeHttpException(exception);
   return {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     title: 'Internal Server Error',
@@ -151,7 +147,6 @@ function normalizeHttpException(exception: HttpException): NormalizedProblem {
         : typeof body === 'string'
           ? body
           : exception.message;
-
   return {
     status,
     title: typeof bodyRecord.error === 'string' ? bodyRecord.error : exception.name,
@@ -162,10 +157,7 @@ function normalizeHttpException(exception: HttpException): NormalizedProblem {
 }
 
 function readRetryAfterSeconds(problem: NormalizedProblem): number | undefined {
-  if (problem.status !== HttpStatus.TOO_MANY_REQUESTS) {
-    return undefined;
-  }
-
+  if (problem.status !== HttpStatus.TOO_MANY_REQUESTS) return undefined;
   const value = problem.details?.retryAfterSeconds;
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(1, Math.ceil(value))
