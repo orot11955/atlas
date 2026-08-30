@@ -9,6 +9,7 @@ import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminSessionModule } from './admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from './admin-sites/admin-workspace-site.module';
 import { ApiClientModule } from './api-clients/api-client.module';
+import { ContentModule } from './content/content.module';
 import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
@@ -46,6 +47,7 @@ import { ResourceMemberModule } from './resource-member/resource-member.module';
     ApiClientModule,
     ProjectDeploymentModule,
     ResourceMemberModule,
+    ContentModule,
     HealthModule,
   ],
   providers: [

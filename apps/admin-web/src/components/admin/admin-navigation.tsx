@@ -11,10 +11,9 @@ const activeItems = [
   { href: '/admin/deployments', label: '배포', exact: false },
   { href: '/admin/resources', label: '자료실', exact: false },
   { href: '/admin/members', label: '회원', exact: false },
+  { href: '/admin/contents', label: '콘텐츠', exact: false },
   { href: '/admin/security/sessions', label: '활성 Session', exact: false },
 ] as const;
-
-const plannedItems = ['콘텐츠'] as const;
 
 export function AdminNavigation() {
   const pathname = usePathname();
@@ -33,15 +32,6 @@ export function AdminNavigation() {
             </li>
           );
         })}
-      </ul>
-      <p className="nav-section-label planned-label">구현 예정</p>
-      <ul className="nav-list planned-nav" aria-label="구현 예정 메뉴">
-        {plannedItems.map((item) => (
-          <li className="nav-link disabled" key={item} aria-disabled="true">
-            <span className="nav-dot" aria-hidden="true" />
-            {item}
-          </li>
-        ))}
       </ul>
     </nav>
   );

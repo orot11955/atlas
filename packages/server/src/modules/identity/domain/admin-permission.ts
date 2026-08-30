@@ -11,6 +11,8 @@ export const AdminPermission = {
   CONTENT_MANAGE: 'content.manage',
   CONTENT_PUBLISH: 'content.publish',
   CONTENT_READ: 'content.read',
+  CONTENTS_MANAGE: 'content.manage',
+  CONTENTS_READ: 'content.read',
   DEPLOYMENTS_CONTROL: 'deployments.control',
   DEPLOYMENTS_READ: 'deployments.read',
   MEDIA_MANAGE: 'media.manage',
