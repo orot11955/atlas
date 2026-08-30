@@ -18,7 +18,11 @@ def replace_once(path: str, old: str, new: str) -> None:
     target.write_text(content.replace(old, new, 1), encoding="utf-8")
 
 
-bundle = base64.b64decode((Path(__file__).with_name("bundle.b64")).read_bytes())
+bundle_text = "".join(
+    part.read_text(encoding="ascii")
+    for part in sorted(Path(__file__).parent.glob("bundle_*.txt"))
+)
+bundle = base64.b64decode(bundle_text.encode("ascii"))
 FILES = json.loads(zlib.decompress(bundle).decode("utf-8"))
 
 for relative_path, content in FILES.items():
