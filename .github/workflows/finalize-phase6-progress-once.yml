@@ -1,0 +1,130 @@
+name: Finalize Phase 6 progress once
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/finalize-phase6-progress-once.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: finalize-phase6-progress-once
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Wait for Phase 6 merge
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          merged='false'
+          for attempt in $(seq 1 210); do
+            state="$(gh pr view 19 --repo "$GITHUB_REPOSITORY" --json state,mergedAt --jq 'if .mergedAt then "merged" else (.state | ascii_downcase) end')"
+            echo "PR #19 state=${state}"
+            if [ "$state" = 'merged' ]; then
+              merged='true'
+              break
+            fi
+            if [ "$state" = 'closed' ]; then break; fi
+            sleep 10
+          done
+          echo "merged=${merged}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout latest develop
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Record Phase 6 completion
+        if: steps.merge.outputs.merged == 'true'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('docs/implementation/progress.md')
+          value = path.read_text(encoding='utf-8')
+          next_heading = 'Phase 7 — Publishing Workflow'
+          for candidate in Path('docs').rglob('*.md'):
+              if candidate == path:
+                  continue
+              match = re.search(r'(?m)^#{2,4}\s+(Phase 7[^\n]+)$', candidate.read_text(encoding='utf-8'))
+              if match:
+                  next_heading = match.group(1).strip()
+                  break
+
+          completed = '''### Phase 6. Content Draft & Revision
+
+- Workspace·Site-scoped Content
+- Mutable ContentDraft와 독립 Draft Version
+- 1.2초 Debounce Markdown Autosave
+- Content Metadata Version과 Draft Version 분리
+- 불변 Checkpoint·READY ContentRevision
+- Raw HTML Escape와 안전한 Link Protocol만 허용하는 Server Preview
+- READY Validation과 Sanitized HTML Snapshot
+- Revision 목록과 과거 Snapshot Draft 복구
+- Content Archive
+- Content 목록·Editor Admin Web
+- 실제 인증 Session 기반 통합 E2E
+- Revision UPDATE·DELETE 차단 Database Trigger
+
+Admin API:
+
+```text
+GET    /api/admin/v1/contents
+POST   /api/admin/v1/contents
+GET    /api/admin/v1/contents/{contentId}
+PATCH  /api/admin/v1/contents/{contentId}/draft
+POST   /api/admin/v1/contents/{contentId}/preview
+POST   /api/admin/v1/contents/{contentId}/checkpoints
+POST   /api/admin/v1/contents/{contentId}/ready
+GET    /api/admin/v1/contents/{contentId}/revisions
+POST   /api/admin/v1/contents/{contentId}/revisions/{revisionId}/restore
+POST   /api/admin/v1/contents/{contentId}/archive
+```
+
+Admin Web Route:
+
+```text
+/admin/contents
+/admin/contents/{contentId}
+```
+
+주요 Pull Request:
+
+- [#19 Content Draft and Revision Workflow](https://github.com/orot11955/atlas/pull/19)
+'''
+          marker = '\n## 다음\n'
+          if marker in value:
+              prefix = value.split(marker, 1)[0].rstrip()
+          else:
+              prefix = value.rstrip()
+          value = f"{prefix}\n\n{completed}\n## 다음\n\n### {next_heading}\n"
+          path.write_text(value, encoding='utf-8')
+          PY
+
+      - name: Remove one-time workflow
+        run: rm -f .github/workflows/finalize-phase6-progress-once.yml
+
+      - name: Commit finalization
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            if [ '${{ steps.merge.outputs.merged }}' = 'true' ]; then
+              git commit -m 'docs: record Phase 6 completion'
+            else
+              git commit -m 'chore: remove unused Phase 6 finalizer'
+            fi
+            git push origin HEAD:develop
+          fi
