@@ -200,6 +200,7 @@ test('Delivery authentication enforces type, scope, Site access, Origin and rate
       });
       service.enterRequestContext(principal);
 
+      assert.ok(principal.site);
       assert.equal(principal.site.id, siteId);
       assert.equal(requestContext.require().actorType, ActorType.API_CLIENT);
       assert.equal(requestContext.require().actorId, clientId);

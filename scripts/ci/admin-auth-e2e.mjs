@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 
 import { verifyApiClientLifecycle } from './api-client-lifecycle-e2e.mjs';
+import { verifyProjectDeploymentReadModel } from './project-deployment-e2e.mjs';
 
 const baseUrl = process.env.ATLAS_API_BASE_URL ?? 'http://localhost:4000/api';
 const email = process.env.ATLAS_OWNER_EMAIL ?? 'owner-ci@atlas.test';
@@ -215,6 +216,14 @@ await verifyApiClientLifecycle({
   assertEqual,
 });
 
+await verifyProjectDeploymentReadModel({
+  request,
+  session,
+  mainBlog,
+  devLog: devLogCreated.data,
+  assertEqual,
+});
+
 mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
 
 await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
@@ -296,7 +305,9 @@ await request('/admin/v1/auth/mfa/recovery/verify', {
   expectedStatus: 401,
 });
 
-process.stdout.write('Admin Password, TOTP, Session, Workspace, Site and API Client E2E passed.\n');
+process.stdout.write(
+  'Admin Password, TOTP, Session, Workspace, Site, API Client, Project and Deployment E2E passed.\n',
+);
 
 async function login() {
   const response = await request('/admin/v1/auth/login', {
@@ -349,7 +360,16 @@ async function transitionSite(site, action, expectedStatus, session) {
 
 async function request(
   path,
-  { method = 'GET', body, expectedStatus, cookieHeader, csrfToken, authorization, origin },
+  {
+    method = 'GET',
+    body,
+    expectedStatus,
+    cookieHeader,
+    csrfToken,
+    authorization,
+    origin,
+    idempotencyKey,
+  },
 ) {
   const headers = new Headers({ accept: 'application/json' });
 
@@ -367,6 +387,9 @@ async function request(
   }
   if (origin) {
     headers.set('origin', origin);
+  }
+  if (idempotencyKey) {
+    headers.set('idempotency-key', idempotencyKey);
   }
 
   const response = await fetch(`${baseUrl}${path}`, {

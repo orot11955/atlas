@@ -15,6 +15,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { HttpLoggingMiddleware } from './middleware/http-logging.middleware';
 import { RequestContextMiddleware } from './middleware/request-context.middleware';
 import { PlatformModule } from './platform/platform.module';
+import { ProjectDeploymentModule } from './project-deployment/project-deployment.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { PlatformModule } from './platform/platform.module';
     AdminSessionModule,
     AdminWorkspaceSiteModule,
     ApiClientModule,
+    ProjectDeploymentModule,
     HealthModule,
   ],
   providers: [

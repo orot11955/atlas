@@ -1,7 +1,7 @@
 import { Controller, Get, Header, Param, Req, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 
-import { ApiClientScope, ApiClientType } from '@atlas/server';
+import { ApiClientScope, ApiClientType, createApiClientAuthenticationError } from '@atlas/server';
 
 import {
   ApiClientAuthenticationGuard,
@@ -26,6 +26,10 @@ export class DeliverySiteController {
   @ApiUnauthorizedResponse({ description: 'A valid Delivery API Key is required.' })
   public getSite(@Req() request: ApiClientHttpRequest, @Param('siteKey') _siteKey: string) {
     const site = requireApiClientPrincipal(request).site;
+
+    if (!site) {
+      throw createApiClientAuthenticationError();
+    }
 
     return {
       data: {
