@@ -8,19 +8,19 @@ import type {
   ContentType,
 } from './content-types';
 
+export interface ContentListInput {
+  limit?: number;
+  cursor?: string;
+  search?: string;
+  status?: ContentStatus;
+  type?: ContentType;
+}
+
 function client() {
   return createAdminApiClient();
 }
 
-export async function loadContents(
-  input: {
-    limit?: number;
-    cursor?: string;
-    search?: string;
-    status?: ContentStatus;
-    type?: ContentType;
-  } = {},
-): Promise<ContentListResult> {
+export function buildContentListPath(input: ContentListInput = {}): string {
   const query = new URLSearchParams();
 
   if (input.limit !== undefined) query.set('limit', String(input.limit));
@@ -30,10 +30,14 @@ export async function loadContents(
   if (input.type) query.set('type', input.type);
 
   const suffix = query.toString();
-  const response = await client().get<ApiEnvelope<Content>>(
-    `/contents${suffix ? `?${suffix}` : ''}`,
+  return `/contents${suffix ? `?${suffix}` : ''}`;
+}
+
+export async function loadContents(input: ContentListInput = {}): Promise<ContentListResult> {
+  const response = await client().get<ApiEnvelope<ContentListResult>>(
+    buildContentListPath(input),
   );
-  return response.data as unknown as ContentListResult;
+  return response.data;
 }
 
 export async function createContent(input: {
@@ -69,26 +73,13 @@ export async function saveContentDraft(
   return response.data;
 }
 
-export async function previewContent(input: {
-  title?: string;
-  summary?: string;
-  bodyMarkdown: string;
-}): Promise<{ html: string; warnings: readonly string[] }> {
-  const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
-    '/contents/preview'.replace('/contents/preview', '/contents/placeholder/preview'),
-    input,
-  );
-  return response.data;
-}
-
 export async function previewContentById(
   contentId: string,
   input: { title?: string; summary?: string; bodyMarkdown: string },
 ): Promise<{ html: string; warnings: readonly string[] }> {
-  const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
-    `/contents/${encodeURIComponent(contentId)}/preview`,
-    input,
-  );
+  const response = await client().post<
+    ApiEnvelope<{ html: string; warnings: readonly string[] }>
+  >(`/contents/${encodeURIComponent(contentId)}/preview`, input);
   return response.data;
 }
 
@@ -114,7 +105,9 @@ export async function createReadyRevision(
   return response.data;
 }
 
-export async function loadContentRevisions(contentId: string): Promise<readonly ContentRevision[]> {
+export async function loadContentRevisions(
+  contentId: string,
+): Promise<readonly ContentRevision[]> {
   const response = await client().get<ApiEnvelope<readonly ContentRevision[]>>(
     `/contents/${encodeURIComponent(contentId)}/revisions`,
   );
@@ -133,7 +126,10 @@ export async function restoreContentRevision(
   return response.data;
 }
 
-export async function archiveContent(contentId: string, contentVersion: number): Promise<Content> {
+export async function archiveContent(
+  contentId: string,
+  contentVersion: number,
+): Promise<Content> {
   const response = await client().post<ApiEnvelope<Content>>(
     `/contents/${encodeURIComponent(contentId)}/archive`,
     { contentVersion },
