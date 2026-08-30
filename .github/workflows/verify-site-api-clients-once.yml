@@ -77,50 +77,54 @@ jobs:
           --health-retries 20
 
     steps:
-      - name: Checkout feature branch
+      - name: Checkout event commit
         uses: actions/checkout@v7
         with:
-          ref: feat/site-api-clients
+          ref: ${{ github.sha }}
 
-      - name: Apply API Client E2E integration
+      - name: Apply E2E integration and remove duplicate staging files
+        id: prepare
         run: |
-          python3 .atlas-api-client/patch-e2e.py
-          python3 - <<'PY'
-          from pathlib import Path
+          if [ ! -f .atlas-api-client/patch-e2e.py ]; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'API Client branch was already finalized.'
+            exit 0
+          fi
 
-          path = Path(
-              'packages/server/src/modules/api-client/application/'
-              'api-client-administration.service.ts'
-          )
-          content = path.read_text(encoding='utf-8')
-          content = content.replace('  type ApiClientScope,\n', '')
-          content = content.replace('  type ApiClientType,\n', '')
-          path.write_text(content, encoding='utf-8')
-          PY
+          echo 'run=true' >> "$GITHUB_OUTPUT"
+          python3 .atlas-api-client/patch-e2e.py
+          rm -f scripts/ci/api-client-e2e.mjs
+          rm -f .github/workflows/finalize-site-api-clients-once.yml
 
       - name: Setup Node.js
+        if: steps.prepare.outputs.run == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - name: Enable pnpm
+        if: steps.prepare.outputs.run == 'true'
         run: |
           corepack enable
           corepack prepare pnpm@11.24.0 --activate
 
       - name: Install dependencies
+        if: steps.prepare.outputs.run == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Format implementation
+        if: steps.prepare.outputs.run == 'true'
         run: pnpm format
 
       - name: Verify quality
+        if: steps.prepare.outputs.run == 'true'
         run: |
           pnpm format:check
           pnpm check
           docker compose config > /dev/null
 
       - name: Verify migrations
+        if: steps.prepare.outputs.run == 'true'
         run: |
           pnpm db:migration:run
           pnpm db:migration:show | grep -F 'No pending migrations.'
@@ -129,6 +133,7 @@ jobs:
           pnpm db:migration:show | grep -F 'No pending migrations.'
 
       - name: Verify complete administrator and API Client flow
+        if: steps.prepare.outputs.run == 'true'
         run: |
           owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
 
@@ -165,9 +170,10 @@ jobs:
             node scripts/ci/admin-auth-e2e.mjs
 
       - name: Commit verified implementation
+        if: steps.prepare.outputs.run == 'true'
         run: |
-          git rm -r .atlas-api-client
-          git rm .github/workflows/verify-site-api-clients-once.yml
+          rm -rf .atlas-api-client
+          rm -f .github/workflows/verify-site-api-clients-once.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
