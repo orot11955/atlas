@@ -2,7 +2,10 @@
 
 ## 상태
 
-이 문서는 `feat/resource-member-directory-mvp` 브랜치에서 구현한 Phase 5 범위와 검증 경계를 기록한다.
+- 구현 상태: 완료
+- 반영 브랜치: `develop`
+- Pull Request: [#18 Resource & Member Directory MVP](https://github.com/orot11955/atlas/pull/18)
+- Merge Commit: `1644396c7e8c9147c95be805ba6b9e9df5b6ae1b`
 
 ## Resource Library
 
