@@ -80,6 +80,8 @@ jobs:
       AUTH_SESSION_COOKIE_NAME: atlas_admin_session
       AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
       AUTH_COOKIE_SECURE: 'false'
+      API_KEY_PEPPER: atlas-ci-api-key-pepper-with-sufficient-random-length
+      API_KEY_USAGE_TOUCH_SECONDS: 1
       DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
       REDIS_URL: redis://localhost:6379/0
       MINIO_ENDPOINT: http://localhost:9000
@@ -168,7 +170,7 @@ jobs:
           printf '%s' "$owner_password" > /tmp/atlas-owner-password
           chmod 600 /tmp/atlas-owner-password
 
-      - name: Verify complete Administrator Authentication API
+      - name: Verify complete Administrator and API Client Authentication API
         run: |
           pnpm build:packages
           pnpm --filter @atlas/api build
