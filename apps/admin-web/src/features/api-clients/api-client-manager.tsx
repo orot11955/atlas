@@ -7,7 +7,6 @@ import { AtlasApiError } from '../../lib/api';
 import { loadSites } from '../sites/site-api';
 import type { Site } from '../sites/site-types';
 import {
-  buildApiClientListPath,
   createApiClient,
   loadApiClients,
   parseAllowedOrigins,
@@ -203,9 +202,6 @@ export function ApiClientManager() {
           ))}
         </section>
       )}
-      <small className={styles.muted} aria-hidden="true">
-        {buildApiClientListPath({ search, status: filterStatus || undefined })}
-      </small>
     </div>
   );
 }

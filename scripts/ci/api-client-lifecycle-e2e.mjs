@@ -6,9 +6,7 @@ export async function verifyApiClientLifecycle({
   transitionSite,
   assertEqual,
 }) {
-  const activeDevLog = (
-    await transitionSite(devLog, 'activate', 'active', session)
-  ).data;
+  const activeDevLog = (await transitionSite(devLog, 'activate', 'active', session)).data;
   const origin = 'https://blog.atlas.test';
   const createInput = {
     name: 'Main Blog Delivery',

@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto';
 
+import { verifyApiClientLifecycle } from './api-client-lifecycle-e2e.mjs';
+
 const baseUrl = process.env.ATLAS_API_BASE_URL ?? 'http://localhost:4000/api';
 const email = process.env.ATLAS_OWNER_EMAIL ?? 'owner-ci@atlas.test';
 const password = process.env.ATLAS_OWNER_PASSWORD;
@@ -203,6 +205,16 @@ mainBlog = updatedMainBlog.data;
 assertEqual(mainBlog.version, 2, 'Updated Site version');
 
 mainBlog = (await transitionSite(mainBlog, 'activate', 'active', session)).data;
+
+await verifyApiClientLifecycle({
+  request,
+  session,
+  mainBlog,
+  devLog: devLogCreated.data,
+  transitionSite,
+  assertEqual,
+});
+
 mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
 
 await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
@@ -284,7 +296,7 @@ await request('/admin/v1/auth/mfa/recovery/verify', {
   expectedStatus: 401,
 });
 
-process.stdout.write('Admin Password, TOTP, Session, Workspace and Site E2E passed.\n');
+process.stdout.write('Admin Password, TOTP, Session, Workspace, Site and API Client E2E passed.\n');
 
 async function login() {
   const response = await request('/admin/v1/auth/login', {
@@ -335,7 +347,10 @@ async function transitionSite(site, action, expectedStatus, session) {
   return response;
 }
 
-async function request(path, { method = 'GET', body, expectedStatus, cookieHeader, csrfToken }) {
+async function request(
+  path,
+  { method = 'GET', body, expectedStatus, cookieHeader, csrfToken, authorization, origin },
+) {
   const headers = new Headers({ accept: 'application/json' });
 
   if (body !== undefined) {
@@ -346,6 +361,12 @@ async function request(path, { method = 'GET', body, expectedStatus, cookieHeade
   }
   if (csrfToken) {
     headers.set('x-csrf-token', csrfToken);
+  }
+  if (authorization) {
+    headers.set('authorization', authorization);
+  }
+  if (origin) {
+    headers.set('origin', origin);
   }
 
   const response = await fetch(`${baseUrl}${path}`, {

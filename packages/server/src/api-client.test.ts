@@ -137,7 +137,9 @@ test('API Client Key issuer stores only an HMAC digest and validates in constant
   assert.equal(issued.secretDigest.length, 64);
   assert.equal(issued.secretDigest.includes(parsed?.secret ?? ''), false);
   assert.equal(issuer.matches(issued.apiKey, issued.secretDigest), true);
-  assert.equal(issuer.matches(`${issued.apiKey.slice(0, -1)}A`, issued.secretDigest), false);
+  const replacement = issued.apiKey.endsWith('A') ? 'B' : 'A';
+  const tamperedApiKey = `${issued.apiKey.slice(0, -1)}${replacement}`;
+  assert.equal(issuer.matches(tamperedApiKey, issued.secretDigest), false);
 });
 
 test('Delivery authentication enforces type, scope, Site access, Origin and rate limit', async () => {

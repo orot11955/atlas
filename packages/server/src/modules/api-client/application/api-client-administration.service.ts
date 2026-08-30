@@ -15,9 +15,7 @@ import {
   normalizeApiClientType,
   type ApiClientKeyRecord,
   type ApiClientRecord,
-  type ApiClientScope,
   type ApiClientStatus as ApiClientStatusType,
-  type ApiClientType,
 } from '../domain/api-client';
 import type { ApiClientKeyIssuerPort } from '../ports/api-client-key-issuer.port';
 import type {
