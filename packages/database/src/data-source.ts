@@ -13,6 +13,11 @@ import {
   AdminMfaMethodEntity,
   AdminRecoveryCodeEntity,
   AdminSessionEntity,
+  ApiClientAllowedOriginEntity,
+  ApiClientEntity,
+  ApiClientKeyEntity,
+  ApiClientScopeEntity,
+  ApiClientSiteAccessEntity,
   AuditLogEntity,
   SiteDomainEntity,
   SiteEntity,
@@ -49,9 +54,17 @@ export const atlasDataSource = new DataSource({
     SiteEntity,
     SiteDomainEntity,
     SiteSettingsEntity,
+    ApiClientEntity,
+    ApiClientSiteAccessEntity,
+    ApiClientScopeEntity,
+    ApiClientAllowedOriginEntity,
+    ApiClientKeyEntity,
   ],
   migrations: [
-    path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),
+    path.join(
+      packageRoot,
+      compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts',
+    ),
   ],
 });
 

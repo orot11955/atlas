@@ -1,4 +1,4 @@
-import { In, IsNull, type DataSource, type EntityManager } from 'typeorm';
+import { In, type DataSource, type EntityManager } from 'typeorm';
 
 import { SiteDomainEntity } from '../../../site/infrastructure/persistence/site-domain.entity';
 import { SiteEntity } from '../../../site/infrastructure/persistence/site.entity';
@@ -55,8 +55,8 @@ export class TypeOrmApiClientRepository
 
     if (query.search) {
       builder.andWhere(
-        '(client.name ILIKE :search OR client.description ILIKE :search)',
-        { search: `%${query.search}%` },
+        "(client.name ILIKE :search ESCAPE '\\' OR client.description ILIKE :search ESCAPE '\\')",
+        { search: `%${escapeLike(query.search)}%` },
       );
     }
 
@@ -179,15 +179,13 @@ export class TypeOrmApiClientRepository
       return false;
     }
 
-    await Promise.all([
-      transaction
-        .getRepository(ApiClientSiteAccessEntity)
-        .delete({ apiClientId }),
-      transaction.getRepository(ApiClientScopeEntity).delete({ apiClientId }),
-      transaction
-        .getRepository(ApiClientAllowedOriginEntity)
-        .delete({ apiClientId }),
-    ]);
+    await transaction
+      .getRepository(ApiClientSiteAccessEntity)
+      .delete({ apiClientId });
+    await transaction.getRepository(ApiClientScopeEntity).delete({ apiClientId });
+    await transaction
+      .getRepository(ApiClientAllowedOriginEntity)
+      .delete({ apiClientId });
     await transaction.getRepository(ApiClientSiteAccessEntity).insert(
       input.siteIds.map((siteId) => ({
         apiClientId,
@@ -275,12 +273,10 @@ export class TypeOrmApiClientRepository
     keyId: string,
     transaction: EntityManager,
   ): Promise<StoredApiClientKey | undefined> {
-    const entity = await transaction
-      .getRepository(ApiClientKeyEntity)
-      .findOne({
-        where: { id: keyId, apiClientId },
-        lock: { mode: 'pessimistic_write' },
-      });
+    const entity = await transaction.getRepository(ApiClientKeyEntity).findOne({
+      where: { id: keyId, apiClientId },
+      lock: { mode: 'pessimistic_write' },
+    });
 
     return entity ? toStoredKey(entity) : undefined;
   }
@@ -344,33 +340,20 @@ export class TypeOrmApiClientRepository
       return undefined;
     }
 
-    const client = await this.findById(
-      '',
-      keyEntity.apiClientId,
-    );
+    const clientEntity = await this.dataSource
+      .getRepository(ApiClientEntity)
+      .findOne({ where: { id: keyEntity.apiClientId } });
 
-    if (!client) {
-      const clientEntity = await this.dataSource
-        .getRepository(ApiClientEntity)
-        .findOne({ where: { id: keyEntity.apiClientId } });
-
-      if (!clientEntity) {
-        return undefined;
-      }
-
-      const [hydrated] = await this.hydrateClients(
-        [clientEntity],
-        this.dataSource.manager,
-      );
-
-      if (!hydrated) {
-        return undefined;
-      }
-
-      return toAuthenticationRecord(hydrated, keyEntity);
+    if (!clientEntity) {
+      return undefined;
     }
 
-    return toAuthenticationRecord(client, keyEntity);
+    const [client] = await this.hydrateClients(
+      [clientEntity],
+      this.dataSource.manager,
+    );
+
+    return client ? toAuthenticationRecord(client, keyEntity) : undefined;
   }
 
   public async findSiteByKey(
@@ -387,7 +370,9 @@ export class TypeOrmApiClientRepository
 
     const domain = await this.dataSource
       .getRepository(SiteDomainEntity)
-      .findOne({ where: { workspaceId, siteId: site.id, kind: 'canonical' } });
+      .findOne({
+        where: { workspaceId, siteId: site.id, kind: 'canonical' },
+      });
 
     return {
       id: site.id,
@@ -515,4 +500,8 @@ function toAuthenticationRecord(
     allowedOrigins: client.allowedOrigins,
     key: toStoredKey(key),
   };
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/gu, (character) => `\\${character}`);
 }

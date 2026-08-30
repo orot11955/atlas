@@ -33,6 +33,11 @@ interface NormalizedProblem {
 
 const APPLICATION_ERROR_STATUS: Readonly<Record<string, number>> = {
   [ErrorCode.ACTION_NOT_ALLOWED]: HttpStatus.FORBIDDEN,
+  [ErrorCode.ADMIN_EMAIL_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.ADMIN_OWNER_ALREADY_EXISTS]: HttpStatus.CONFLICT,
+  [ErrorCode.ADMIN_PASSWORD_POLICY_FAILED]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.API_CLIENT_KEY_NOT_FOUND]: HttpStatus.NOT_FOUND,
+  [ErrorCode.API_CLIENT_NOT_FOUND]: HttpStatus.NOT_FOUND,
   [ErrorCode.AUTH_REQUIRED]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.FORBIDDEN]: HttpStatus.FORBIDDEN,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
