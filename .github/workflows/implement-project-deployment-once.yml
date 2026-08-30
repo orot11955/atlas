@@ -1,0 +1,179 @@
+name: Implement project deployment read model once
+
+on:
+  push:
+    branches:
+      - feat/project-deployment-read-model
+
+permissions:
+  contents: write
+
+concurrency:
+  group: implement-project-deployment-read-model-once
+  cancel-in-progress: true
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
+      AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+      AUTH_SESSION_IDLE_SECONDS: 1800
+      AUTH_SESSION_ABSOLUTE_SECONDS: 43200
+      AUTH_SESSION_TOUCH_SECONDS: 60
+      AUTH_SESSION_MAX_ACTIVE: 5
+      AUTH_SESSION_BIND_IP: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_COOKIE_SECURE: 'false'
+      API_KEY_PEPPER: atlas-ci-api-key-pepper-with-sufficient-random-length
+      API_KEY_USAGE_TOUCH_SECONDS: 1
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-api
+      MINIO_SECRET_KEY: atlas-ci-api-secret
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout event commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Apply Project and Deployment implementation
+        id: prepare
+        run: |
+          if [ ! -f .atlas-project-deployment/apply.py ]; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'Project and Deployment branch was already finalized.'
+            exit 0
+          fi
+
+          echo 'run=true' >> "$GITHUB_OUTPUT"
+          python3 .atlas-project-deployment/apply.py
+
+      - name: Setup Node.js
+        if: steps.prepare.outputs.run == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        if: steps.prepare.outputs.run == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        if: steps.prepare.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Format implementation
+        if: steps.prepare.outputs.run == 'true'
+        run: pnpm format
+
+      - name: Verify quality
+        if: steps.prepare.outputs.run == 'true'
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Verify migrations
+        if: steps.prepare.outputs.run == 'true'
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Verify complete Project and Deployment flow
+        if: steps.prepare.outputs.run == 'true'
+        run: |
+          owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ci@atlas.test \
+              --display-name 'CI Owner' \
+              --password-stdin \
+              --json
+
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" = '30' ]; then
+              cat /tmp/atlas-api.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/admin-auth-e2e.mjs
+
+      - name: Commit verified implementation
+        if: steps.prepare.outputs.run == 'true'
+        run: |
+          rm -rf .atlas-project-deployment
+          rm -f .github/workflows/implement-project-deployment-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: add project and deployment read model'
+          git push origin HEAD:feat/project-deployment-read-model
