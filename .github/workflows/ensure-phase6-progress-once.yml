@@ -1,0 +1,95 @@
+name: Ensure Phase 6 progress once
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/ensure-phase6-progress-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  ensure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Ensure Phase 6 completion record
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('docs/implementation/progress.md')
+          value = path.read_text(encoding='utf-8')
+          heading = '### Phase 6. Content Draft & Revision'
+          if heading not in value:
+              completed = '''### Phase 6. Content Draft & Revision
+
+- Workspace·Site-scoped Content
+- Mutable ContentDraft와 독립 Draft Version
+- Debounce Markdown Autosave와 Optimistic Lock
+- Autosave와 Revision 생성 경계 분리
+- 불변 Checkpoint·READY ContentRevision
+- Raw HTML Escape와 안전한 Link Protocol만 허용하는 Server Preview
+- READY Validation과 Sanitized HTML Snapshot
+- Revision 목록과 과거 Snapshot Draft 복구
+- Content Archive
+- Content 목록·Editor Admin Web
+- 실제 인증 Session 기반 통합 E2E
+- Revision UPDATE·DELETE 차단 Database Trigger
+
+Admin API:
+
+```text
+GET    /api/admin/v1/contents
+POST   /api/admin/v1/contents
+GET    /api/admin/v1/contents/{contentId}
+PATCH  /api/admin/v1/contents/{contentId}/draft
+POST   /api/admin/v1/contents/{contentId}/preview
+POST   /api/admin/v1/contents/{contentId}/checkpoints
+POST   /api/admin/v1/contents/{contentId}/ready
+GET    /api/admin/v1/contents/{contentId}/revisions
+POST   /api/admin/v1/contents/{contentId}/revisions/{revisionId}/restore
+POST   /api/admin/v1/contents/{contentId}/archive
+```
+
+Admin Web Route:
+
+```text
+/admin/contents
+/admin/contents/{contentId}
+```
+
+주요 Pull Request:
+
+- [#19 Content Draft and Revision Workflow](https://github.com/orot11955/atlas/pull/19)
+'''
+              marker = '\n## 다음\n'
+              if marker in value:
+                  prefix, remainder = value.split(marker, 1)
+                  next_match = re.search(r'(?m)^###\s+(.+)$', remainder)
+                  next_heading = next_match.group(1).strip() if next_match else 'Phase 7'
+                  value = f"{prefix.rstrip()}\n\n{completed}\n## 다음\n\n### {next_heading}\n"
+              else:
+                  value = value.rstrip() + '\n\n' + completed
+              path.write_text(value, encoding='utf-8')
+          PY
+          rm -f .github/workflows/ensure-phase6-progress-once.yml
+
+      - name: Commit documentation state
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: ensure Phase 6 completion record'
+            git push origin HEAD:develop
+          fi
