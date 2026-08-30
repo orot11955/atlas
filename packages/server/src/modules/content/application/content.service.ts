@@ -25,10 +25,7 @@ import {
   type ContentType,
   type MarkdownPreview,
 } from '../domain/content';
-import type {
-  ContentListCursor,
-  ContentRepositoryPort,
-} from '../ports/content.repository';
+import type { ContentListCursor, ContentRepositoryPort } from '../ports/content.repository';
 
 export interface ContentListServiceQuery {
   limit?: number;
@@ -171,11 +168,7 @@ export class ContentService<TTransaction> {
     const updatedAt = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const current = await this.repository.findById(
-        workspaceId,
-        contentId,
-        transaction,
-      );
+      const current = await this.repository.findById(workspaceId, contentId, transaction);
 
       if (!current) {
         throw contentNotFoundError();
@@ -228,12 +221,7 @@ export class ContentService<TTransaction> {
     contentId: string,
     input: CreateRevisionInput,
   ): Promise<Readonly<ContentRecord>> {
-    return this.createRevision(
-      workspaceId,
-      contentId,
-      input,
-      ContentRevisionKind.CHECKPOINT,
-    );
+    return this.createRevision(workspaceId, contentId, input, ContentRevisionKind.CHECKPOINT);
   }
 
   public createReadyRevision(
@@ -241,12 +229,7 @@ export class ContentService<TTransaction> {
     contentId: string,
     input: CreateRevisionInput,
   ): Promise<Readonly<ContentRecord>> {
-    return this.createRevision(
-      workspaceId,
-      contentId,
-      input,
-      ContentRevisionKind.READY,
-    );
+    return this.createRevision(workspaceId, contentId, input, ContentRevisionKind.READY);
   }
 
   public async listRevisions(
@@ -276,12 +259,7 @@ export class ContentService<TTransaction> {
     return this.transactionRunner.run(async (transaction) => {
       const [content, revision] = await Promise.all([
         this.repository.findById(workspaceId, contentId, transaction),
-        this.repository.findRevision(
-          workspaceId,
-          contentId,
-          revisionId,
-          transaction,
-        ),
+        this.repository.findRevision(workspaceId, contentId, revisionId, transaction),
       ]);
 
       if (!content) {
@@ -355,11 +333,7 @@ export class ContentService<TTransaction> {
     const archivedAt = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const content = await this.repository.findById(
-        workspaceId,
-        contentId,
-        transaction,
-      );
+      const content = await this.repository.findById(workspaceId, contentId, transaction);
 
       if (!content) {
         throw contentNotFoundError();
@@ -415,11 +389,7 @@ export class ContentService<TTransaction> {
     const createdAt = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const content = await this.repository.findById(
-        workspaceId,
-        contentId,
-        transaction,
-      );
+      const content = await this.repository.findById(workspaceId, contentId, transaction);
 
       if (!content) {
         throw contentNotFoundError();
@@ -456,14 +426,9 @@ export class ContentService<TTransaction> {
         createdByAdminAccountId: actorId,
         createdAt,
       };
-      const nextStatus =
-        kind === ContentRevisionKind.READY
-          ? ContentStatus.READY
-          : content.status;
+      const nextStatus = kind === ContentRevisionKind.READY ? ContentStatus.READY : content.status;
       const readyRevisionNumber =
-        kind === ContentRevisionKind.READY
-          ? revisionNumber
-          : content.readyRevisionNumber;
+        kind === ContentRevisionKind.READY ? revisionNumber : content.readyRevisionNumber;
       const inserted = await this.repository.insertRevision(
         workspaceId,
         contentId,
@@ -540,9 +505,7 @@ function freezeContent(content: ContentRecord): Readonly<ContentRecord> {
   });
 }
 
-function freezeRevision(
-  revision: ContentRevisionRecord,
-): Readonly<ContentRevisionRecord> {
+function freezeRevision(revision: ContentRevisionRecord): Readonly<ContentRevisionRecord> {
   return Object.freeze({
     ...revision,
     createdAt: new Date(revision.createdAt),
@@ -600,8 +563,7 @@ function decodeCursor(value: string): ContentListCursor {
       updatedAt?: unknown;
       id?: unknown;
     };
-    const updatedAt =
-      typeof parsed.updatedAt === 'string' ? new Date(parsed.updatedAt) : undefined;
+    const updatedAt = typeof parsed.updatedAt === 'string' ? new Date(parsed.updatedAt) : undefined;
 
     if (
       !updatedAt ||

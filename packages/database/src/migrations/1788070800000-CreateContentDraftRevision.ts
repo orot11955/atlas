@@ -1,8 +1,6 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateContentDraftRevision1788070800000
-  implements MigrationInterface
-{
+export class CreateContentDraftRevision1788070800000 implements MigrationInterface {
   public readonly name = 'CreateContentDraftRevision1788070800000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -164,9 +162,7 @@ export class CreateContentDraftRevision1788070800000
     await queryRunner.query(
       'DROP TRIGGER IF EXISTS "trg_content_revisions_immutable" ON "content_revisions"',
     );
-    await queryRunner.query(
-      'DROP FUNCTION IF EXISTS "prevent_content_revision_mutation"()',
-    );
+    await queryRunner.query('DROP FUNCTION IF EXISTS "prevent_content_revision_mutation"()');
     await queryRunner.query(
       'ALTER TABLE "contents" DROP CONSTRAINT IF EXISTS "fk_contents_ready_revision"',
     );

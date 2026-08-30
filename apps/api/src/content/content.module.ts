@@ -17,20 +17,13 @@ import {
 import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
 import { PlatformModule } from '../platform/platform.module';
-import {
-  AUDIT_SERVICE,
-  TRANSACTION_RUNNER,
-} from '../platform/platform.tokens';
+import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { ContentController } from './content.controller';
 import { CONTENT_REPOSITORY, CONTENT_SERVICE } from './content.tokens';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ContentEntity,
-      ContentDraftEntity,
-      ContentRevisionEntity,
-    ]),
+    TypeOrmModule.forFeature([ContentEntity, ContentDraftEntity, ContentRevisionEntity]),
     PlatformModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
@@ -40,8 +33,7 @@ import { CONTENT_REPOSITORY, CONTENT_SERVICE } from './content.tokens';
     {
       provide: CONTENT_REPOSITORY,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new TypeOrmContentRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new TypeOrmContentRepository(dataSource),
     },
     {
       provide: CONTENT_SERVICE,

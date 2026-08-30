@@ -12,13 +12,15 @@ function client() {
   return createAdminApiClient();
 }
 
-export async function loadContents(input: {
-  limit?: number;
-  cursor?: string;
-  search?: string;
-  status?: ContentStatus;
-  type?: ContentType;
-} = {}): Promise<ContentListResult> {
+export async function loadContents(
+  input: {
+    limit?: number;
+    cursor?: string;
+    search?: string;
+    status?: ContentStatus;
+    type?: ContentType;
+  } = {},
+): Promise<ContentListResult> {
   const query = new URLSearchParams();
 
   if (input.limit !== undefined) query.set('limit', String(input.limit));
@@ -72,9 +74,10 @@ export async function previewContent(input: {
   summary?: string;
   bodyMarkdown: string;
 }): Promise<{ html: string; warnings: readonly string[] }> {
-  const response = await client().post<
-    ApiEnvelope<{ html: string; warnings: readonly string[] }>
-  >('/contents/preview'.replace('/contents/preview', '/contents/placeholder/preview'), input);
+  const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
+    '/contents/preview'.replace('/contents/preview', '/contents/placeholder/preview'),
+    input,
+  );
   return response.data;
 }
 
@@ -82,9 +85,10 @@ export async function previewContentById(
   contentId: string,
   input: { title?: string; summary?: string; bodyMarkdown: string },
 ): Promise<{ html: string; warnings: readonly string[] }> {
-  const response = await client().post<
-    ApiEnvelope<{ html: string; warnings: readonly string[] }>
-  >(`/contents/${encodeURIComponent(contentId)}/preview`, input);
+  const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
+    `/contents/${encodeURIComponent(contentId)}/preview`,
+    input,
+  );
   return response.data;
 }
 
@@ -110,9 +114,7 @@ export async function createReadyRevision(
   return response.data;
 }
 
-export async function loadContentRevisions(
-  contentId: string,
-): Promise<readonly ContentRevision[]> {
+export async function loadContentRevisions(contentId: string): Promise<readonly ContentRevision[]> {
   const response = await client().get<ApiEnvelope<readonly ContentRevision[]>>(
     `/contents/${encodeURIComponent(contentId)}/revisions`,
   );
@@ -131,10 +133,7 @@ export async function restoreContentRevision(
   return response.data;
 }
 
-export async function archiveContent(
-  contentId: string,
-  contentVersion: number,
-): Promise<Content> {
+export async function archiveContent(contentId: string, contentVersion: number): Promise<Content> {
   const response = await client().post<ApiEnvelope<Content>>(
     `/contents/${encodeURIComponent(contentId)}/archive`,
     { contentVersion },

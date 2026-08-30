@@ -50,11 +50,7 @@ import {
 } from './content.dto';
 import { CONTENT_SERVICE } from './content.tokens';
 
-const READ_GUARDS = [
-  AdminSessionGuard,
-  AdminWorkspaceGuard,
-  AdminPermissionGuard,
-] as const;
+const READ_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminPermissionGuard] as const;
 const WRITE_GUARDS = [
   AdminSessionGuard,
   AdminWorkspaceGuard,
@@ -151,11 +147,7 @@ export class ContentController {
     @Body() body: SaveContentDraftDto,
   ): Promise<{ data: ReturnType<typeof toContentData> }> {
     const workspace = requireAdminWorkspace(request);
-    const content = await this.contentService.saveDraft(
-      workspace.id,
-      contentId,
-      body,
-    );
+    const content = await this.contentService.saveDraft(workspace.id, contentId, body);
 
     return { data: toContentData(content) };
   }
@@ -166,9 +158,9 @@ export class ContentController {
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'Renders a sanitized Markdown preview.' })
-  public preview(
-    @Body() body: PreviewContentDto,
-  ): { data: ReturnType<ContentService<unknown>['preview']> } {
+  public preview(@Body() body: PreviewContentDto): {
+    data: ReturnType<ContentService<unknown>['preview']>;
+  } {
     return {
       data: this.contentService.preview({
         title: body.title ?? '',
@@ -190,11 +182,7 @@ export class ContentController {
     @Body() body: CreateContentRevisionDto,
   ): Promise<{ data: ReturnType<typeof toContentData> }> {
     const workspace = requireAdminWorkspace(request);
-    const content = await this.contentService.createCheckpoint(
-      workspace.id,
-      contentId,
-      body,
-    );
+    const content = await this.contentService.createCheckpoint(workspace.id, contentId, body);
 
     return { data: toContentData(content) };
   }
@@ -211,11 +199,7 @@ export class ContentController {
     @Body() body: CreateContentRevisionDto,
   ): Promise<{ data: ReturnType<typeof toContentData> }> {
     const workspace = requireAdminWorkspace(request);
-    const content = await this.contentService.createReadyRevision(
-      workspace.id,
-      contentId,
-      body,
-    );
+    const content = await this.contentService.createReadyRevision(workspace.id, contentId, body);
 
     return { data: toContentData(content) };
   }
@@ -230,10 +214,7 @@ export class ContentController {
     @Param('contentId', new ParseUUIDPipe({ version: '7' })) contentId: string,
   ): Promise<{ data: readonly ReturnType<typeof toRevisionData>[] }> {
     const workspace = requireAdminWorkspace(request);
-    const revisions = await this.contentService.listRevisions(
-      workspace.id,
-      contentId,
-    );
+    const revisions = await this.contentService.listRevisions(workspace.id, contentId);
 
     return { data: revisions.map(toRevisionData) };
   }

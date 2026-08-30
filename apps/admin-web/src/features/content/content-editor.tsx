@@ -235,18 +235,37 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           <p>Draft는 계속 수정되고, Checkpoint와 READY Revision은 생성 후 변경되지 않습니다.</p>
         </div>
         <div className={styles.actions}>
-          <Link className={styles.link} href="/admin/contents">목록으로</Link>
-          <span className={styles.pill} data-status={content.status}>{content.status}</span>
+          <Link className={styles.link} href="/admin/contents">
+            목록으로
+          </Link>
+          <span className={styles.pill} data-status={content.status}>
+            {content.status}
+          </span>
         </div>
       </header>
 
       <section className={styles.panel}>
         <dl className={styles.meta}>
-          <div><dt>Content Version</dt><dd>{content.version}</dd></div>
-          <div><dt>Draft Version</dt><dd>{content.draft.draftVersion}</dd></div>
-          <div><dt>Latest Revision</dt><dd>{content.currentRevisionNumber ?? '-'}</dd></div>
-          <div><dt>READY Revision</dt><dd>{content.readyRevisionNumber ?? '-'}</dd></div>
-          <div><dt>저장 상태</dt><dd>{dirty ? '변경 사항 있음' : message ?? '저장됨'}</dd></div>
+          <div>
+            <dt>Content Version</dt>
+            <dd>{content.version}</dd>
+          </div>
+          <div>
+            <dt>Draft Version</dt>
+            <dd>{content.draft.draftVersion}</dd>
+          </div>
+          <div>
+            <dt>Latest Revision</dt>
+            <dd>{content.currentRevisionNumber ?? '-'}</dd>
+          </div>
+          <div>
+            <dt>READY Revision</dt>
+            <dd>{content.readyRevisionNumber ?? '-'}</dd>
+          </div>
+          <div>
+            <dt>저장 상태</dt>
+            <dd>{dirty ? '변경 사항 있음' : (message ?? '저장됨')}</dd>
+          </div>
         </dl>
       </section>
 
@@ -254,22 +273,42 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
         <div className={styles.editor}>
           <div className={styles.editorHeader}>
             <h2>Markdown Draft</h2>
-            <button className={styles.secondary} disabled={working !== undefined || archived} type="button" onClick={() => saveDraft('manual')}>
+            <button
+              className={styles.secondary}
+              disabled={working !== undefined || archived}
+              type="button"
+              onClick={() => saveDraft('manual')}
+            >
               {working === 'save' ? '저장 중…' : '즉시 저장'}
             </button>
           </div>
           <div className={styles.formGrid}>
             <label className={`${styles.field} ${styles.full}`}>
               <span>제목</span>
-              <input disabled={archived} maxLength={200} value={title} onChange={(event) => markDirty(() => setTitle(event.target.value))} />
+              <input
+                disabled={archived}
+                maxLength={200}
+                value={title}
+                onChange={(event) => markDirty(() => setTitle(event.target.value))}
+              />
             </label>
             <label className={`${styles.field} ${styles.full}`}>
               <span>요약</span>
-              <textarea disabled={archived} maxLength={500} value={summary} onChange={(event) => markDirty(() => setSummary(event.target.value))} />
+              <textarea
+                disabled={archived}
+                maxLength={500}
+                value={summary}
+                onChange={(event) => markDirty(() => setSummary(event.target.value))}
+              />
             </label>
             <label className={`${styles.field} ${styles.full}`}>
               <span>본문</span>
-              <textarea disabled={archived} maxLength={500_000} value={bodyMarkdown} onChange={(event) => markDirty(() => setBodyMarkdown(event.target.value))} />
+              <textarea
+                disabled={archived}
+                maxLength={500_000}
+                value={bodyMarkdown}
+                onChange={(event) => markDirty(() => setBodyMarkdown(event.target.value))}
+              />
             </label>
           </div>
         </div>
@@ -277,11 +316,20 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
         <div className={styles.preview}>
           <div className={styles.editorHeader}>
             <h2>Server Preview</h2>
-            <button className={styles.secondary} disabled={working !== undefined} type="button" onClick={preview}>
+            <button
+              className={styles.secondary}
+              disabled={working !== undefined}
+              type="button"
+              onClick={preview}
+            >
               {working === 'preview' ? '렌더링 중…' : '미리보기'}
             </button>
           </div>
-          {previewWarnings.map((warning) => <p className={styles.warning} key={warning}>{warning}</p>)}
+          {previewWarnings.map((warning) => (
+            <p className={styles.warning} key={warning}>
+              {warning}
+            </p>
+          ))}
           {previewHtml ? (
             <div className={styles.previewBody} dangerouslySetInnerHTML={{ __html: previewHtml }} />
           ) : (
@@ -303,13 +351,28 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             <input maxLength={300} value={note} onChange={(event) => setNote(event.target.value)} />
           </label>
           <div className={styles.actions}>
-            <button className={styles.secondary} disabled={working !== undefined} type="button" onClick={() => checkpoint('checkpoint')}>
+            <button
+              className={styles.secondary}
+              disabled={working !== undefined}
+              type="button"
+              onClick={() => checkpoint('checkpoint')}
+            >
               {working === 'checkpoint' ? '생성 중…' : 'Checkpoint'}
             </button>
-            <button className={styles.button} disabled={working !== undefined} type="button" onClick={() => checkpoint('ready')}>
+            <button
+              className={styles.button}
+              disabled={working !== undefined}
+              type="button"
+              onClick={() => checkpoint('ready')}
+            >
               {working === 'ready' ? '검증 중…' : 'READY Revision'}
             </button>
-            <button className={styles.danger} disabled={working !== undefined} type="button" onClick={archive}>
+            <button
+              className={styles.danger}
+              disabled={working !== undefined}
+              type="button"
+              onClick={archive}
+            >
               {working === 'archive' ? '처리 중…' : 'Archive'}
             </button>
           </div>
@@ -319,18 +382,31 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
       <section className={styles.panel}>
         <h2>Revision History</h2>
         <div className={styles.revisions}>
-          {revisions.length === 0 ? <div className={styles.empty}>아직 Revision이 없습니다.</div> : null}
+          {revisions.length === 0 ? (
+            <div className={styles.empty}>아직 Revision이 없습니다.</div>
+          ) : null}
           {revisions.map((revision) => (
             <article className={styles.revision} key={revision.id}>
-              <span className={styles.pill} data-status={revision.kind === 'ready' ? 'ready' : 'draft'}>
+              <span
+                className={styles.pill}
+                data-status={revision.kind === 'ready' ? 'ready' : 'draft'}
+              >
                 {revision.kind} · {revision.revisionNumber}
               </span>
               <div>
                 <strong>{revision.title || '제목 없음'}</strong>
-                <p className={styles.muted}>{revision.note ?? `Draft v${revision.sourceDraftVersion}`} · {formatDate(revision.createdAt)}</p>
+                <p className={styles.muted}>
+                  {revision.note ?? `Draft v${revision.sourceDraftVersion}`} ·{' '}
+                  {formatDate(revision.createdAt)}
+                </p>
               </div>
               {!archived ? (
-                <button className={styles.secondary} disabled={working !== undefined} type="button" onClick={() => restore(revision)}>
+                <button
+                  className={styles.secondary}
+                  disabled={working !== undefined}
+                  type="button"
+                  onClick={() => restore(revision)}
+                >
                   {working === `restore-${revision.id}` ? '복구 중…' : 'Draft로 복구'}
                 </button>
               ) : null}
@@ -343,7 +419,9 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
         {message ? <p className={styles.success}>{message}</p> : null}
         {error ? <p className={styles.error}>{error}</p> : null}
         {error?.includes('다시 불러온') ? (
-          <button className={styles.secondary} type="button" onClick={reload}>최신 Draft 다시 불러오기</button>
+          <button className={styles.secondary} type="button" onClick={reload}>
+            최신 Draft 다시 불러오기
+          </button>
         ) : null}
       </div>
     </div>

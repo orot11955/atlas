@@ -1,17 +1,9 @@
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-import type {
-  ContentRevisionKind,
-  ContentStatus,
-  ContentType,
-} from '../../domain/content';
+import type { ContentRevisionKind, ContentStatus, ContentType } from '../../domain/content';
 
 @Entity({ name: 'contents' })
-@Index('idx_contents_workspace_status_updated', [
-  'workspaceId',
-  'status',
-  'updatedAt',
-])
+@Index('idx_contents_workspace_status_updated', ['workspaceId', 'status', 'updatedAt'])
 export class ContentEntity {
   @PrimaryColumn({ type: 'uuid' })
   public id!: string;
@@ -79,11 +71,7 @@ export class ContentDraftEntity {
 @Index('uq_content_revisions_number', ['contentId', 'revisionNumber'], {
   unique: true,
 })
-@Index('idx_content_revisions_workspace_content_created', [
-  'workspaceId',
-  'contentId',
-  'createdAt',
-])
+@Index('idx_content_revisions_workspace_content_created', ['workspaceId', 'contentId', 'createdAt'])
 export class ContentRevisionEntity {
   @PrimaryColumn({ type: 'uuid' })
   public id!: string;

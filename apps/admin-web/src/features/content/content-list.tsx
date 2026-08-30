@@ -109,17 +109,29 @@ export function ContentList() {
         <form className={styles.toolbar} onSubmit={create}>
           <label className={styles.field}>
             <span>유형</span>
-            <select value={newType} onChange={(event) => setNewType(event.target.value as ContentType)}>
+            <select
+              value={newType}
+              onChange={(event) => setNewType(event.target.value as ContentType)}
+            >
               {CONTENT_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
           <label className={styles.field}>
             <span>초기 제목</span>
-            <input maxLength={200} placeholder="제목은 나중에 입력해도 됩니다" value={newTitle} onChange={(event) => setNewTitle(event.target.value)} />
+            <input
+              maxLength={200}
+              placeholder="제목은 나중에 입력해도 됩니다"
+              value={newTitle}
+              onChange={(event) => setNewTitle(event.target.value)}
+            />
           </label>
-          <button className={styles.button} disabled={busy} type="submit">Draft 생성</button>
+          <button className={styles.button} disabled={busy} type="submit">
+            Draft 생성
+          </button>
         </form>
       </section>
 
@@ -127,27 +139,43 @@ export function ContentList() {
         <form className={styles.toolbar} onSubmit={submitFilter}>
           <label className={styles.field}>
             <span>검색</span>
-            <input maxLength={120} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input
+              maxLength={120}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </label>
           <label className={styles.field}>
             <span>상태</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as ContentStatus | '')}>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as ContentStatus | '')}
+            >
               <option value="">전체</option>
               {CONTENT_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
           <label className={styles.field}>
             <span>유형</span>
-            <select value={type} onChange={(event) => setType(event.target.value as ContentType | '')}>
+            <select
+              value={type}
+              onChange={(event) => setType(event.target.value as ContentType | '')}
+            >
               <option value="">전체</option>
               {CONTENT_TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
             </select>
           </label>
-          <button className={styles.secondary} disabled={busy} type="submit">조회</button>
+          <button className={styles.secondary} disabled={busy} type="submit">
+            조회
+          </button>
         </form>
       </section>
 
@@ -162,16 +190,22 @@ export function ContentList() {
               <div>
                 <div className={styles.header}>
                   <span className={styles.pill}>{content.type}</span>
-                  <span className={styles.pill} data-status={content.status}>{content.status}</span>
+                  <span className={styles.pill} data-status={content.status}>
+                    {content.status}
+                  </span>
                 </div>
                 <h2>{content.draft.title || '제목 없음'}</h2>
                 <p>{content.draft.summary ?? '요약이 없습니다.'}</p>
               </div>
               <div>
                 <p className={styles.muted}>
-                  Draft v{content.draft.draftVersion} · Latest {content.currentRevisionNumber ?? '-'} · Ready {content.readyRevisionNumber ?? '-'}
+                  Draft v{content.draft.draftVersion} · Latest{' '}
+                  {content.currentRevisionNumber ?? '-'} · Ready{' '}
+                  {content.readyRevisionNumber ?? '-'}
                 </p>
-                <Link className={styles.link} href={`/admin/contents/${content.id}`}>편집</Link>
+                <Link className={styles.link} href={`/admin/contents/${content.id}`}>
+                  편집
+                </Link>
               </div>
             </article>
           ))}
@@ -179,7 +213,9 @@ export function ContentList() {
       )}
 
       {nextCursor ? (
-        <button className={styles.secondary} disabled={busy} type="button" onClick={loadMore}>더 불러오기</button>
+        <button className={styles.secondary} disabled={busy} type="button" onClick={loadMore}>
+          더 불러오기
+        </button>
       ) : null}
     </div>
   );

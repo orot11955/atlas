@@ -62,10 +62,7 @@ export interface ArchiveContentInput {
 }
 
 export interface ContentRepositoryPort<TTransaction = unknown> {
-  list(
-    workspaceId: string,
-    query: ContentListQuery,
-  ): Promise<readonly ContentRecord[]>;
+  list(workspaceId: string, query: ContentListQuery): Promise<readonly ContentRecord[]>;
   findById(
     workspaceId: string,
     contentId: string,
@@ -84,10 +81,7 @@ export interface ContentRepositoryPort<TTransaction = unknown> {
     input: InsertContentRevisionInput,
     transaction: TTransaction,
   ): Promise<boolean>;
-  listRevisions(
-    workspaceId: string,
-    contentId: string,
-  ): Promise<readonly ContentRevisionRecord[]>;
+  listRevisions(workspaceId: string, contentId: string): Promise<readonly ContentRevisionRecord[]>;
   findRevision(
     workspaceId: string,
     contentId: string,

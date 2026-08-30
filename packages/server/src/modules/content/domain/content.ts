@@ -25,8 +25,7 @@ export const ContentRevisionKind = {
   READY: 'ready',
 } as const;
 
-export type ContentRevisionKind =
-  (typeof ContentRevisionKind)[keyof typeof ContentRevisionKind];
+export type ContentRevisionKind = (typeof ContentRevisionKind)[keyof typeof ContentRevisionKind];
 
 export interface ContentDraftSnapshot {
   title: string;
@@ -310,7 +309,9 @@ function plainTextLength(markdown: string): number {
   return markdown
     .replace(/```[\s\S]*?```/gu, ' ')
     .replace(/<[^>]*>/gu, ' ')
-    .replace(/[\[\]#>*_`~()-]/gu, ' ')
+    .replace(/[#>*_`~()-]/gu, ' ')
+    .replaceAll('[', ' ')
+    .replaceAll(']', ' ')
     .replace(/\s+/gu, ' ')
     .trim().length;
 }

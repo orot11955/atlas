@@ -15,15 +15,9 @@ import type {
   RestoreContentDraftInput,
   UpdateContentDraftInput,
 } from '../../ports/content.repository';
-import {
-  ContentDraftEntity,
-  ContentEntity,
-  ContentRevisionEntity,
-} from './content.entities';
+import { ContentDraftEntity, ContentEntity, ContentRevisionEntity } from './content.entities';
 
-export class TypeOrmContentRepository
-  implements ContentRepositoryPort<EntityManager>
-{
+export class TypeOrmContentRepository implements ContentRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async list(
@@ -51,11 +45,7 @@ export class TypeOrmContentRepository
     }
 
     if (query.search) {
-      builder.innerJoin(
-        ContentDraftEntity,
-        'search_draft',
-        'search_draft.content_id = content.id',
-      );
+      builder.innerJoin(ContentDraftEntity, 'search_draft', 'search_draft.content_id = content.id');
       builder.andWhere(
         '(search_draft.title ILIKE :search OR search_draft.summary ILIKE :search OR search_draft.body_markdown ILIKE :search)',
         { search: `%${escapeLike(query.search)}%` },
@@ -92,10 +82,7 @@ export class TypeOrmContentRepository
     return draft ? toContentRecord(content, draft) : undefined;
   }
 
-  public async insert(
-    input: InsertContentInput,
-    transaction: EntityManager,
-  ): Promise<void> {
+  public async insert(input: InsertContentInput, transaction: EntityManager): Promise<void> {
     await transaction.getRepository(ContentEntity).insert({
       id: input.content.id,
       workspaceId: input.content.workspaceId,
@@ -147,10 +134,9 @@ export class TypeOrmContentRepository
       return false;
     }
 
-    await transaction.getRepository(ContentEntity).update(
-      { id: contentId, workspaceId },
-      { updatedAt: input.updatedAt },
-    );
+    await transaction
+      .getRepository(ContentEntity)
+      .update({ id: contentId, workspaceId }, { updatedAt: input.updatedAt });
     return true;
   }
 
@@ -200,13 +186,11 @@ export class TypeOrmContentRepository
     workspaceId: string,
     contentId: string,
   ): Promise<readonly ContentRevisionRecord[]> {
-    const entities = await this.dataSource
-      .getRepository(ContentRevisionEntity)
-      .find({
-        where: { workspaceId, contentId },
-        order: { revisionNumber: 'DESC' },
-        take: 200,
-      });
+    const entities = await this.dataSource.getRepository(ContentRevisionEntity).find({
+      where: { workspaceId, contentId },
+      order: { revisionNumber: 'DESC' },
+      take: 200,
+    });
 
     return entities.map(toRevisionRecord);
   }
@@ -286,10 +270,7 @@ export class TypeOrmContentRepository
   }
 }
 
-function toContentRecord(
-  content: ContentEntity,
-  draft: ContentDraftEntity,
-): ContentRecord {
+function toContentRecord(content: ContentEntity, draft: ContentDraftEntity): ContentRecord {
   return {
     id: content.id,
     workspaceId: content.workspaceId,
@@ -319,9 +300,7 @@ function toDraftRecord(draft: ContentDraftEntity): ContentDraftRecord {
   };
 }
 
-function toRevisionRecord(
-  revision: ContentRevisionEntity,
-): ContentRevisionRecord {
+function toRevisionRecord(revision: ContentRevisionEntity): ContentRevisionRecord {
   return {
     id: revision.id,
     contentId: revision.contentId,
