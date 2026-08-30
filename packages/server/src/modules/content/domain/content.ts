@@ -306,22 +306,11 @@ function normalizeSafeHref(value: string): string | undefined {
 }
 
 function plainTextLength(markdown: string): number {
-  const withoutBlocks = markdown
-    .replace(/```[\s\S]*?```/gu, ' ')
-    .replace(/<[^>]*>/gu, ' ');
-  const withoutMarkup = [
-    '#',
-    '>',
-    '*',
-    '_',
-    '`',
-    '~',
-    '(',
-    ')',
-    '-',
-    '[',
-    ']',
-  ].reduce((value, marker) => value.replaceAll(marker, ' '), withoutBlocks);
+  const withoutBlocks = markdown.replace(/```[\s\S]*?```/gu, ' ').replace(/<[^>]*>/gu, ' ');
+  const withoutMarkup = ['#', '>', '*', '_', '`', '~', '(', ')', '-', '[', ']'].reduce(
+    (value, marker) => value.replaceAll(marker, ' '),
+    withoutBlocks,
+  );
 
   return withoutMarkup.replace(/\s+/gu, ' ').trim().length;
 }
