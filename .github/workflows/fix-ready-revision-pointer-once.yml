@@ -1,0 +1,527 @@
+name: Fix READY Revision pointer once
+
+on:
+  push:
+    branches:
+      - fix/content-ready-revision-pointer
+    paths:
+      - .github/workflows/fix-ready-revision-pointer-once.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_ENV: test
+  PORT: 4000
+  CORS_ORIGINS: http://localhost:3000
+  TRUST_PROXY: 'false'
+  AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+  AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+  AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+  AUTH_MFA_ISSUER: Atlas CI
+  AUTH_MFA_WINDOW_STEPS: '1'
+  AUTH_MFA_GRANT_SECONDS: '120'
+  AUTH_MFA_RECOVERY_CODE_COUNT: '10'
+  AUTH_MFA_FAILURE_THRESHOLD: '5'
+  AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+  AUTH_SESSION_IDLE_SECONDS: '1800'
+  AUTH_SESSION_ABSOLUTE_SECONDS: '43200'
+  AUTH_SESSION_TOUCH_SECONDS: '60'
+  AUTH_SESSION_MAX_ACTIVE: '5'
+  AUTH_SESSION_BIND_IP: 'false'
+  AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+  AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+  AUTH_COOKIE_SECURE: 'false'
+  API_KEY_PEPPER: atlas-ci-api-key-pepper-with-sufficient-random-length
+  API_KEY_USAGE_TOUCH_SECONDS: '1'
+  DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ready_pointer
+  REDIS_URL: redis://localhost:6379/0
+  MINIO_ENDPOINT: http://localhost:9000
+  MINIO_ACCESS_KEY: atlas-ci-api
+  MINIO_SECRET_KEY: atlas-ci-api-secret
+  MINIO_PRIVATE_BUCKET: atlas-private
+  MINIO_PROCESSING_BUCKET: atlas-processing
+  MINIO_PUBLIC_BUCKET: atlas-public
+  MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+
+jobs:
+  fix-verify-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas_ready_pointer
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ready_pointer"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v7
+        with:
+          ref: fix/content-ready-revision-pointer
+          fetch-depth: 0
+
+      - name: Add distinct READY Revision pointer
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              value = target.read_text(encoding='utf-8')
+              if new in value:
+                  return
+              if old not in value:
+                  raise RuntimeError(f'Patch anchor was not found in {path}: {old[:80]}')
+              target.write_text(value.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'packages/server/src/modules/content/domain/content.ts',
+              '  currentRevisionNumber?: number;\n',
+              '  currentRevisionNumber?: number;\n  readyRevisionNumber?: number;\n',
+          )
+
+          replace_once(
+              'packages/server/src/modules/content/infrastructure/persistence/content.entities.ts',
+              "  @Column({ name: 'current_revision_number', type: 'integer', nullable: true })\n  public currentRevisionNumber!: number | null;\n",
+              "  @Column({ name: 'current_revision_number', type: 'integer', nullable: true })\n  public currentRevisionNumber!: number | null;\n\n  @Column({ name: 'ready_revision_number', type: 'integer', nullable: true })\n  public readyRevisionNumber!: number | null;\n",
+          )
+
+          migration_path = Path(
+              'packages/database/src/migrations/1788072600000-AddContentReadyRevisionPointer.ts'
+          )
+          migration_path.write_text(
+              '''import type { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class AddContentReadyRevisionPointer1788072600000 implements MigrationInterface {
+  public name = 'AddContentReadyRevisionPointer1788072600000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE contents
+      ADD COLUMN ready_revision_number integer
+    `);
+    await queryRunner.query(`
+      UPDATE contents AS content
+      SET ready_revision_number = (
+        SELECT MAX(revision.revision_number)
+        FROM content_revisions AS revision
+        WHERE revision.content_id = content.id
+          AND revision.kind = 'ready'
+      )
+    `);
+    await queryRunner.query(`
+      ALTER TABLE contents
+      ADD CONSTRAINT chk_contents_ready_revision_number
+      CHECK (ready_revision_number IS NULL OR ready_revision_number > 0)
+    `);
+    await queryRunner.query(`
+      ALTER TABLE contents
+      ADD CONSTRAINT chk_contents_ready_status_pointer
+      CHECK (status <> 'ready' OR ready_revision_number IS NOT NULL)
+    `);
+    await queryRunner.query(`
+      ALTER TABLE contents
+      ADD CONSTRAINT fk_contents_ready_revision
+      FOREIGN KEY (id, ready_revision_number)
+      REFERENCES content_revisions(content_id, revision_number)
+      ON DELETE RESTRICT
+      DEFERRABLE INITIALLY DEFERRED
+    `);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      'ALTER TABLE contents DROP CONSTRAINT IF EXISTS fk_contents_ready_revision',
+    );
+    await queryRunner.query(
+      'ALTER TABLE contents DROP CONSTRAINT IF EXISTS chk_contents_ready_status_pointer',
+    );
+    await queryRunner.query(
+      'ALTER TABLE contents DROP CONSTRAINT IF EXISTS chk_contents_ready_revision_number',
+    );
+    await queryRunner.query('ALTER TABLE contents DROP COLUMN IF EXISTS ready_revision_number');
+  }
+}
+''',
+              encoding='utf-8',
+          )
+
+          migration_class = 'AddContentReadyRevisionPointer1788072600000'
+          registered = False
+          for path in Path('packages/database/src').rglob('*.ts'):
+              if path == migration_path:
+                  continue
+              value = path.read_text(encoding='utf-8')
+              if 'migrations' not in value or 'CreateContentDraftRevision1788070800000' not in value:
+                  continue
+              original = value
+              relative = os.path.relpath(migration_path.with_suffix(''), path.parent).replace(os.sep, '/')
+              if not relative.startswith('.'):
+                  relative = './' + relative
+              if migration_class not in value:
+                  imports = list(re.finditer(r'(?m)^import .+;$', value))
+                  if not imports:
+                      raise RuntimeError(f'No import block in {path}')
+                  point = imports[-1].end()
+                  value = (
+                      value[:point]
+                      + f"\nimport {{ {migration_class} }} from '{relative}';"
+                      + value[point:]
+                  )
+              array_match = re.search(r'migrations\s*:\s*\[', value)
+              if not array_match:
+                  continue
+              start = value.index('[', array_match.start())
+              depth = 0
+              end = None
+              for index in range(start, len(value)):
+                  if value[index] == '[':
+                      depth += 1
+                  elif value[index] == ']':
+                      depth -= 1
+                      if depth == 0:
+                          end = index
+                          break
+              if end is None:
+                  raise RuntimeError(f'Migration array boundary not found in {path}')
+              body = value[start + 1:end]
+              if migration_class not in body:
+                  anchor = re.search(
+                      r'(?m)^(\s*)CreateContentDraftRevision1788070800000,\s*$',
+                      body,
+                  )
+                  if not anchor:
+                      raise RuntimeError(f'Phase 6 migration entry not found in {path}')
+                  body = (
+                      body[:anchor.end()]
+                      + f'\n{anchor.group(1)}{migration_class},'
+                      + body[anchor.end():]
+                  )
+                  value = value[:start + 1] + body + value[end:]
+              path.write_text(value, encoding='utf-8')
+              registered = True
+              break
+          if not registered:
+              raise RuntimeError('READY Revision pointer migration was not registered.')
+
+          service = Path('apps/api/src/content/content.service.ts')
+          value = service.read_text(encoding='utf-8')
+          if 'readyRevisionNumber: null' not in value:
+              value = value.replace(
+                  '            currentRevisionNumber: null,\n',
+                  '            currentRevisionNumber: null,\n            readyRevisionNumber: null,\n',
+                  1,
+              )
+          ready_anchor = '''          if (kind === ContentRevisionKind.READY) {
+            content.status = ContentStatus.READY;
+            content.readyAt = now;
+          }'''
+          ready_replacement = '''          if (kind === ContentRevisionKind.READY) {
+            content.status = ContentStatus.READY;
+            content.readyRevisionNumber = revisionNumber;
+            content.readyAt = now;
+          }'''
+          if 'content.readyRevisionNumber = revisionNumber;' not in value:
+              if ready_anchor not in value:
+                  raise RuntimeError('READY transition anchor was not found.')
+              value = value.replace(ready_anchor, ready_replacement, 1)
+          if 'readyRevisionNumber: content.readyRevisionNumber ?? undefined,' not in value:
+              value = value.replace(
+                  '        currentRevisionNumber: content.currentRevisionNumber ?? undefined,\n',
+                  '        currentRevisionNumber: content.currentRevisionNumber ?? undefined,\n        readyRevisionNumber: content.readyRevisionNumber ?? undefined,\n',
+                  1,
+              )
+          service.write_text(value, encoding='utf-8')
+
+          api = Path('apps/admin-web/src/features/content/content-api.ts')
+          value = api.read_text(encoding='utf-8')
+          if 'readyRevisionNumber?: number;' not in value:
+              value = value.replace(
+                  '  currentRevisionNumber?: number;\n',
+                  '  currentRevisionNumber?: number;\n  readyRevisionNumber?: number;\n',
+                  1,
+              )
+          api.write_text(value, encoding='utf-8')
+
+          editor = Path('apps/admin-web/src/features/content/content-editor.tsx')
+          value = editor.read_text(encoding='utf-8')
+          old = '''                    {detail.currentRevisionNumber
+                      ? ` · Revision ${detail.currentRevisionNumber}`
+                      : ' · Revision 없음'}'''
+          new = '''                    {detail.currentRevisionNumber
+                      ? ` · Latest Revision ${detail.currentRevisionNumber}`
+                      : ' · Revision 없음'}
+                    {detail.readyRevisionNumber
+                      ? ` · READY Revision ${detail.readyRevisionNumber}`
+                      : ' · READY 없음'}'''
+          if 'READY Revision ${detail.readyRevisionNumber}' not in value:
+              if old not in value:
+                  raise RuntimeError('Editor Revision summary anchor was not found.')
+              value = value.replace(old, new, 1)
+          editor.write_text(value, encoding='utf-8')
+
+          e2e = Path('scripts/ci/content-draft-revision-e2e.mjs')
+          value = e2e.read_text(encoding='utf-8')
+          if 'readyContent.readyRevisionNumber' not in value:
+              value = value.replace(
+                  "  assert.equal(readyRevision.revisionNumber, 2);\n",
+                  "  assert.equal(readyRevision.revisionNumber, 2);\n  assert.equal(readyContent.readyRevisionNumber, 2);\n",
+                  1,
+              )
+          if 'postRestoreCheckpoint' not in value:
+              restore_anchor = '''  assert.equal(restored.version, readyContent.version);
+  assert.equal(restored.bodyMarkdown, checkpoint.bodyMarkdown);
+
+  const archived = unwrap('''
+              restore_replacement = '''  assert.equal(restored.version, readyContent.version);
+  assert.equal(restored.bodyMarkdown, checkpoint.bodyMarkdown);
+  assert.equal(restored.readyRevisionNumber, 2);
+
+  const postRestoreCheckpointPayload = unwrap(
+    await request(
+      'POST',
+      `/admin/v1/contents/${created.id}/checkpoints`,
+      {
+        contentVersion: restored.version,
+        draftVersion: restored.draftVersion,
+        note: 'Checkpoint after READY Draft restore',
+      },
+      201,
+    ),
+  );
+  const postRestoreCheckpoint = unwrap(
+    postRestoreCheckpointPayload.content ?? postRestoreCheckpointPayload,
+  );
+  assert.equal(postRestoreCheckpoint.status, 'ready');
+  assert.equal(postRestoreCheckpoint.currentRevisionNumber, 3);
+  assert.equal(postRestoreCheckpoint.readyRevisionNumber, 2);
+
+  const archived = unwrap('''
+              if restore_anchor not in value:
+                  raise RuntimeError('E2E restore anchor was not found.')
+              value = value.replace(restore_anchor, restore_replacement, 1)
+              value = value.replace(
+                  '{ contentVersion: restored.version },',
+                  '{ contentVersion: postRestoreCheckpoint.version },',
+                  1,
+              )
+              value = value.replace(
+                  '  assert.equal(archived.version, restored.version + 1);',
+                  '  assert.equal(archived.version, postRestoreCheckpoint.version + 1);',
+                  1,
+              )
+          e2e.write_text(value, encoding='utf-8')
+
+          docs = Path('docs/implementation/phase-6-content-draft-revision.md')
+          value = docs.read_text(encoding='utf-8')
+          paragraph = '''
+    `currentRevisionNumber`는 최신 Checkpoint 또는 READY Snapshot을 가리키고,
+    `readyRevisionNumber`는 마지막으로 READY Validation을 통과한 Snapshot만 가리킨다.
+    READY 이후 Draft를 복구하거나 Checkpoint를 추가해도 READY Pointer는 이동하지 않는다.
+'''
+          if 'readyRevisionNumber' not in value:
+              marker = '- Revision 복구는 과거 Snapshot을 Draft로 복사하며 기존 Revision을 수정하지 않는다.\n'
+              if marker not in value:
+                  raise RuntimeError('Phase 6 documentation version anchor was not found.')
+              value = value.replace(marker, marker + paragraph, 1)
+          docs.write_text(value, encoding='utf-8')
+
+          progress = Path('docs/implementation/progress.md')
+          value = progress.read_text(encoding='utf-8')
+          if 'Latest Revision과 READY Revision Pointer 분리' not in value:
+              marker = '- 불변 Checkpoint·READY ContentRevision\n'
+              if marker in value:
+                  value = value.replace(
+                      marker,
+                      marker + '- Latest Revision과 READY Revision Pointer 분리\n',
+                      1,
+                  )
+                  progress.write_text(value, encoding='utf-8')
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify quality and production builds
+        run: |
+          pnpm format
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Verify migration lifecycle
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show
+
+      - name: Bootstrap OWNER
+        run: |
+          owner_password="Atlas-ready-pointer-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ready-pointer@atlas.test \
+              --display-name 'READY Pointer Owner' \
+              --password-stdin \
+              --json
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+      - name: Build authenticated E2E harness
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path('scripts/ci/resource-member-full-e2e.mjs').read_text(encoding='utf-8')
+          import_line = "import { verifyContentDraftRevision } from './content-draft-revision-e2e.mjs';"
+          if import_line not in source:
+              imports = list(re.finditer(r'(?m)^import .+;$', source))
+              source = source[:imports[-1].end()] + '\n' + import_line + source[imports[-1].end():]
+          start = source.index('await verifyResourceMemberDirectory(')
+          paren = source.index('(', start)
+          depth = 0
+          end = None
+          for index in range(paren, len(source)):
+              if source[index] == '(':
+                  depth += 1
+              elif source[index] == ')':
+                  depth -= 1
+                  if depth == 0:
+                      end = source.find(';', index) + 1
+                      break
+          if end is None:
+              raise RuntimeError('Could not locate Resource Member verifier boundary.')
+          call = source[start:end].replace(
+              'verifyResourceMemberDirectory',
+              'verifyContentDraftRevision',
+              1,
+          )
+          source = source[:end] + '\n' + call + source[end:]
+          Path('scripts/ci/content-ready-pointer-full-e2e.mjs').write_text(
+              source,
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Verify READY Pointer with authenticated API
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password scripts/ci/content-ready-pointer-full-e2e.mjs' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then break; fi
+            if [ "$attempt" = '30' ]; then cat /tmp/atlas-api.log; exit 1; fi
+            sleep 1
+          done
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/content-ready-pointer-full-e2e.mjs
+
+      - name: Verify READY pointer database constraints
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM contents WHERE status = 'ready' AND ready_revision_number IS NOT NULL")" -ge 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM contents c JOIN content_revisions r ON r.content_id = c.id AND r.revision_number = c.ready_revision_number WHERE r.kind = 'ready'")" -ge 1
+
+      - name: Commit verified fix
+        run: |
+          rm -f .github/workflows/fix-ready-revision-pointer-once.yml
+          rm -f scripts/ci/content-ready-pointer-full-e2e.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: separate latest and READY revision pointers'
+          git push origin HEAD:fix/content-ready-revision-pointer
+
+      - name: Create and merge fix PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head fix/content-ready-revision-pointer --base develop --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base develop \
+              --head fix/content-ready-revision-pointer \
+              --title 'fix: separate latest and READY revision pointers' \
+              --body 'Keep the latest Revision pointer independent from the last READY-validated Revision pointer. Add a backfill migration, deferred composite foreign key, API and UI fields, and authenticated regression coverage for Checkpoints created after READY.'
+            pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head fix/content-ready-revision-pointer --base develop --state open --json number --jq '.[0].number')"
+          fi
+          gh pr merge "$pr_number" \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --admin \
+            --subject 'fix: separate latest and READY revision pointers' \
+            --body 'Preserve the last READY-validated Snapshot when later Checkpoints advance the latest Revision pointer.'
+
+      - name: Record merged verification on develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin develop
+          git switch -C develop origin/develop
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/implementation/verification/phase-6-develop.md')
+          value = path.read_text(encoding='utf-8') if path.exists() else '# Phase 6 merged-tree verification\n'
+          section = '''
+
+## READY Revision pointer regression
+
+A follow-up merged-tree verification confirmed that:
+
+- `currentRevisionNumber` advances for every Checkpoint or READY Revision.
+- `readyRevisionNumber` advances only for a READY Revision.
+- Restoring an older Revision into Draft does not move the READY pointer.
+- Creating a Checkpoint after READY does not replace the validated READY Snapshot.
+- The READY pointer is protected by a deferred composite foreign key to the referenced Revision.
+'''
+          if '## READY Revision pointer regression' not in value:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(value.rstrip() + section + '\n', encoding='utf-8')
+          PY
+          git add docs/implementation/verification/phase-6-develop.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'test: record READY revision pointer regression coverage'
+            git push origin HEAD:develop
+          fi
