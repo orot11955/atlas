@@ -115,6 +115,18 @@ jobs:
           path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
 
+          echo '--- API Client test snippet ---'
+          nl -ba packages/server/src/api-client.test.ts | sed -n '195,210p'
+          echo '--- Repository snippet 1 ---'
+          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '200,225p'
+          echo '--- Repository snippet 2 ---'
+          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '510,540p'
+          echo '--- Repository snippet 3 ---'
+          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '615,645p'
+          echo '--- Repository snippet 4 ---'
+          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '765,795p'
+          exit 1
+
       - name: Setup Node.js
         if: steps.prepare.outputs.run == 'true'
         uses: actions/setup-node@v7
