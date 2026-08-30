@@ -155,6 +155,29 @@ jobs:
               '      responseJson: { ...record.responseJson },',
               '      responseJson: { ...record.responseJson } as never,',
           )
+
+          replace_exact(
+              'apps/api/src/project-deployment/dto/project-deployment.dto.ts',
+              "@ApiProperty({ type: 'object' })",
+              "@ApiProperty({ type: 'object', additionalProperties: true })",
+              expected_count=4,
+          )
+
+          replace_exact(
+              'apps/api/src/api-clients/api-client-auth.guard.ts',
+              "export const RequireApiClientAccess = (\n"
+              "  requirement: ApiClientAccessRequirement,\n"
+              "): MethodDecorator & ClassDecorator =>\n"
+              "  SetMetadata(API_CLIENT_REQUIREMENT_METADATA, Object.freeze({ ...requirement }));",
+              "export function RequireApiClientAccess(\n"
+              "  requirement: ApiClientAccessRequirement,\n"
+              "): ClassDecorator & MethodDecorator {\n"
+              "  return SetMetadata(\n"
+              "    API_CLIENT_REQUIREMENT_METADATA,\n"
+              "    Object.freeze({ ...requirement }),\n"
+              "  ) as ClassDecorator & MethodDecorator;\n"
+              "}",
+          )
           PY
 
       - name: Setup Node.js
