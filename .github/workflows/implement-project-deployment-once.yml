@@ -158,8 +158,8 @@ jobs:
 
           replace_exact(
               'apps/api/src/project-deployment/dto/project-deployment.dto.ts',
-              "@ApiProperty({ type: 'object' })",
-              "@ApiProperty({ type: 'object', additionalProperties: true })",
+              "type: 'object'",
+              "type: 'object', additionalProperties: true",
               expected_count=4,
           )
 
