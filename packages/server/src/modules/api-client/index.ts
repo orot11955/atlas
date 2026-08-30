@@ -1,3 +1,5 @@
+export * from './application/api-client-administration.service';
+export * from './application/api-client-authentication.service';
 export * from './domain/api-client';
 export * from './infrastructure/crypto/hmac-api-client-key-issuer';
 export * from './infrastructure/persistence/api-client-allowed-origin.entity';
@@ -5,6 +7,7 @@ export * from './infrastructure/persistence/api-client-key.entity';
 export * from './infrastructure/persistence/api-client-scope.entity';
 export * from './infrastructure/persistence/api-client-site-access.entity';
 export * from './infrastructure/persistence/api-client.entity';
+export * from './infrastructure/persistence/typeorm-api-client.repository';
 export * from './ports/api-client-key-issuer.port';
 export * from './ports/api-client-rate-limiter.port';
 export * from './ports/api-client.repository';
