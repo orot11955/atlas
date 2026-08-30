@@ -115,11 +115,9 @@ Admin Web Route:
 - [#11 Admin Sessions and CSRF Protection](https://github.com/orot11955/atlas/pull/11)
 - [#12 Admin Login Flow and Protected Shell](https://github.com/orot11955/atlas/pull/12)
 
-## 진행 중
-
 ### Phase 3. Workspace, Site & API Client
 
-완료된 구현 단위:
+Workspace·Site 완료 범위:
 
 - Migration에서 단일 기본 Workspace Bootstrap
 - Workspace 이름·Timezone·Locale 설정과 Optimistic Version
@@ -131,11 +129,32 @@ Admin Web Route:
 - Archived Site 수정·재활성화 차단
 - Site Cursor Pagination, 검색, 상태·유형 Filter
 - Site 생성·조회·수정·상태 변경 API
-- Admin Session·Permission·CSRF Guard 연결
-- Workspace·Site Audit Log
 - Workspace 설정과 Site 목록·등록·상세 관리 UI
 - Admin Shell Site 메뉴와 Site Switcher
 - 실제 인증 Session 기반 Workspace·Site 통합 E2E
+
+API Client 완료 범위:
+
+- `api_clients`, `api_client_site_access`, `api_client_scopes` Schema
+- `api_client_allowed_origins`, `api_client_keys` Schema
+- Delivery와 Integration Client Type 분리
+- Client별 Site Access와 최소 Scope
+- `atlas_live_{keyId}.{secret}` API Key 형식
+- API Key Secret HMAC-SHA-256 Digest 저장
+- API Key 원문 생성·회전 응답에서 1회만 반환
+- Client Active·Disabled·Archived 상태 전이
+- Key Active·Grace·Expired·Revoked 상태 계산
+- Grace Period를 포함한 Key Rotation
+- 개별 Key 폐기와 Client Archive 시 열린 Key 전체 폐기
+- Origin Allowlist와 선택적 Origin 필수 정책
+- Redis Fixed Window Client별 Rate Limit
+- API Key `last_used_at` Touch 간격 제한
+- Delivery API Authentication Guard와 Request Context `API_CLIENT` Actor
+- Site Key·Client Type·Scope·Site Access·Site Status 검증
+- API Client 목록·생성·상세·수정·회전·폐기 Admin API
+- API Client 목록·생성·상세·Credential 관리 Admin Web
+- 생성·회전 Key 원문 1회 표시 Panel
+- API Key Lifecycle Unit Test와 실제 통합 E2E
 
 Workspace·Site API:
 
@@ -152,35 +171,68 @@ POST  /api/admin/v1/sites/{siteId}/disable
 POST  /api/admin/v1/sites/{siteId}/archive
 ```
 
+API Client Admin API:
+
+```text
+GET   /api/admin/v1/api-clients
+POST  /api/admin/v1/api-clients
+GET   /api/admin/v1/api-clients/{apiClientId}
+PATCH /api/admin/v1/api-clients/{apiClientId}
+POST  /api/admin/v1/api-clients/{apiClientId}/keys/rotate
+POST  /api/admin/v1/api-clients/{apiClientId}/keys/{keyId}/revoke
+POST  /api/admin/v1/api-clients/{apiClientId}/enable
+POST  /api/admin/v1/api-clients/{apiClientId}/disable
+POST  /api/admin/v1/api-clients/{apiClientId}/archive
+```
+
+Delivery Foundation API:
+
+```text
+GET /api/delivery/v1/sites/{siteKey}
+Authorization: Bearer atlas_live_{keyId}.{secret}
+```
+
 Admin Web Route:
 
 ```text
 /admin/sites
 /admin/sites/new
 /admin/sites/{siteId}
+/admin/api-clients
+/admin/api-clients/{apiClientId}
 ```
 
 보안·일관성 결정:
 
 - Workspace ID는 인증된 Admin 요청의 Request Context에 서버에서 주입한다.
 - Site Key와 Canonical Domain은 Workspace 범위에서만 Unique하다.
-- Site 변경 요청은 현재 Version을 요구하며 충돌 시 `409`를 반환한다.
-- Site ID는 UUIDv7만 허용한다.
+- Site와 API Client 변경 요청은 현재 Version을 요구하며 충돌 시 `409`를 반환한다.
+- Site, API Client와 Key ID는 UUIDv7을 사용한다.
 - Canonical Domain 변경 시 Verification 상태를 `pending`으로 초기화한다.
-- 모든 변경 API는 Session, Permission과 Double-submit CSRF를 요구한다.
+- API Key 원문은 DB, Audit Log, Client 목록과 상세 응답에 저장하거나 노출하지 않는다.
+- API Key 인증은 Key ID로 후보를 조회한 뒤 HMAC Digest를 constant-time 경로로 비교한다.
+- Delivery Client와 Integration Client의 Scope 집합을 교차 사용할 수 없다.
+- Origin 필수 Client는 등록된 정확한 Origin만 허용한다.
+- Site Access, Scope, Client Type, Client 상태, Key 상태와 Site 상태를 모두 통과해야 Delivery 요청이 성공한다.
+- Admin 변경 API는 Session, Permission과 Double-submit CSRF를 요구한다.
 
 주요 Pull Request:
 
 - [#13 Workspace and Site Foundation](https://github.com/orot11955/atlas/pull/13)
+- [#14 Site-scoped API Clients and Delivery Authentication](https://github.com/orot11955/atlas/pull/14)
 
 ## 다음
 
+### Phase 4. Project & Deployment Read Model
+
 ```text
-Site Scope API Client Schema
-→ API Key 발급과 원문 1회 표시
-→ Key Digest 저장
-→ Scope·Origin·Rate Limit 정책
-→ API Key 회전과 Grace Period
-→ 폐기와 최근 사용 시각
-→ Admin API Client 관리 화면
+Project Schema와 CRUD
+→ Project Timeline Event
+→ Repository Connection과 Release
+→ Environment와 Service
+→ Deployment·Deployment Event Read Model
+→ Health Check Result
+→ CI Callback API Client Scope 적용
+→ Project·Deployment Admin 화면
+→ 배포 성공과 Service Health 상태 분리
 ```
