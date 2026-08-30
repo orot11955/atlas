@@ -1,0 +1,217 @@
+name: Verify merged Phase 7 once
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/verify-phase7-develop-once.yml
+
+permissions:
+  contents: write
+
+env:
+  NODE_ENV: test
+  PORT: 4000
+  CORS_ORIGINS: http://localhost:3000
+  TRUST_PROXY: 'false'
+  AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+  AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+  AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+  AUTH_MFA_ISSUER: Atlas CI
+  AUTH_MFA_WINDOW_STEPS: '1'
+  AUTH_MFA_GRANT_SECONDS: '120'
+  AUTH_MFA_RECOVERY_CODE_COUNT: '10'
+  AUTH_MFA_FAILURE_THRESHOLD: '5'
+  AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+  AUTH_SESSION_IDLE_SECONDS: '1800'
+  AUTH_SESSION_ABSOLUTE_SECONDS: '43200'
+  AUTH_SESSION_TOUCH_SECONDS: '60'
+  AUTH_SESSION_MAX_ACTIVE: '5'
+  AUTH_SESSION_BIND_IP: 'false'
+  AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+  AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+  AUTH_COOKIE_SECURE: 'false'
+  API_KEY_PEPPER: atlas-ci-api-key-pepper-with-sufficient-random-length
+  API_KEY_USAGE_TOUCH_SECONDS: '1'
+  DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_phase7_merged
+  REDIS_URL: redis://localhost:6379/0
+  MINIO_ENDPOINT: http://localhost:9000
+  MINIO_ACCESS_KEY: atlas-ci-api
+  MINIO_SECRET_KEY: atlas-ci-api-secret
+  MINIO_PRIVATE_BUCKET: atlas-private
+  MINIO_PROCESSING_BUCKET: atlas-processing
+  MINIO_PUBLIC_BUCKET: atlas-public
+  MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas_phase7_merged
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_phase7_merged"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout merged develop
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          docker compose config > /dev/null
+
+      - name: Verify migration lifecycle
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Bootstrap OWNER
+        run: |
+          owner_password="Atlas-phase7-merged-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-phase7-merged@atlas.test \
+              --display-name 'Phase 7 Merged Owner' \
+              --password-stdin \
+              --json
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+      - name: Compose merged-tree E2E
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path('scripts/ci/resource-member-full-e2e.mjs').read_text(encoding='utf-8')
+          imports_to_add = [
+              "import { verifyContentDraftRevision } from './content-draft-revision-e2e.mjs';",
+              "import { verifyContentPublicationDelivery } from './content-publication-delivery-e2e.mjs';",
+          ]
+          imports = list(re.finditer(r'(?m)^import .+;$', source))
+          point = imports[-1].end()
+          for import_line in imports_to_add:
+              if import_line not in source:
+                  source = source[:point] + '\n' + import_line + source[point:]
+                  point += len(import_line) + 1
+          needle = 'await verifyResourceMemberDirectory('
+          start = source.index(needle)
+          paren = source.index('(', start)
+          depth = 0
+          end = None
+          for index in range(paren, len(source)):
+              if source[index] == '(':
+                  depth += 1
+              elif source[index] == ')':
+                  depth -= 1
+                  if depth == 0:
+                      end = source.find(';', index) + 1
+                      break
+          if end is None:
+              raise RuntimeError('Resource Member verifier call was not found.')
+          call = source[start:end]
+          source = source[:end] + '\n' + '\n'.join([
+              call.replace('verifyResourceMemberDirectory', 'verifyContentDraftRevision', 1),
+              call.replace('verifyResourceMemberDirectory', 'verifyContentPublicationDelivery', 1),
+          ]) + source[end:]
+          Path('scripts/ci/content-publication-delivery-merged-e2e.mjs').write_text(
+              source,
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Verify authenticated Publication and Delivery lifecycle
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password scripts/ci/content-publication-delivery-merged-e2e.mjs' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then break; fi
+            if [ "$attempt" = '30' ]; then cat /tmp/atlas-api.log; exit 1; fi
+            sleep 1
+          done
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/content-publication-delivery-merged-e2e.mjs
+
+      - name: Verify Publication database invariants
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications")" -ge 2
+          if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -c "UPDATE content_publications SET body_html = body_html || '<p>changed</p>' WHERE id = (SELECT id FROM content_publications LIMIT 1)"; then
+            echo 'Publication Snapshot mutation unexpectedly succeeded.' >&2
+            exit 1
+          fi
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM (SELECT content_site_id FROM content_publications WHERE status='active' GROUP BY content_site_id HAVING count(*) > 1) duplicated")" = '0'
+
+      - name: Record verification
+        run: |
+          mkdir -p docs/implementation/verification
+          cat > docs/implementation/verification/phase-7-develop.md <<EOF
+          # Phase 7 develop verification
+
+          - Commit: ${GITHUB_SHA}
+          - Workflow run: ${GITHUB_RUN_ID}
+          - Result: success
+          - Verified: Prettier, ESLint, Typecheck, Unit Test, Production Build
+          - Verified: Migration up → down → up
+          - Verified: Admin Session and CSRF Publication lifecycle
+          - Verified: Site-scoped content:read Delivery API
+          - Verified: ETag 304, withdraw 404 and Rollback
+          - Verified: immutable Publication Snapshot and single ACTIVE constraint
+          EOF
+          rm -f .github/workflows/verify-phase7-develop-once.yml
+          rm -f scripts/ci/content-publication-delivery-merged-e2e.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'test: verify Phase 7 on develop'
+          git push origin HEAD:develop
