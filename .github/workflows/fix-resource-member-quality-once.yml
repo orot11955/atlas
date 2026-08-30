@@ -33,6 +33,7 @@ jobs:
               'export function isUuid(value: string): boolean {',
               'export function isResourceMemberUuid(value: string): boolean {',
           )
+          value = value.replace('isUuid(', 'isResourceMemberUuid(')
           old_control_check = (
               "  if (normalizedSubject.length > 240 || "
               "/[\\u0000-\\u001f\\u007f]/u.test(normalizedSubject)) {"
