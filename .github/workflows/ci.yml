@@ -151,7 +151,7 @@ jobs:
           owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
 
           printf '%s\n%s\n' "$owner_password" "$owner_password" |
-            pnjm admin:bootstrap-owner -- \
+            pnpm admin:bootstrap-owner -- \
               --email owner-ci@atlas.test \
               --display-name 'CI Owner' \
               --password-stdin \
@@ -174,7 +174,7 @@ jobs:
         run: |
           pnpm build:packages
           pnpm --filter @atlas/api build
-          pnjm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
           api_pid=$!
           trap 'kill "$api_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
 
