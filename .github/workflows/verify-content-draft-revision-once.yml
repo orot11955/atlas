@@ -1,0 +1,195 @@
+name: Verify content draft and revision once
+
+on:
+  push:
+    branches:
+      - feat/content-draft-revision-v2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-content-draft-revision-once
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
+      AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+      AUTH_SESSION_IDLE_SECONDS: 1800
+      AUTH_SESSION_ABSOLUTE_SECONDS: 43200
+      AUTH_SESSION_TOUCH_SECONDS: 60
+      AUTH_SESSION_MAX_ACTIVE: 5
+      AUTH_SESSION_BIND_IP: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_COOKIE_SECURE: 'false'
+      AUTH_API_KEY_PEPPER: atlas-ci-api-key-pepper-secret-2026
+      API_CLIENT_USAGE_TOUCH_SECONDS: 60
+      API_CLIENT_KEY_GRACE_SECONDS: 3600
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-api
+      MINIO_SECRET_KEY: atlas-ci-api-secret
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/content-draft-revision-v2
+
+      - name: Apply integration patches
+        run: python3 .atlas-phase6/apply.py
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format implementation
+        run: pnpm format
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Verify migrations
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+          pnpm db:migration:revert
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Verify revision pointer and immutability constraints
+        env:
+          PGPASSWORD: atlas-ci-password
+        run: |
+          owner_password="Atlas-ci-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-content-ci@atlas.test \
+              --display-name 'Content CI Owner' \
+              --password-stdin \
+              --json
+
+          owner_id="$(psql -h localhost -U atlas -d atlas_ci -Atc "SELECT id FROM admin_accounts WHERE email = 'owner-content-ci@atlas.test'")"
+          workspace_id='00000000-0000-7000-8000-000000000001'
+          content_id='01990000-0000-7000-8000-000000000601'
+          revision_id='01990000-0000-7000-8000-000000000602'
+
+          psql -h localhost -U atlas -d atlas_ci -v ON_ERROR_STOP=1 <<SQL
+          BEGIN;
+          INSERT INTO contents (
+            id, workspace_id, type, status, version,
+            created_by_admin_account_id, created_at, updated_at
+          ) VALUES (
+            '$content_id', '$workspace_id', 'post', 'draft', 1,
+            '$owner_id', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          );
+          INSERT INTO content_drafts (
+            content_id, workspace_id, title, summary, body_markdown,
+            draft_version, updated_by_admin_account_id, updated_at
+          ) VALUES (
+            '$content_id', '$workspace_id', 'Phase 6 Test', NULL,
+            'This Markdown body is long enough to be considered ready.',
+            1, '$owner_id', CURRENT_TIMESTAMP
+          );
+          INSERT INTO content_revisions (
+            id, content_id, workspace_id, revision_number, kind,
+            title, summary, body_markdown, body_html,
+            source_draft_version, note, created_by_admin_account_id, created_at
+          ) VALUES (
+            '$revision_id', '$content_id', '$workspace_id', 1, 'ready',
+            'Phase 6 Test', NULL,
+            'This Markdown body is long enough to be considered ready.',
+            '<p>This Markdown body is long enough to be considered ready.</p>',
+            1, 'ready constraint test', '$owner_id', CURRENT_TIMESTAMP
+          );
+          UPDATE contents
+          SET status = 'ready', version = 2,
+              current_revision_number = 1,
+              ready_revision_number = 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = '$content_id';
+          COMMIT;
+SQL
+
+          test "$(psql -h localhost -U atlas -d atlas_ci -Atc "SELECT ready_revision_number FROM contents WHERE id = '$content_id'")" = '1'
+          test "$(psql -h localhost -U atlas -d atlas_ci -Atc "SELECT kind FROM content_revisions WHERE id = '$revision_id'")" = 'ready'
+
+          if psql -h localhost -U atlas -d atlas_ci -v ON_ERROR_STOP=1 \
+            -c "UPDATE content_revisions SET title = 'mutated' WHERE id = '$revision_id'"; then
+            echo 'Immutable Content Revision unexpectedly allowed UPDATE.'
+            exit 1
+          fi
+
+      - name: Commit verified implementation
+        run: |
+          git rm -rf .atlas-phase6
+          git rm .github/workflows/verify-content-draft-revision-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: add content draft and immutable revisions'
+          git push origin HEAD:feat/content-draft-revision-v2
