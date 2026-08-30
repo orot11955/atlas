@@ -75,12 +75,18 @@ const adminAuthenticationSchema = z.object({
   AUTH_COOKIE_SECURE: environmentBoolean.default(false),
 });
 
+const apiClientSchema = z.object({
+  API_KEY_PEPPER: z.string().min(32),
+  API_KEY_USAGE_TOUCH_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
+});
+
 export const apiEnvironmentSchema = runtimeSchema.extend({
   PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   ...adminAuthenticationSchema.shape,
+  ...apiClientSchema.shape,
   ...storageSchema.shape,
 });
 

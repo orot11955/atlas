@@ -6,6 +6,7 @@ export const AdminPermission = {
   ADMIN_SESSIONS_READ: 'admin.sessions.read',
   ADMIN_SESSIONS_REVOKE: 'admin.sessions.revoke',
   API_CLIENTS_MANAGE: 'api-clients.manage',
+  API_CLIENTS_READ: 'api-clients.read',
   AUDIT_READ: 'audit.read',
   CONTENT_MANAGE: 'content.manage',
   CONTENT_PUBLISH: 'content.publish',
@@ -36,6 +37,7 @@ export const ADMIN_PERMISSIONS = Object.freeze(
 const READ_PERMISSIONS = Object.freeze([
   AdminPermission.ADMIN_ACCOUNTS_READ,
   AdminPermission.ADMIN_SESSIONS_READ,
+  AdminPermission.API_CLIENTS_READ,
   AdminPermission.AUDIT_READ,
   AdminPermission.CONTENT_READ,
   AdminPermission.DEPLOYMENTS_READ,

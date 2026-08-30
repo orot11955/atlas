@@ -81,6 +81,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       NEXT_PUBLIC_ATLAS_API_URL: /api
+      NEXT_PUBLIC_ATLAS_CSRF_COOKIE_NAME: ${AUTH_CSRF_COOKIE_NAME:-atlas_admin_csrf}
       ATLAS_API_INTERNAL_URL: http://api:4000/api
     expose:
       - '3000'
@@ -127,6 +128,8 @@ services:
       AUTH_SESSION_COOKIE_NAME: ${AUTH_SESSION_COOKIE_NAME:-atlas_admin_session}
       AUTH_CSRF_COOKIE_NAME: ${AUTH_CSRF_COOKIE_NAME:-atlas_admin_csrf}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      API_KEY_PEPPER: ${API_KEY_PEPPER:-atlas-api-key-local-pepper-change-me}
+      API_KEY_USAGE_TOUCH_SECONDS: ${API_KEY_USAGE_TOUCH_SECONDS:-60}
       DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-password}@postgres:5432/${POSTGRES_DB:-atlas}
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: http://minio:9000
