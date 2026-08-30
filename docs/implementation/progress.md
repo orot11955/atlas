@@ -221,8 +221,6 @@ Admin Web Route:
 - [#13 Workspace and Site Foundation](https://github.com/orot11955/atlas/pull/13)
 - [#14 Site-scoped API Clients and Delivery Authentication](https://github.com/orot11955/atlas/pull/14)
 
-## 완료
-
 ### Phase 4. Project & Deployment Read Model
 
 - Workspace-scoped Project와 Site 연결
@@ -236,15 +234,22 @@ Admin Web Route:
 - Project·Deployment Admin 화면
 - 실제 PostgreSQL·Redis·NestJS 통합 E2E
 
+주요 Pull Request:
+
+- [#16 Project and Deployment Read Model](https://github.com/orot11955/atlas/pull/16)
+
 ## 다음
 
-### Phase 5. Content Authoring Core
+### Phase 5. Resource & Member Directory MVP
 
 ```text
-Post와 Page Schema
-→ Content Revision
-→ Draft 저장과 Optimistic Lock
-→ Category와 Tag
-→ Preview Token
-→ Content Admin Editor
+ResourceCollection과 Resource
+→ Markdown 메모·문서와 외부 Link
+→ Tag·Relation과 Project 연결
+→ Visibility·Sensitivity·Archive
+→ PostgreSQL·MinIO Backup과 Restore Test
+→ Member와 SiteMembership
+→ Site별 상태와 관리자 메모
 ```
+
+회원 Password, Session과 Email Verification은 Phase 12에서 구현한다.
