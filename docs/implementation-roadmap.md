@@ -570,16 +570,16 @@ PublicationAttempt
 
 ### 핵심 기능
 
-- [ ] Site Assignment
-- [ ] Site별 slug, route, 제목·요약·SEO Override
-- [ ] Publish Validation
-- [ ] 불변 Publication Snapshot
-- [ ] ACTIVE, SUPERSEDED, WITHDRAWN, FAILED
-- [ ] Publish Idempotency
-- [ ] ETag와 `304 Not Modified`
-- [ ] Cursor Pagination과 Cache-Control
-- [ ] 공개 DTO Version 고정
-- [ ] 내부 Entity와 MinIO 정보 미노출
+- [x] Site Assignment
+- [ ] Site별 slug, route, 제목·요약·SEO Override — slug와 Override 완료, custom route 후속
+- [x] Publish Validation
+- [x] 불변 Publication Snapshot
+- [ ] ACTIVE, SUPERSEDED, WITHDRAWN, FAILED — Publication 수명주기 완료, 실패는 별도 Attempt 후속
+- [x] Publish Idempotency
+- [x] ETag와 `304 Not Modified`
+- [x] Cursor Pagination과 Cache-Control
+- [x] 공개 DTO Version 고정
+- [x] 내부 Entity와 MinIO 정보 미노출
 
 ### Delivery API MVP
 

@@ -15,6 +15,7 @@ import {
   saveContentDraft,
 } from './content-api';
 import type { Content, ContentRevision } from './content-types';
+import { ContentPublicationManager } from './content-publication-manager';
 import styles from './content.module.css';
 
 export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
@@ -414,6 +415,8 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           ))}
         </div>
       </section>
+
+      <ContentPublicationManager content={content} />
 
       <div aria-live="polite">
         {message ? <p className={styles.success}>{message}</p> : null}

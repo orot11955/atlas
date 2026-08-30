@@ -193,3 +193,26 @@ jobs:
 
           ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
             node scripts/ci/admin-auth-e2e.mjs
+
+      - name: Verify Content Publication database invariants
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_sites")" -ge 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications")" -ge 3
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM (SELECT workspace_id, content_site_id FROM content_publications WHERE status = 'active' GROUP BY workspace_id, content_site_id HAVING count(*) > 1) duplicated")" -eq 0
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM (SELECT workspace_id, site_id, slug FROM content_publications WHERE status = 'active' GROUP BY workspace_id, site_id, slug HAVING count(*) > 1) duplicated")" -eq 0
+
+          if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -c "UPDATE content_publications SET body_html = body_html || '<p>mutated</p>' WHERE id = (SELECT id FROM content_publications LIMIT 1)"; then
+            echo 'Immutable Publication Snapshot mutation unexpectedly succeeded.' >&2
+            exit 1
+          fi
+
+          if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -c "DELETE FROM content_publications WHERE id = (SELECT id FROM content_publications LIMIT 1)"; then
+            echo 'Immutable Publication Snapshot deletion unexpectedly succeeded.' >&2
+            exit 1
+          fi

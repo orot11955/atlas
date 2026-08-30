@@ -130,3 +130,90 @@ export async function archiveContent(contentId: string, contentVersion: number):
   );
   return response.data;
 }
+
+export async function loadContentSites(
+  contentId: string,
+): Promise<readonly import('./content-types').ContentSiteAssignment[]> {
+  const response = await client().get<
+    ApiEnvelope<readonly import('./content-types').ContentSiteAssignment[]>
+  >(`/contents/${encodeURIComponent(contentId)}/sites`);
+  return response.data;
+}
+
+export async function createContentSite(
+  contentId: string,
+  input: {
+    siteId: string;
+    slug: string;
+    titleOverride?: string;
+    summaryOverride?: string;
+    seo?: Record<string, unknown>;
+    visibility?: import('./content-types').ContentSiteVisibility;
+  },
+): Promise<import('./content-types').ContentSiteAssignment> {
+  const response = await client().post<
+    ApiEnvelope<import('./content-types').ContentSiteAssignment>
+  >(`/contents/${encodeURIComponent(contentId)}/sites`, input);
+  return response.data;
+}
+
+export async function updateContentSite(
+  contentId: string,
+  contentSiteId: string,
+  input: {
+    version: number;
+    slug: string;
+    titleOverride?: string;
+    summaryOverride?: string;
+    seo?: Record<string, unknown>;
+    visibility: import('./content-types').ContentSiteVisibility;
+  },
+): Promise<import('./content-types').ContentSiteAssignment> {
+  const response = await client().patch<
+    ApiEnvelope<import('./content-types').ContentSiteAssignment>
+  >(`/contents/${encodeURIComponent(contentId)}/sites/${encodeURIComponent(contentSiteId)}`, input);
+  return response.data;
+}
+
+export async function publishContentSite(
+  contentId: string,
+  contentSiteId: string,
+): Promise<import('./content-types').ContentPublication> {
+  const response = await client().post<ApiEnvelope<import('./content-types').ContentPublication>>(
+    `/contents/${encodeURIComponent(contentId)}/sites/${encodeURIComponent(contentSiteId)}/publish`,
+  );
+  return response.data;
+}
+
+export async function withdrawContentSite(
+  contentId: string,
+  contentSiteId: string,
+): Promise<import('./content-types').ContentPublication> {
+  const response = await client().post<ApiEnvelope<import('./content-types').ContentPublication>>(
+    `/contents/${encodeURIComponent(contentId)}/sites/${encodeURIComponent(contentSiteId)}/withdraw`,
+  );
+  return response.data;
+}
+
+export async function loadContentPublications(
+  contentId: string,
+  contentSiteId: string,
+): Promise<readonly import('./content-types').ContentPublication[]> {
+  const response = await client().get<
+    ApiEnvelope<readonly import('./content-types').ContentPublication[]>
+  >(
+    `/contents/${encodeURIComponent(contentId)}/sites/${encodeURIComponent(contentSiteId)}/publications`,
+  );
+  return response.data;
+}
+
+export async function rollbackContentPublication(
+  contentId: string,
+  contentSiteId: string,
+  publicationId: string,
+): Promise<import('./content-types').ContentPublication> {
+  const response = await client().post<ApiEnvelope<import('./content-types').ContentPublication>>(
+    `/contents/${encodeURIComponent(contentId)}/sites/${encodeURIComponent(contentSiteId)}/publications/${encodeURIComponent(publicationId)}/rollback`,
+  );
+  return response.data;
+}

@@ -24,6 +24,7 @@ import {
 
 import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
+import { ContentModule } from '../content/content.module';
 import { RedisClientService, RedisModule } from '../infrastructure/redis/redis.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
@@ -36,6 +37,7 @@ import {
   API_CLIENT_RATE_LIMITER,
   API_CLIENT_REPOSITORY,
 } from './api-client.tokens';
+import { DeliveryContentController } from './delivery-content.controller';
 import { DeliverySiteController } from './delivery-site.controller';
 import { RedisApiClientRateLimiter } from './redis-api-client-rate-limiter';
 
@@ -52,8 +54,9 @@ import { RedisApiClientRateLimiter } from './redis-api-client-rate-limiter';
     PlatformModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
+    ContentModule,
   ],
-  controllers: [AdminApiClientController, DeliverySiteController],
+  controllers: [AdminApiClientController, DeliverySiteController, DeliveryContentController],
   providers: [
     {
       provide: API_CLIENT_REPOSITORY,

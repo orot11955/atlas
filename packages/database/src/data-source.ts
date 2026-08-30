@@ -21,7 +21,9 @@ import {
   AuditLogEntity,
   ContentDraftEntity,
   ContentEntity,
+  ContentPublicationEntity,
   ContentRevisionEntity,
+  ContentSiteEntity,
   DeploymentEntity,
   DeploymentEventEntity,
   EnvironmentEntity,
@@ -107,6 +109,8 @@ export const atlasDataSource = new DataSource({
     ContentEntity,
     ContentDraftEntity,
     ContentRevisionEntity,
+    ContentSiteEntity,
+    ContentPublicationEntity,
   ],
   migrations: [
     path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),
