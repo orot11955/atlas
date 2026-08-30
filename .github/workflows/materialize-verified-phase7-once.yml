@@ -26,6 +26,11 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Inspect payload parts
+        run: |
+          wc -c .phase7-payload/part-*
+          sha256sum .phase7-payload/part-*
+
       - name: Write verified product source
         run: python scripts/ci/materialize-verified-phase7.py
 
