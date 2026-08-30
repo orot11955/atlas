@@ -306,14 +306,15 @@ function normalizeSafeHref(value: string): string | undefined {
 }
 
 function plainTextLength(markdown: string): number {
-  return markdown
+  const withoutBlocks = markdown
     .replace(/```[\s\S]*?```/gu, ' ')
-    .replace(/<[^>]*>/gu, ' ')
-    .replace(/[#>*_`~()-]/gu, ' ')
-    .replaceAll('[', ' ')
-    .replaceAll(']', ' ')
-    .replace(/\s+/gu, ' ')
-    .trim().length;
+    .replace(/<[^>]*>/gu, ' ');
+  const withoutMarkup = ['#', '>', '*', '_', '`', '~', '(', ')', '-', '[', ']'].reduce(
+    (value, marker) => value.replaceAll(marker, ' '),
+    withoutBlocks,
+  );
+
+  return withoutMarkup.replace(/\s+/gu, ' ').trim().length;
 }
 
 function escapeHtml(value: string): string {
