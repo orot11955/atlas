@@ -102,10 +102,58 @@ manager_content = manager_content.replace(
 )
 manager.write_text(manager_content, encoding='utf-8')
 
+service = ROOT / (
+    'packages/server/src/modules/api-client/application/'
+    'api-client-administration.service.ts'
+)
+service_content = service.read_text(encoding='utf-8')
+untyped_current = '      const current = await this.repository.findById('
+typed_current = (
+    '      const current: ApiClientRecord | undefined =\n'
+    '        await this.repository.findById('
+)
+if untyped_current in service_content:
+    count = service_content.count(untyped_current)
+    if count != 4:
+        raise RuntimeError(
+            'api-client-administration.service.ts: expected four current-client lookups, '
+            f'found {count}'
+        )
+    service_content = service_content.replace(untyped_current, typed_current)
+service.write_text(service_content, encoding='utf-8')
+
+replace_once(
+    'apps/api/src/api-clients/api-client.module.ts',
+    "      ) =>\n"
+    "        new ApiClientAuthenticationService(\n"
+    "          repository,\n"
+    "          keyIssuer,\n"
+    "          rateLimiter,\n"
+    "          config.get('API_KEY_USAGE_TOUCH_SECONDS', { infer: true }) * 1_000,\n"
+    "        ),",
+    "      ): ApiClientAuthenticationService<EntityManager> => {\n"
+    "        const usageTouchSeconds: unknown = config.get(\n"
+    "          'API_KEY_USAGE_TOUCH_SECONDS',\n"
+    "          { infer: true },\n"
+    "        );\n\n"
+    "        if (typeof usageTouchSeconds !== 'number') {\n"
+    "          throw new TypeError('API_KEY_USAGE_TOUCH_SECONDS must be a number.');\n"
+    "        }\n\n"
+    "        return new ApiClientAuthenticationService(\n"
+    "          repository,\n"
+    "          keyIssuer,\n"
+    "          rateLimiter,\n"
+    "          usageTouchSeconds * 1_000,\n"
+    "        );\n"
+    "      },",
+)
+
 required = [
     ROOT / 'scripts/ci/api-client-lifecycle-e2e.mjs',
     ROOT / 'scripts/ci/admin-auth-e2e.mjs',
     ROOT / 'apps/admin-web/src/features/api-clients/api-client-manager.tsx',
+    ROOT / 'packages/server/src/modules/api-client/application/api-client-administration.service.ts',
+    ROOT / 'apps/api/src/api-clients/api-client.module.ts',
 ]
 missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
 if missing:
