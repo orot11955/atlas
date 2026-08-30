@@ -1,11 +1,5 @@
 import type { Clock } from '../../../core';
-import {
-  ActorType,
-  DomainError,
-  ErrorCode,
-  requestContext,
-  systemClock,
-} from '../../../core';
+import { ActorType, DomainError, ErrorCode, requestContext, systemClock } from '../../../core';
 import { normalizeSiteKey } from '../../site';
 import {
   ApiClientStatus,
@@ -70,15 +64,11 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
     }
 
     if (input.requiredType && record.type !== input.requiredType) {
-      throw createApiClientForbiddenError(
-        'API Client type cannot access this endpoint.',
-      );
+      throw createApiClientForbiddenError('API Client type cannot access this endpoint.');
     }
 
     if (!record.scopes.includes(input.requiredScope)) {
-      throw createApiClientForbiddenError(
-        'API Client scope cannot access this endpoint.',
-      );
+      throw createApiClientForbiddenError('API Client scope cannot access this endpoint.');
     }
 
     const site = await this.repository.findSiteByKey(
@@ -86,14 +76,8 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
       normalizeSiteKey(input.siteKey),
     );
 
-    if (
-      !site ||
-      site.status !== 'active' ||
-      !record.siteIds.includes(site.id)
-    ) {
-      throw createApiClientForbiddenError(
-        'API Client cannot access this Site.',
-      );
+    if (!site || site.status !== 'active' || !record.siteIds.includes(site.id)) {
+      throw createApiClientForbiddenError('API Client cannot access this Site.');
     }
 
     this.assertOrigin(record.allowedOrigins, record.requireOrigin, input.origin);
@@ -147,9 +131,7 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
   ): void {
     if (!origin) {
       if (requireOrigin) {
-        throw createApiClientForbiddenError(
-          'API Client requires an allowed Origin.',
-        );
+        throw createApiClientForbiddenError('API Client requires an allowed Origin.');
       }
 
       return;

@@ -27,8 +27,7 @@ export interface CreateApiClientInput {
   expiresAt?: string;
 }
 
-export interface UpdateApiClientInput
-  extends Omit<CreateApiClientInput, 'type' | 'expiresAt'> {
+export interface UpdateApiClientInput extends Omit<CreateApiClientInput, 'type' | 'expiresAt'> {
   version: number;
 }
 
@@ -55,9 +54,10 @@ export async function loadApiClient(apiClientId: string): Promise<ApiClient> {
 export async function createApiClient(
   input: CreateApiClientInput,
 ): Promise<ApiClientCredentialResult> {
-  const response = await client().post<
-    ApiEnvelope<ApiClientCredentialResult>
-  >('/api-clients', compactInput(input));
+  const response = await client().post<ApiEnvelope<ApiClientCredentialResult>>(
+    '/api-clients',
+    compactInput(input),
+  );
   return response.data;
 }
 
@@ -76,16 +76,14 @@ export async function rotateApiClientKey(
   apiClientId: string,
   input: { gracePeriodSeconds: number; expiresAt?: string },
 ): Promise<ApiClientCredentialResult> {
-  const response = await client().post<
-    ApiEnvelope<ApiClientCredentialResult>
-  >(`/api-clients/${encodeURIComponent(apiClientId)}/keys/rotate`, input);
+  const response = await client().post<ApiEnvelope<ApiClientCredentialResult>>(
+    `/api-clients/${encodeURIComponent(apiClientId)}/keys/rotate`,
+    input,
+  );
   return response.data;
 }
 
-export async function revokeApiClientKey(
-  apiClientId: string,
-  keyId: string,
-): Promise<ApiClient> {
+export async function revokeApiClientKey(apiClientId: string, keyId: string): Promise<ApiClient> {
   const response = await client().post<ApiEnvelope<ApiClient>>(
     `/api-clients/${encodeURIComponent(apiClientId)}/keys/${encodeURIComponent(keyId)}/revoke`,
   );
@@ -104,9 +102,7 @@ export async function changeApiClientStatus(
   return response.data;
 }
 
-export function buildApiClientListPath(
-  input: ApiClientListInput = {},
-): string {
+export function buildApiClientListPath(input: ApiClientListInput = {}): string {
   const query = new URLSearchParams();
 
   if (input.siteId) {
@@ -127,12 +123,14 @@ export function buildApiClientListPath(
 }
 
 export function parseAllowedOrigins(value: string): readonly string[] {
-  return [...new Set(
-    value
-      .split(/\r?\n/u)
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  )];
+  return [
+    ...new Set(
+      value
+        .split(/\r?\n/u)
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function toOptionalIsoDate(value: string): string | undefined {
@@ -144,9 +142,7 @@ export function toOptionalIsoDate(value: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function compactInput<T extends CreateApiClientInput | UpdateApiClientInput>(
-  input: T,
-): T {
+function compactInput<T extends CreateApiClientInput | UpdateApiClientInput>(input: T): T {
   return {
     ...input,
     description: input.description?.trim() || undefined,

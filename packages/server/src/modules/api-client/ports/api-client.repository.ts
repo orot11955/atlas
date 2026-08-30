@@ -59,10 +59,7 @@ export interface ApiClientAuthenticationRecord {
 }
 
 export interface ApiClientRepositoryPort<TTransaction = unknown> {
-  list(
-    workspaceId: string,
-    query: ApiClientListQuery,
-  ): Promise<readonly ApiClientRecord[]>;
+  list(workspaceId: string, query: ApiClientListQuery): Promise<readonly ApiClientRecord[]>;
   findById(
     workspaceId: string,
     apiClientId: string,
@@ -73,10 +70,7 @@ export interface ApiClientRepositoryPort<TTransaction = unknown> {
     siteIds: readonly string[],
     transaction?: TTransaction,
   ): Promise<readonly string[]>;
-  insert(
-    aggregate: InsertApiClientAggregate,
-    transaction: TTransaction,
-  ): Promise<void>;
+  insert(aggregate: InsertApiClientAggregate, transaction: TTransaction): Promise<void>;
   updateConfiguration(
     workspaceId: string,
     apiClientId: string,
@@ -110,21 +104,8 @@ export interface ApiClientRepositoryPort<TTransaction = unknown> {
     transaction: TTransaction,
   ): Promise<void>;
   insertKey(key: StoredApiClientKey, transaction: TTransaction): Promise<void>;
-  revokeKey(
-    keyId: string,
-    revokedAt: Date,
-    transaction: TTransaction,
-  ): Promise<void>;
-  findAuthenticationRecord(
-    keyId: string,
-  ): Promise<ApiClientAuthenticationRecord | undefined>;
-  findSiteByKey(
-    workspaceId: string,
-    siteKey: string,
-  ): Promise<ApiClientSiteContext | undefined>;
-  touchKeyUsage(
-    keyId: string,
-    usedAt: Date,
-    minimumPreviousUsage: Date,
-  ): Promise<void>;
+  revokeKey(keyId: string, revokedAt: Date, transaction: TTransaction): Promise<void>;
+  findAuthenticationRecord(keyId: string): Promise<ApiClientAuthenticationRecord | undefined>;
+  findSiteByKey(workspaceId: string, siteKey: string): Promise<ApiClientSiteContext | undefined>;
+  touchKeyUsage(keyId: string, usedAt: Date, minimumPreviousUsage: Date): Promise<void>;
 }

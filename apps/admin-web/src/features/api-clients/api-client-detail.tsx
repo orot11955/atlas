@@ -28,9 +28,7 @@ import {
 } from './api-client-types';
 import styles from './api-clients.module.css';
 
-export function ApiClientDetail({
-  apiClientId,
-}: Readonly<{ apiClientId: string }>) {
+export function ApiClientDetail({ apiClientId }: Readonly<{ apiClientId: string }>) {
   const [client, setClient] = useState<ApiClient>();
   const [sites, setSites] = useState<readonly Site[]>([]);
   const [name, setName] = useState('');
@@ -179,7 +177,13 @@ export function ApiClientDetail({
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>이름</span>
-              <input disabled={archived} required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+              <input
+                disabled={archived}
+                required
+                maxLength={120}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <label className={styles.field}>
               <span>유형</span>
@@ -187,25 +191,60 @@ export function ApiClientDetail({
             </label>
             <label className={styles.field}>
               <span>분당 요청 제한</span>
-              <input disabled={archived} min={1} max={100000} type="number" value={rateLimit} onChange={(event) => setRateLimit(Number(event.target.value))} />
+              <input
+                disabled={archived}
+                min={1}
+                max={100000}
+                type="number"
+                value={rateLimit}
+                onChange={(event) => setRateLimit(Number(event.target.value))}
+              />
             </label>
             <label className={`${styles.field} ${styles.fullWidth}`}>
               <span>설명</span>
-              <textarea disabled={archived} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+              <textarea
+                disabled={archived}
+                maxLength={500}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </label>
           </div>
-          <SiteAccessSelector disabled={archived} sites={sites} value={siteIds} onChange={setSiteIds} />
-          <ScopeSelector disabled={archived} type={client.type} value={scopes} onChange={setScopes} />
+          <SiteAccessSelector
+            disabled={archived}
+            sites={sites}
+            value={siteIds}
+            onChange={setSiteIds}
+          />
+          <ScopeSelector
+            disabled={archived}
+            type={client.type}
+            value={scopes}
+            onChange={setScopes}
+          />
           <label className={styles.field}>
             <span>Allowed Origin · 한 줄에 하나</span>
-            <textarea disabled={archived} value={origins} onChange={(event) => setOrigins(event.target.value)} />
+            <textarea
+              disabled={archived}
+              value={origins}
+              onChange={(event) => setOrigins(event.target.value)}
+            />
           </label>
           <label className={styles.toggleField}>
-            <input disabled={archived} checked={requireOrigin} type="checkbox" onChange={(event) => setRequireOrigin(event.target.checked)} />
+            <input
+              disabled={archived}
+              checked={requireOrigin}
+              type="checkbox"
+              onChange={(event) => setRequireOrigin(event.target.checked)}
+            />
             <span>Origin Header를 필수로 요구</span>
           </label>
           {!archived ? (
-            <button className={styles.primaryButton} disabled={working !== undefined || siteIds.length === 0 || scopes.length === 0} type="submit">
+            <button
+              className={styles.primaryButton}
+              disabled={working !== undefined || siteIds.length === 0 || scopes.length === 0}
+              type="submit"
+            >
               {working === 'save' ? '저장 중…' : '설정 저장'}
             </button>
           ) : null}
@@ -223,14 +262,29 @@ export function ApiClientDetail({
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>기존 Key 유예 시간 · 초</span>
-              <input min={0} max={604800} type="number" value={graceSeconds} onChange={(event) => setGraceSeconds(Number(event.target.value))} />
+              <input
+                min={0}
+                max={604800}
+                type="number"
+                value={graceSeconds}
+                onChange={(event) => setGraceSeconds(Number(event.target.value))}
+              />
             </label>
             <label className={styles.field}>
               <span>새 Key 만료 시각</span>
-              <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(event) => setExpiresAt(event.target.value)}
+              />
             </label>
           </div>
-          <button className={styles.primaryButton} disabled={working !== undefined} type="button" onClick={rotate}>
+          <button
+            className={styles.primaryButton}
+            disabled={working !== undefined}
+            type="button"
+            onClick={rotate}
+          >
             {working === 'rotate' ? '회전 중…' : '새 Key 발급'}
           </button>
         </section>
@@ -254,13 +308,21 @@ export function ApiClientDetail({
                   </span>
                 </div>
                 <p className={styles.muted}>
-                  생성 {formatDate(key.createdAt)} · 최근 사용 {key.lastUsedAt ? formatDate(key.lastUsedAt) : '없음'}
+                  생성 {formatDate(key.createdAt)} · 최근 사용{' '}
+                  {key.lastUsedAt ? formatDate(key.lastUsedAt) : '없음'}
                 </p>
                 {key.expiresAt ? <small>만료 {formatDate(key.expiresAt)}</small> : null}
-                {key.graceExpiresAt ? <small>유예 종료 {formatDate(key.graceExpiresAt)}</small> : null}
+                {key.graceExpiresAt ? (
+                  <small>유예 종료 {formatDate(key.graceExpiresAt)}</small>
+                ) : null}
               </div>
               {(key.status === 'active' || key.status === 'grace') && !archived ? (
-                <button className={styles.dangerButton} disabled={working !== undefined} type="button" onClick={() => revoke(key.id)}>
+                <button
+                  className={styles.dangerButton}
+                  disabled={working !== undefined}
+                  type="button"
+                  onClick={() => revoke(key.id)}
+                >
                   {working === key.id ? '폐기 중…' : '폐기'}
                 </button>
               ) : null}

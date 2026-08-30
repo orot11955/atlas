@@ -28,9 +28,7 @@ import {
 
 type TestTransaction = Readonly<{ id: 'api-client-test' }>;
 
-class MemoryApiClientRepository
-  implements ApiClientRepositoryPort<TestTransaction>
-{
+class MemoryApiClientRepository implements ApiClientRepositoryPort<TestTransaction> {
   public authenticationRecord?: ApiClientAuthenticationRecord;
   public site?: ApiClientSiteContext;
   public touchedKeyId?: string;
@@ -94,9 +92,7 @@ class MemoryApiClientRepository
   public async findAuthenticationRecord(
     keyId: string,
   ): Promise<ApiClientAuthenticationRecord | undefined> {
-    return this.authenticationRecord?.key.id === keyId
-      ? this.authenticationRecord
-      : undefined;
+    return this.authenticationRecord?.key.id === keyId ? this.authenticationRecord : undefined;
   }
 
   public async findSiteByKey(
@@ -135,19 +131,13 @@ test('API Client Key issuer stores only an HMAC digest and validates in constant
   const issued = issuer.issue(clock.now());
   const parsed = issuer.parse(issued.apiKey);
 
-  assert.match(
-    issued.apiKey,
-    /^atlas_live_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/u,
-  );
+  assert.match(issued.apiKey, /^atlas_live_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/u);
   assert.equal(parsed?.id, issued.id);
   assert.equal(parsed?.keyPrefix, issued.keyPrefix);
   assert.equal(issued.secretDigest.length, 64);
   assert.equal(issued.secretDigest.includes(parsed?.secret ?? ''), false);
   assert.equal(issuer.matches(issued.apiKey, issued.secretDigest), true);
-  assert.equal(
-    issuer.matches(`${issued.apiKey.slice(0, -1)}A`, issued.secretDigest),
-    false,
-  );
+  assert.equal(issuer.matches(`${issued.apiKey.slice(0, -1)}A`, issued.secretDigest), false);
 });
 
 test('Delivery authentication enforces type, scope, Site access, Origin and rate limit', async () => {

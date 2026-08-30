@@ -22,9 +22,7 @@ import { ApiClientScopeEntity } from './api-client-scope.entity';
 import { ApiClientSiteAccessEntity } from './api-client-site-access.entity';
 import { ApiClientEntity } from './api-client.entity';
 
-export class TypeOrmApiClientRepository
-  implements ApiClientRepositoryPort<EntityManager>
-{
+export class TypeOrmApiClientRepository implements ApiClientRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async list(
@@ -96,14 +94,12 @@ export class TypeOrmApiClientRepository
       return [];
     }
 
-    const entities = await (transaction ?? this.dataSource.manager)
-      .getRepository(SiteEntity)
-      .find({
-        where: {
-          workspaceId,
-          id: In([...siteIds]),
-        },
-      });
+    const entities = await (transaction ?? this.dataSource.manager).getRepository(SiteEntity).find({
+      where: {
+        workspaceId,
+        id: In([...siteIds]),
+      },
+    });
 
     return entities.map((entity) => entity.id).sort();
   }
@@ -179,13 +175,9 @@ export class TypeOrmApiClientRepository
       return false;
     }
 
-    await transaction
-      .getRepository(ApiClientSiteAccessEntity)
-      .delete({ apiClientId });
+    await transaction.getRepository(ApiClientSiteAccessEntity).delete({ apiClientId });
     await transaction.getRepository(ApiClientScopeEntity).delete({ apiClientId });
-    await transaction
-      .getRepository(ApiClientAllowedOriginEntity)
-      .delete({ apiClientId });
+    await transaction.getRepository(ApiClientAllowedOriginEntity).delete({ apiClientId });
     await transaction.getRepository(ApiClientSiteAccessEntity).insert(
       input.siteIds.map((siteId) => ({
         apiClientId,
@@ -296,10 +288,7 @@ export class TypeOrmApiClientRepository
     );
   }
 
-  public async insertKey(
-    key: StoredApiClientKey,
-    transaction: EntityManager,
-  ): Promise<void> {
+  public async insertKey(key: StoredApiClientKey, transaction: EntityManager): Promise<void> {
     await transaction.getRepository(ApiClientKeyEntity).insert({
       id: key.id,
       apiClientId: key.apiClientId,
@@ -348,10 +337,7 @@ export class TypeOrmApiClientRepository
       return undefined;
     }
 
-    const [client] = await this.hydrateClients(
-      [clientEntity],
-      this.dataSource.manager,
-    );
+    const [client] = await this.hydrateClients([clientEntity], this.dataSource.manager);
 
     return client ? toAuthenticationRecord(client, keyEntity) : undefined;
   }
@@ -368,11 +354,9 @@ export class TypeOrmApiClientRepository
       return undefined;
     }
 
-    const domain = await this.dataSource
-      .getRepository(SiteDomainEntity)
-      .findOne({
-        where: { workspaceId, siteId: site.id, kind: 'canonical' },
-      });
+    const domain = await this.dataSource.getRepository(SiteDomainEntity).findOne({
+      where: { workspaceId, siteId: site.id, kind: 'canonical' },
+    });
 
     return {
       id: site.id,
@@ -451,9 +435,7 @@ export class TypeOrmApiClientRepository
         .filter((item) => item.apiClientId === entity.id)
         .map((item) => item.origin)
         .sort(),
-      keys: keys
-        .filter((item) => item.apiClientId === entity.id)
-        .map(toPublicKey),
+      keys: keys.filter((item) => item.apiClientId === entity.id).map(toPublicKey),
       disabledAt: entity.disabledAt ? new Date(entity.disabledAt) : undefined,
       archivedAt: entity.archivedAt ? new Date(entity.archivedAt) : undefined,
       createdAt: new Date(entity.createdAt),
@@ -470,9 +452,7 @@ function toStoredKey(entity: ApiClientKeyEntity): StoredApiClientKey {
     secretDigest: entity.secretDigest,
     createdAt: new Date(entity.createdAt),
     expiresAt: entity.expiresAt ? new Date(entity.expiresAt) : undefined,
-    graceExpiresAt: entity.graceExpiresAt
-      ? new Date(entity.graceExpiresAt)
-      : undefined,
+    graceExpiresAt: entity.graceExpiresAt ? new Date(entity.graceExpiresAt) : undefined,
     replacedByKeyId: entity.replacedByKeyId ?? undefined,
     revokedAt: entity.revokedAt ? new Date(entity.revokedAt) : undefined,
     lastUsedAt: entity.lastUsedAt ? new Date(entity.lastUsedAt) : undefined,

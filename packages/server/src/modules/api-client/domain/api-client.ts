@@ -17,8 +17,7 @@ export const ApiClientStatus = {
   DISABLED: 'disabled',
 } as const;
 
-export type ApiClientStatus =
-  (typeof ApiClientStatus)[keyof typeof ApiClientStatus];
+export type ApiClientStatus = (typeof ApiClientStatus)[keyof typeof ApiClientStatus];
 
 export const API_CLIENT_STATUSES = Object.freeze(
   Object.values(ApiClientStatus),
@@ -34,16 +33,13 @@ export const ApiClientScope = {
   SITE_READ: 'site:read',
 } as const;
 
-export type ApiClientScope =
-  (typeof ApiClientScope)[keyof typeof ApiClientScope];
+export type ApiClientScope = (typeof ApiClientScope)[keyof typeof ApiClientScope];
 
 export const API_CLIENT_SCOPES = Object.freeze(
   Object.values(ApiClientScope),
 ) as readonly ApiClientScope[];
 
-const SCOPES_BY_TYPE: Readonly<
-  Record<ApiClientType, readonly ApiClientScope[]>
-> = Object.freeze({
+const SCOPES_BY_TYPE: Readonly<Record<ApiClientType, readonly ApiClientScope[]>> = Object.freeze({
   [ApiClientType.DELIVERY]: Object.freeze([
     ApiClientScope.SITE_READ,
     ApiClientScope.CONTENT_READ,
@@ -64,8 +60,7 @@ export const ApiClientKeyStatus = {
   REVOKED: 'revoked',
 } as const;
 
-export type ApiClientKeyStatus =
-  (typeof ApiClientKeyStatus)[keyof typeof ApiClientKeyStatus];
+export type ApiClientKeyStatus = (typeof ApiClientKeyStatus)[keyof typeof ApiClientKeyStatus];
 
 export interface ApiClientKeyRecord {
   id: string;
@@ -120,9 +115,7 @@ export interface ApiClientPrincipal {
   site: Readonly<ApiClientSiteContext>;
 }
 
-export function getApiClientScopesForType(
-  type: ApiClientType,
-): readonly ApiClientScope[] {
+export function getApiClientScopesForType(type: ApiClientType): readonly ApiClientScope[] {
   return SCOPES_BY_TYPE[type];
 }
 
@@ -138,18 +131,13 @@ export function normalizeApiClientName(value: string): string {
   const normalized = value.trim().replace(/\s+/gu, ' ');
 
   if (normalized.length < 1 || normalized.length > 120) {
-    throw validationError(
-      'name',
-      'API Client name must contain between 1 and 120 characters.',
-    );
+    throw validationError('name', 'API Client name must contain between 1 and 120 characters.');
   }
 
   return normalized;
 }
 
-export function normalizeApiClientDescription(
-  value?: string,
-): string | undefined {
+export function normalizeApiClientDescription(value?: string): string | undefined {
   const normalized = value?.trim().replace(/\s+/gu, ' ');
 
   if (!normalized) {
@@ -157,10 +145,7 @@ export function normalizeApiClientDescription(
   }
 
   if (normalized.length > 500) {
-    throw validationError(
-      'description',
-      'API Client description cannot exceed 500 characters.',
-    );
+    throw validationError('description', 'API Client description cannot exceed 500 characters.');
   }
 
   return normalized;
@@ -192,31 +177,20 @@ export function normalizeApiClientScopes(
     unique.length !== values.length ||
     unique.some((value) => !allowed.includes(value as ApiClientScope))
   ) {
-    throw validationError(
-      'scopes',
-      `API Client scopes are invalid for the ${type} client type.`,
-    );
+    throw validationError('scopes', `API Client scopes are invalid for the ${type} client type.`);
   }
 
   return Object.freeze([...unique].sort()) as readonly ApiClientScope[];
 }
 
-export function normalizeApiClientSiteIds(
-  values: readonly string[],
-): readonly string[] {
+export function normalizeApiClientSiteIds(values: readonly string[]): readonly string[] {
   if (values.length < 1 || values.length > 100) {
-    throw validationError(
-      'siteIds',
-      'API Client must have access to between 1 and 100 Sites.',
-    );
+    throw validationError('siteIds', 'API Client must have access to between 1 and 100 Sites.');
   }
 
   const unique = [...new Set(values)];
 
-  if (
-    unique.length !== values.length ||
-    unique.some((value) => !isUuidV7(value))
-  ) {
+  if (unique.length !== values.length || unique.some((value) => !isUuidV7(value))) {
     throw validationError('siteIds', 'API Client Site identifiers are invalid.');
   }
 
@@ -238,10 +212,7 @@ export function normalizeApiClientAllowedOrigins(
   const unique = [...new Set(normalized)].sort();
 
   if (unique.length !== normalized.length) {
-    throw validationError(
-      'allowedOrigins',
-      'API Client allowed Origins must be unique.',
-    );
+    throw validationError('allowedOrigins', 'API Client allowed Origins must be unique.');
   }
 
   if (requireOrigin && unique.length === 0) {
@@ -318,10 +289,7 @@ export function normalizeApiClientGracePeriodSeconds(value: number): number {
   return value;
 }
 
-export function resolveApiClientKeyStatus(
-  key: ApiClientKeyRecord,
-  now: Date,
-): ApiClientKeyStatus {
+export function resolveApiClientKeyStatus(key: ApiClientKeyRecord, now: Date): ApiClientKeyStatus {
   if (key.revokedAt) {
     return ApiClientKeyStatus.REVOKED;
   }
@@ -339,15 +307,9 @@ export function resolveApiClientKeyStatus(
   return ApiClientKeyStatus.ACTIVE;
 }
 
-export function isApiClientKeyUsable(
-  key: ApiClientKeyRecord,
-  now: Date,
-): boolean {
+export function isApiClientKeyUsable(key: ApiClientKeyRecord, now: Date): boolean {
   const status = resolveApiClientKeyStatus(key, now);
-  return (
-    status === ApiClientKeyStatus.ACTIVE ||
-    status === ApiClientKeyStatus.GRACE
-  );
+  return status === ApiClientKeyStatus.ACTIVE || status === ApiClientKeyStatus.GRACE;
 }
 
 export function assertApiClientMutable(status: ApiClientStatus): void {
@@ -367,18 +329,11 @@ export function assertApiClientStatusTransition(
     return;
   }
 
-  const allowed: Readonly<Record<ApiClientStatus, readonly ApiClientStatus[]>> =
-    {
-      [ApiClientStatus.ACTIVE]: [
-        ApiClientStatus.DISABLED,
-        ApiClientStatus.ARCHIVED,
-      ],
-      [ApiClientStatus.DISABLED]: [
-        ApiClientStatus.ACTIVE,
-        ApiClientStatus.ARCHIVED,
-      ],
-      [ApiClientStatus.ARCHIVED]: [],
-    };
+  const allowed: Readonly<Record<ApiClientStatus, readonly ApiClientStatus[]>> = {
+    [ApiClientStatus.ACTIVE]: [ApiClientStatus.DISABLED, ApiClientStatus.ARCHIVED],
+    [ApiClientStatus.DISABLED]: [ApiClientStatus.ACTIVE, ApiClientStatus.ARCHIVED],
+    [ApiClientStatus.ARCHIVED]: [],
+  };
 
   if (!allowed[current].includes(target)) {
     throw new DomainError({
@@ -404,9 +359,7 @@ export function createApiClientForbiddenError(message: string): DomainError {
 }
 
 function isUuidV7(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
-    value,
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value);
 }
 
 function validationError(field: string, message: string): DomainError {

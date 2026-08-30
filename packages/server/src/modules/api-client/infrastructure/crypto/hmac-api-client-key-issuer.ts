@@ -54,16 +54,10 @@ export class HmacApiClientKeyIssuer implements ApiClientKeyIssuerPort {
     const actual = Buffer.from(this.digest(parsed.secret), 'hex');
     const expected = Buffer.from(expectedDigest, 'hex');
 
-    return (
-      actual.length === 32 &&
-      expected.length === 32 &&
-      timingSafeEqual(actual, expected)
-    );
+    return actual.length === 32 && expected.length === 32 && timingSafeEqual(actual, expected);
   }
 
   private digest(secret: string): string {
-    return createHmac('sha256', this.pepper)
-      .update(secret, 'utf8')
-      .digest('hex');
+    return createHmac('sha256', this.pepper).update(secret, 'utf8').digest('hex');
   }
 }

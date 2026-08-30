@@ -77,12 +77,7 @@ const adminAuthenticationSchema = z.object({
 
 const apiClientSchema = z.object({
   API_KEY_PEPPER: z.string().min(32),
-  API_KEY_USAGE_TOUCH_SECONDS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(3_600)
-    .default(60),
+  API_KEY_USAGE_TOUCH_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
 });
 
 export const apiEnvironmentSchema = runtimeSchema.extend({
@@ -143,8 +138,7 @@ function isBase64Encoded32ByteKey(value: string): boolean {
 
     return (
       decoded.length === 32 &&
-      decoded.toString('base64').replace(/=+$/u, '') ===
-        normalized.replace(/=+$/u, '')
+      decoded.toString('base64').replace(/=+$/u, '') === normalized.replace(/=+$/u, '')
     );
   } catch {
     return false;

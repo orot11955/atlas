@@ -4,10 +4,7 @@ import {
   type ApiClientRecord,
 } from '@atlas/server';
 
-export function toApiClientData(
-  client: Readonly<ApiClientRecord>,
-  now: Date,
-) {
+export function toApiClientData(client: Readonly<ApiClientRecord>, now: Date) {
   return {
     id: client.id,
     workspaceId: client.workspaceId,
@@ -27,43 +24,28 @@ export function toApiClientData(
       status: resolveApiClientKeyStatus(key, now),
       createdAt: key.createdAt.toISOString(),
       ...(key.expiresAt ? { expiresAt: key.expiresAt.toISOString() } : {}),
-      ...(key.graceExpiresAt
-        ? { graceExpiresAt: key.graceExpiresAt.toISOString() }
-        : {}),
-      ...(key.replacedByKeyId
-        ? { replacedByKeyId: key.replacedByKeyId }
-        : {}),
+      ...(key.graceExpiresAt ? { graceExpiresAt: key.graceExpiresAt.toISOString() } : {}),
+      ...(key.replacedByKeyId ? { replacedByKeyId: key.replacedByKeyId } : {}),
       ...(key.revokedAt ? { revokedAt: key.revokedAt.toISOString() } : {}),
-      ...(key.lastUsedAt
-        ? { lastUsedAt: key.lastUsedAt.toISOString() }
-        : {}),
+      ...(key.lastUsedAt ? { lastUsedAt: key.lastUsedAt.toISOString() } : {}),
     })),
-    ...(client.disabledAt
-      ? { disabledAt: client.disabledAt.toISOString() }
-      : {}),
-    ...(client.archivedAt
-      ? { archivedAt: client.archivedAt.toISOString() }
-      : {}),
+    ...(client.disabledAt ? { disabledAt: client.disabledAt.toISOString() } : {}),
+    ...(client.archivedAt ? { archivedAt: client.archivedAt.toISOString() } : {}),
     createdAt: client.createdAt.toISOString(),
     updatedAt: client.updatedAt.toISOString(),
   };
 }
 
-export function toApiClientCredentialData(
-  credential: Readonly<ApiClientCredential>,
-) {
+export function toApiClientCredentialData(credential: Readonly<ApiClientCredential>) {
   return {
     keyId: credential.keyId,
     keyPrefix: credential.keyPrefix,
     apiKey: credential.apiKey,
     createdAt: credential.createdAt.toISOString(),
-    ...(credential.expiresAt
-      ? { expiresAt: credential.expiresAt.toISOString() }
-      : {}),
+    ...(credential.expiresAt ? { expiresAt: credential.expiresAt.toISOString() } : {}),
     ...(credential.previousKeyGraceExpiresAt
       ? {
-          previousKeyGraceExpiresAt:
-            credential.previousKeyGraceExpiresAt.toISOString(),
+          previousKeyGraceExpiresAt: credential.previousKeyGraceExpiresAt.toISOString(),
         }
       : {}),
   };

@@ -14,11 +14,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import {
   AdminPermission,
@@ -38,10 +34,7 @@ import {
   requireAdminWorkspace,
   type AdminWorkspaceHttpRequest,
 } from '../admin-sites/admin-workspace.request';
-import {
-  toApiClientCredentialData,
-  toApiClientData,
-} from './api-client.presenter';
+import { toApiClientCredentialData, toApiClientData } from './api-client.presenter';
 import { API_CLIENT_ADMINISTRATION_SERVICE } from './api-client.tokens';
 import { ApiClientListQueryDto } from './dto/api-client-list-query.dto';
 import { ApiClientStatusTransitionDto } from './dto/api-client-status-transition.dto';
@@ -74,20 +67,12 @@ export class AdminApiClientController {
   }
 
   @Post()
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.CREATED)
   @Header('Cache-Control', 'no-store')
   @ApiCreatedResponse({ description: 'Creates an API Client and returns its API Key once.' })
-  public async create(
-    @Req() request: AdminWorkspaceHttpRequest,
-    @Body() body: CreateApiClientDto,
-  ) {
+  public async create(@Req() request: AdminWorkspaceHttpRequest, @Body() body: CreateApiClientDto) {
     const workspace = requireAdminWorkspace(request);
     const result = await this.service.createClient(workspace.id, {
       ...body,
@@ -117,12 +102,7 @@ export class AdminApiClientController {
   }
 
   @Patch(':apiClientId')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @Header('Cache-Control', 'no-store')
   public async update(
@@ -132,21 +112,12 @@ export class AdminApiClientController {
     @Body() body: UpdateApiClientDto,
   ) {
     const workspace = requireAdminWorkspace(request);
-    const client = await this.service.updateClient(
-      workspace.id,
-      apiClientId,
-      body,
-    );
+    const client = await this.service.updateClient(workspace.id, apiClientId, body);
     return { data: toApiClientData(client, systemClock.now()) };
   }
 
   @Post(':apiClientId/keys/rotate')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
@@ -171,12 +142,7 @@ export class AdminApiClientController {
   }
 
   @Post(':apiClientId/keys/:keyId/revoke')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
@@ -187,21 +153,12 @@ export class AdminApiClientController {
     @Param('keyId', new ParseUUIDPipe({ version: '7' })) keyId: string,
   ) {
     const workspace = requireAdminWorkspace(request);
-    const client = await this.service.revokeKey(
-      workspace.id,
-      apiClientId,
-      keyId,
-    );
+    const client = await this.service.revokeKey(workspace.id, apiClientId, keyId);
     return { data: toApiClientData(client, systemClock.now()) };
   }
 
   @Post(':apiClientId/enable')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   public enable(
@@ -210,21 +167,11 @@ export class AdminApiClientController {
     apiClientId: string,
     @Body() body: ApiClientStatusTransitionDto,
   ) {
-    return this.changeStatus(
-      request,
-      apiClientId,
-      ApiClientStatus.ACTIVE,
-      body.version,
-    );
+    return this.changeStatus(request, apiClientId, ApiClientStatus.ACTIVE, body.version);
   }
 
   @Post(':apiClientId/disable')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   public disable(
@@ -233,21 +180,11 @@ export class AdminApiClientController {
     apiClientId: string,
     @Body() body: ApiClientStatusTransitionDto,
   ) {
-    return this.changeStatus(
-      request,
-      apiClientId,
-      ApiClientStatus.DISABLED,
-      body.version,
-    );
+    return this.changeStatus(request, apiClientId, ApiClientStatus.DISABLED, body.version);
   }
 
   @Post(':apiClientId/archive')
-  @UseGuards(
-    AdminSessionGuard,
-    AdminWorkspaceGuard,
-    AdminCsrfGuard,
-    AdminPermissionGuard,
-  )
+  @UseGuards(AdminSessionGuard, AdminWorkspaceGuard, AdminCsrfGuard, AdminPermissionGuard)
   @RequireAdminPermission(AdminPermission.API_CLIENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   public archive(
@@ -256,12 +193,7 @@ export class AdminApiClientController {
     apiClientId: string,
     @Body() body: ApiClientStatusTransitionDto,
   ) {
-    return this.changeStatus(
-      request,
-      apiClientId,
-      ApiClientStatus.ARCHIVED,
-      body.version,
-    );
+    return this.changeStatus(request, apiClientId, ApiClientStatus.ARCHIVED, body.version);
   }
 
   private async changeStatus(
@@ -271,12 +203,7 @@ export class AdminApiClientController {
     version: number,
   ) {
     const workspace = requireAdminWorkspace(request);
-    const client = await this.service.changeStatus(
-      workspace.id,
-      apiClientId,
-      status,
-      version,
-    );
+    const client = await this.service.changeStatus(workspace.id, apiClientId, status, version);
     return { data: toApiClientData(client, systemClock.now()) };
   }
 }

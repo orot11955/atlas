@@ -16,10 +16,7 @@ import {
   Min,
 } from 'class-validator';
 
-import {
-  API_CLIENT_SCOPES,
-  type ApiClientScope,
-} from '@atlas/server';
+import { API_CLIENT_SCOPES, type ApiClientScope } from '@atlas/server';
 
 export class UpdateApiClientDto {
   @ApiProperty({ minimum: 1 })

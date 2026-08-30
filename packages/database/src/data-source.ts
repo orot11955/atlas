@@ -61,10 +61,7 @@ export const atlasDataSource = new DataSource({
     ApiClientKeyEntity,
   ],
   migrations: [
-    path.join(
-      packageRoot,
-      compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts',
-    ),
+    path.join(packageRoot, compiledRuntime ? 'dist/migrations/*.js' : 'src/migrations/*.ts'),
   ],
 });
 

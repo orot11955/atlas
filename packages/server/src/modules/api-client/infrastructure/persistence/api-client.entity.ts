@@ -1,17 +1,10 @@
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-import type {
-  ApiClientStatus,
-  ApiClientType,
-} from '../../domain/api-client';
+import type { ApiClientStatus, ApiClientType } from '../../domain/api-client';
 
 @Entity({ name: 'api_clients' })
 @Index('uq_api_clients_id_workspace', ['id', 'workspaceId'], { unique: true })
-@Index('idx_api_clients_workspace_status_created', [
-  'workspaceId',
-  'status',
-  'createdAt',
-])
+@Index('idx_api_clients_workspace_status_created', ['workspaceId', 'status', 'createdAt'])
 export class ApiClientEntity {
   @PrimaryColumn({ type: 'uuid' })
   public id!: string;

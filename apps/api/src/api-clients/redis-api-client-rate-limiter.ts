@@ -1,7 +1,4 @@
-import type {
-  ApiClientRateLimiterPort,
-  ApiClientRateLimitResult,
-} from '@atlas/server';
+import type { ApiClientRateLimiterPort, ApiClientRateLimitResult } from '@atlas/server';
 
 interface RedisCounterClient {
   eval(script: string, numberOfKeys: number, ...arguments_: string[]): Promise<unknown>;
@@ -32,8 +29,7 @@ export class RedisApiClientRateLimiter implements ApiClientRateLimiterPort {
     }
 
     const minute = Math.floor(now.getTime() / 60_000);
-    const remainingMilliseconds =
-      60_000 - (now.getTime() % 60_000) + 1_000;
+    const remainingMilliseconds = 60_000 - (now.getTime() % 60_000) + 1_000;
     const result = await this.redis.eval(
       INCREMENT_COUNTER_SCRIPT,
       1,
@@ -55,9 +51,7 @@ export class RedisApiClientRateLimiter implements ApiClientRateLimiterPort {
     return Object.freeze({
       allowed: count <= limitPerMinute,
       retryAfterSeconds:
-        count > limitPerMinute
-          ? Math.max(1, Math.ceil(Math.max(0, ttlMilliseconds) / 1_000))
-          : 0,
+        count > limitPerMinute ? Math.max(1, Math.ceil(Math.max(0, ttlMilliseconds) / 1_000)) : 0,
     });
   }
 }

@@ -28,8 +28,7 @@ export const AdminPermission = {
   WORKSPACES_READ: 'workspaces.read',
 } as const;
 
-export type AdminPermission =
-  (typeof AdminPermission)[keyof typeof AdminPermission];
+export type AdminPermission = (typeof AdminPermission)[keyof typeof AdminPermission];
 
 export const ADMIN_PERMISSIONS = Object.freeze(
   Object.values(AdminPermission),
@@ -50,9 +49,7 @@ const READ_PERMISSIONS = Object.freeze([
   AdminPermission.WORKSPACES_READ,
 ]) as readonly AdminPermission[];
 
-const ROLE_PERMISSIONS: Readonly<
-  Record<AdminRole, readonly AdminPermission[]>
-> = Object.freeze({
+const ROLE_PERMISSIONS: Readonly<Record<AdminRole, readonly AdminPermission[]>> = Object.freeze({
   [AdminRole.OWNER]: ADMIN_PERMISSIONS,
   [AdminRole.ADMIN]: Object.freeze([
     ...READ_PERMISSIONS,
@@ -90,15 +87,10 @@ const ROLE_PERMISSIONS: Readonly<
   [AdminRole.VIEWER]: READ_PERMISSIONS,
 });
 
-export function getAdminRolePermissions(
-  role: AdminRole,
-): readonly AdminPermission[] {
+export function getAdminRolePermissions(role: AdminRole): readonly AdminPermission[] {
   return ROLE_PERMISSIONS[role];
 }
 
-export function hasAdminPermission(
-  role: AdminRole,
-  permission: AdminPermission,
-): boolean {
+export function hasAdminPermission(role: AdminRole, permission: AdminPermission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
 }

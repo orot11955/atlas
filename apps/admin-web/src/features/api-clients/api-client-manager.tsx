@@ -89,17 +89,13 @@ export function ApiClientManager() {
           <p className="eyebrow">SITE-SCOPED CREDENTIALS</p>
           <h1>API Client</h1>
           <p>
-            Blog Delivery와 CI Integration이 사용하는 최소 권한 Credential을 Site별로
-            분리합니다.
+            Blog Delivery와 CI Integration이 사용하는 최소 권한 Credential을 Site별로 분리합니다.
           </p>
         </div>
       </header>
 
       {credential ? (
-        <CredentialPanel
-          credential={credential}
-          onDismiss={() => setCredential(undefined)}
-        />
+        <CredentialPanel credential={credential} onDismiss={() => setCredential(undefined)} />
       ) : null}
 
       <ApiClientCreateForm
@@ -122,10 +118,7 @@ export function ApiClientManager() {
           </label>
           <label className={styles.field}>
             <span>Site</span>
-            <select
-              value={filterSiteId}
-              onChange={(event) => setFilterSiteId(event.target.value)}
-            >
+            <select value={filterSiteId} onChange={(event) => setFilterSiteId(event.target.value)}>
               <option value="">전체 Site</option>
               {sites.map((site) => (
                 <option key={site.id} value={site.id}>
@@ -138,9 +131,7 @@ export function ApiClientManager() {
             <span>유형</span>
             <select
               value={filterType}
-              onChange={(event) =>
-                setFilterType(event.target.value as ApiClientType | '')
-              }
+              onChange={(event) => setFilterType(event.target.value as ApiClientType | '')}
             >
               <option value="">전체</option>
               {API_CLIENT_TYPE_OPTIONS.map((option) => (
@@ -154,9 +145,7 @@ export function ApiClientManager() {
             <span>상태</span>
             <select
               value={filterStatus}
-              onChange={(event) =>
-                setFilterStatus(event.target.value as ApiClientStatus | '')
-              }
+              onChange={(event) => setFilterStatus(event.target.value as ApiClientStatus | '')}
             >
               <option value="">전체</option>
               {API_CLIENT_STATUS_OPTIONS.map((option) => (
@@ -234,9 +223,7 @@ function ApiClientCreateForm({
   const [rateLimit, setRateLimit] = useState(600);
   const [requireOrigin, setRequireOrigin] = useState(false);
   const [siteIds, setSiteIds] = useState<readonly string[]>([]);
-  const [scopes, setScopes] = useState<readonly ApiClientScope[]>(
-    getApiClientScopes('delivery'),
-  );
+  const [scopes, setScopes] = useState<readonly ApiClientScope[]>(getApiClientScopes('delivery'));
   const [origins, setOrigins] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -284,7 +271,12 @@ function ApiClientCreateForm({
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span>이름</span>
-            <input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} />
+            <input
+              required
+              maxLength={120}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </label>
           <label className={styles.field}>
             <span>유형</span>
@@ -305,15 +297,30 @@ function ApiClientCreateForm({
           </label>
           <label className={styles.field}>
             <span>분당 요청 제한</span>
-            <input min={1} max={100000} required type="number" value={rateLimit} onChange={(event) => setRateLimit(Number(event.target.value))} />
+            <input
+              min={1}
+              max={100000}
+              required
+              type="number"
+              value={rateLimit}
+              onChange={(event) => setRateLimit(Number(event.target.value))}
+            />
           </label>
           <label className={styles.field}>
             <span>Key 만료 시각</span>
-            <input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            <input
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+            />
           </label>
           <label className={`${styles.field} ${styles.fullWidth}`}>
             <span>설명</span>
-            <textarea maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} />
+            <textarea
+              maxLength={500}
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
           </label>
         </div>
 

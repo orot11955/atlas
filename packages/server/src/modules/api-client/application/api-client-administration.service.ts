@@ -1,11 +1,5 @@
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  createUuidV7,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, createUuidV7, systemClock } from '../../../core';
 import {
   ApiClientStatus,
   assertApiClientMutable,
@@ -110,9 +104,7 @@ export class ApiClientAdministrationService<TTransaction> {
     const type = normalizeApiClientType(input.type);
     const name = normalizeApiClientName(input.name);
     const description = normalizeApiClientDescription(input.description);
-    const rateLimitPerMinute = normalizeApiClientRateLimit(
-      input.rateLimitPerMinute,
-    );
+    const rateLimitPerMinute = normalizeApiClientRateLimit(input.rateLimitPerMinute);
     const siteIds = normalizeApiClientSiteIds(input.siteIds);
     const scopes = normalizeApiClientScopes(type, input.scopes);
     const allowedOrigins = normalizeApiClientAllowedOrigins(
@@ -144,10 +136,7 @@ export class ApiClientAdministrationService<TTransaction> {
 
     await this.transactionRunner.run(async (transaction) => {
       await this.assertSitesExist(workspaceId, siteIds, transaction);
-      await this.repository.insert(
-        { client, initialKey: key },
-        transaction,
-      );
+      await this.repository.insert({ client, initialKey: key }, transaction);
       await this.auditService.record(
         {
           action: 'api-client.created',
@@ -191,11 +180,7 @@ export class ApiClientAdministrationService<TTransaction> {
     const now = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const current = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const current = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!current) {
         throw apiClientNotFoundError();
@@ -204,9 +189,7 @@ export class ApiClientAdministrationService<TTransaction> {
       assertApiClientMutable(current.status);
       const name = normalizeApiClientName(input.name);
       const description = normalizeApiClientDescription(input.description);
-      const rateLimitPerMinute = normalizeApiClientRateLimit(
-        input.rateLimitPerMinute,
-      );
+      const rateLimitPerMinute = normalizeApiClientRateLimit(input.rateLimitPerMinute);
       const siteIds = normalizeApiClientSiteIds(input.siteIds);
       const scopes = normalizeApiClientScopes(current.type, input.scopes);
       const allowedOrigins = normalizeApiClientAllowedOrigins(
@@ -280,29 +263,20 @@ export class ApiClientAdministrationService<TTransaction> {
     input: RotateApiClientKeyInput,
   ): Promise<Readonly<ApiClientCredentialResult>> {
     const now = this.clock.now();
-    const gracePeriodSeconds = normalizeApiClientGracePeriodSeconds(
-      input.gracePeriodSeconds,
-    );
+    const gracePeriodSeconds = normalizeApiClientGracePeriodSeconds(input.gracePeriodSeconds);
     const expiresAt = normalizeApiClientKeyExpiration(input.expiresAt, now);
     const issued = this.keyIssuer.issue(now);
     const key = createStoredKey(apiClientId, issued, now, expiresAt);
 
     const client = await this.transactionRunner.run(async (transaction) => {
-      const current = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const current = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!current) {
         throw apiClientNotFoundError();
       }
 
       assertApiClientMutable(current.status);
-      const previousKey = await this.repository.findCurrentKeyForUpdate(
-        apiClientId,
-        transaction,
-      );
+      const previousKey = await this.repository.findCurrentKeyForUpdate(apiClientId, transaction);
       const graceExpiresAt = previousKey
         ? new Date(now.getTime() + gracePeriodSeconds * 1_000)
         : undefined;
@@ -334,11 +308,7 @@ export class ApiClientAdministrationService<TTransaction> {
         transaction,
       );
 
-      const refreshed = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const refreshed = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!refreshed) {
         throw apiClientNotFoundError();
@@ -368,22 +338,14 @@ export class ApiClientAdministrationService<TTransaction> {
     const now = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const current = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const current = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!current) {
         throw apiClientNotFoundError();
       }
 
       assertApiClientMutable(current.status);
-      const key = await this.repository.findKeyForUpdate(
-        apiClientId,
-        keyId,
-        transaction,
-      );
+      const key = await this.repository.findKeyForUpdate(apiClientId, keyId, transaction);
 
       if (!key) {
         throw apiClientKeyNotFoundError();
@@ -406,11 +368,7 @@ export class ApiClientAdministrationService<TTransaction> {
         );
       }
 
-      const refreshed = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const refreshed = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!refreshed) {
         throw apiClientNotFoundError();
@@ -430,11 +388,7 @@ export class ApiClientAdministrationService<TTransaction> {
     const now = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
-      const current = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const current = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!current) {
         throw apiClientNotFoundError();
@@ -452,8 +406,7 @@ export class ApiClientAdministrationService<TTransaction> {
           : target === ApiClientStatus.ACTIVE
             ? undefined
             : current.disabledAt;
-      const archivedAt =
-        target === ApiClientStatus.ARCHIVED ? now : undefined;
+      const archivedAt = target === ApiClientStatus.ARCHIVED ? now : undefined;
       const updated = await this.repository.updateStatus(
         workspaceId,
         apiClientId,
@@ -473,11 +426,7 @@ export class ApiClientAdministrationService<TTransaction> {
       }
 
       if (target === ApiClientStatus.ARCHIVED) {
-        await this.repository.revokeAllOpenKeys(
-          apiClientId,
-          now,
-          transaction,
-        );
+        await this.repository.revokeAllOpenKeys(apiClientId, now, transaction);
       }
 
       await this.auditService.record(
@@ -495,11 +444,7 @@ export class ApiClientAdministrationService<TTransaction> {
         transaction,
       );
 
-      const refreshed = await this.repository.findById(
-        workspaceId,
-        apiClientId,
-        transaction,
-      );
+      const refreshed = await this.repository.findById(workspaceId, apiClientId, transaction);
 
       if (!refreshed) {
         throw apiClientNotFoundError();
@@ -514,11 +459,7 @@ export class ApiClientAdministrationService<TTransaction> {
     siteIds: readonly string[],
     transaction: TTransaction,
   ): Promise<void> {
-    const existing = await this.repository.findExistingSiteIds(
-      workspaceId,
-      siteIds,
-      transaction,
-    );
+    const existing = await this.repository.findExistingSiteIds(workspaceId, siteIds, transaction);
 
     if (existing.length !== siteIds.length) {
       throw new DomainError({

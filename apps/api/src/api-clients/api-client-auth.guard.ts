@@ -1,10 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Inject,
-  Injectable,
-  SetMetadata,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import {
@@ -14,10 +8,7 @@ import {
   type ApiClientType,
 } from '@atlas/server';
 
-import {
-  readSingleApiClientHeader,
-  type ApiClientHttpRequest,
-} from './api-client.request';
+import { readSingleApiClientHeader, type ApiClientHttpRequest } from './api-client.request';
 import { API_CLIENT_AUTHENTICATION_SERVICE } from './api-client.tokens';
 
 const API_CLIENT_REQUIREMENT_METADATA = 'atlas:api-client-requirement';
@@ -42,21 +33,17 @@ export class ApiClientAuthenticationGuard implements CanActivate {
   ) {}
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requirement = this.reflector.getAllAndOverride<
-      ApiClientAccessRequirement | undefined
-    >(API_CLIENT_REQUIREMENT_METADATA, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requirement = this.reflector.getAllAndOverride<ApiClientAccessRequirement | undefined>(
+      API_CLIENT_REQUIREMENT_METADATA,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requirement) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest<ApiClientHttpRequest>();
-    const apiKey = readBearerToken(
-      readSingleApiClientHeader(request.headers.authorization),
-    );
+    const apiKey = readBearerToken(readSingleApiClientHeader(request.headers.authorization));
     const siteKey = request.params?.[requirement.siteParam ?? 'siteKey'];
 
     if (!apiKey || !siteKey) {
@@ -77,9 +64,7 @@ export class ApiClientAuthenticationGuard implements CanActivate {
   }
 }
 
-export function requireApiClientPrincipal(
-  request: ApiClientHttpRequest,
-) {
+export function requireApiClientPrincipal(request: ApiClientHttpRequest) {
   if (!request.apiClient) {
     throw createApiClientAuthenticationError();
   }

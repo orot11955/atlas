@@ -103,35 +103,24 @@ const STATUS_TRANSITIONS = {
   active: ['disabled', 'archived'],
   disabled: ['active', 'archived'],
   archived: [],
-} as const satisfies Readonly<
-  Record<ApiClientStatus, readonly ApiClientStatus[]>
->;
+} as const satisfies Readonly<Record<ApiClientStatus, readonly ApiClientStatus[]>>;
 
-export function getApiClientScopes(
-  type: ApiClientType,
-): readonly ApiClientScope[] {
-  return API_CLIENT_SCOPE_OPTIONS.filter((option) =>
-    option.types.includes(type),
-  ).map((option) => option.value);
+export function getApiClientScopes(type: ApiClientType): readonly ApiClientScope[] {
+  return API_CLIENT_SCOPE_OPTIONS.filter((option) => option.types.includes(type)).map(
+    (option) => option.value,
+  );
 }
 
-export function getApiClientStatusTransitions(
-  status: ApiClientStatus,
-): readonly ApiClientStatus[] {
+export function getApiClientStatusTransitions(status: ApiClientStatus): readonly ApiClientStatus[] {
   return STATUS_TRANSITIONS[status];
 }
 
 export function apiClientStatusLabel(status: ApiClientStatus): string {
-  return (
-    API_CLIENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
-    status
-  );
+  return API_CLIENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
 }
 
 export function apiClientTypeLabel(type: ApiClientType): string {
-  return (
-    API_CLIENT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type
-  );
+  return API_CLIENT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type;
 }
 
 export function apiClientKeyStatusLabel(status: ApiClientKeyStatus): string {

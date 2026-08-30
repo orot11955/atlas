@@ -34,10 +34,7 @@ export function CredentialPanel({
       <div>
         <p className="eyebrow">ONE-TIME CREDENTIAL</p>
         <h2>지금 API Key를 저장하세요</h2>
-        <p>
-          이 원문은 다시 조회할 수 없습니다. Secret Store 또는 배포 환경 Secret에
-          보관하세요.
-        </p>
+        <p>이 원문은 다시 조회할 수 없습니다. Secret Store 또는 배포 환경 Secret에 보관하세요.</p>
       </div>
       <code className={styles.secretValue}>{credential.apiKey}</code>
       <div className={styles.actions}>
@@ -49,9 +46,7 @@ export function CredentialPanel({
         </button>
       </div>
       {credential.previousKeyGraceExpiresAt ? (
-        <small>
-          이전 Key 유예 만료: {formatDate(credential.previousKeyGraceExpiresAt)}
-        </small>
+        <small>이전 Key 유예 만료: {formatDate(credential.previousKeyGraceExpiresAt)}</small>
       ) : null}
       {message ? <p className={styles.message}>{message}</p> : null}
     </section>
@@ -91,7 +86,9 @@ export function SiteAccessSelector({
               />
               <span>
                 <strong>{site.name}</strong>
-                <small>{site.key} · {site.status}</small>
+                <small>
+                  {site.key} · {site.status}
+                </small>
               </span>
             </label>
           ))}
@@ -112,9 +109,7 @@ export function ScopeSelector({
   disabled?: boolean;
   onChange: (scopes: readonly ApiClientScope[]) => void;
 }>) {
-  const options = API_CLIENT_SCOPE_OPTIONS.filter((option) =>
-    option.types.includes(type),
-  );
+  const options = API_CLIENT_SCOPE_OPTIONS.filter((option) => option.types.includes(type));
 
   return (
     <fieldset className={styles.selectorGroup} disabled={disabled}>

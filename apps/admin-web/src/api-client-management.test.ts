@@ -33,21 +33,14 @@ test('Allowed Origin input is trimmed, deduplicated and empty lines are removed'
 });
 
 test('Client types expose only their allowed scopes and terminal archive state', () => {
-  assert.deepEqual(getApiClientScopes('delivery'), [
-    'site:read',
-    'content:read',
-    'feed:read',
-  ]);
+  assert.deepEqual(getApiClientScopes('delivery'), ['site:read', 'content:read', 'feed:read']);
   assert.deepEqual(getApiClientScopes('integration'), [
     'release:write',
     'deployment:create',
     'deployment:update',
     'health:write',
   ]);
-  assert.deepEqual(getApiClientStatusTransitions('active'), [
-    'disabled',
-    'archived',
-  ]);
+  assert.deepEqual(getApiClientStatusTransitions('active'), ['disabled', 'archived']);
   assert.deepEqual(getApiClientStatusTransitions('archived'), []);
   assert.equal(toOptionalIsoDate(''), undefined);
 });
