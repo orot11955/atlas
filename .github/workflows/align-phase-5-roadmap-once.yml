@@ -1,0 +1,103 @@
+name: Align Phase 5 roadmap once
+
+on:
+  push:
+    branches:
+      - docs/align-phase-5-roadmap
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: docs/align-phase-5-roadmap
+
+      - name: Align progress document with implementation roadmap
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/implementation/progress.md')
+          content = path.read_text(encoding='utf-8')
+          old = '''## 완료
+
+### Phase 4. Project & Deployment Read Model
+
+- Workspace-scoped Project와 Site 연결
+- Project Timeline, Repository Connection과 Release
+- Environment, Service와 Service Environment
+- 사전 등록 Health URL과 Timeout
+- Deployment와 Deployment Event Read Model
+- 배포 상태와 Health 상태의 독립 저장·조회
+- Integration API Client Scope 기반 CI Callback
+- PostgreSQL Advisory Lock과 Idempotency Record
+- Project·Deployment Admin 화면
+- 실제 PostgreSQL·Redis·NestJS 통합 E2E
+
+## 다음
+
+### Phase 5. Content Authoring Core
+
+```text
+Post와 Page Schema
+→ Content Revision
+→ Draft 저장과 Optimistic Lock
+→ Category와 Tag
+→ Preview Token
+→ Content Admin Editor
+```
+'''
+          new = '''### Phase 4. Project & Deployment Read Model
+
+- Workspace-scoped Project와 Site 연결
+- Project Timeline, Repository Connection과 Release
+- Environment, Service와 Service Environment
+- 사전 등록 Health URL과 Timeout
+- Deployment와 Deployment Event Read Model
+- 배포 상태와 Health 상태의 독립 저장·조회
+- Integration API Client Scope 기반 CI Callback
+- PostgreSQL Advisory Lock과 Idempotency Record
+- Project·Deployment Admin 화면
+- 실제 PostgreSQL·Redis·NestJS 통합 E2E
+
+주요 Pull Request:
+
+- [#16 Project and Deployment Read Model](https://github.com/orot11955/atlas/pull/16)
+
+## 다음
+
+### Phase 5. Resource & Member Directory MVP
+
+```text
+ResourceCollection과 Resource
+→ Markdown 메모·문서와 외부 Link
+→ Tag·Relation과 Project 연결
+→ Visibility·Sensitivity·Archive
+→ PostgreSQL·MinIO Backup과 Restore Test
+→ Member와 SiteMembership
+→ Site별 상태와 관리자 메모
+```
+
+회원 Password, Session과 Email Verification은 Phase 12에서 구현한다.
+'''
+
+          if content.count(old) != 1:
+              raise RuntimeError('Expected Phase 4/5 progress block was not found exactly once.')
+
+          path.write_text(content.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit aligned roadmap
+        run: |
+          rm -f .github/workflows/align-phase-5-roadmap-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'docs: align Phase 5 progress with roadmap'
+          git push origin HEAD:docs/align-phase-5-roadmap
