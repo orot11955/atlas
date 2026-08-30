@@ -63,6 +63,8 @@ withdrawn
 
 회원 Password, Email Verification과 Member Session은 Phase 12에서 구현한다.
 
+Member Note의 작성자 ID는 ambient Context에 의존하지 않고 Controller가 검증된 Admin Session Principal에서 읽어 Application Service에 명시적으로 전달한다. 따라서 Note Row의 `created_by_admin_account_id`는 인증된 관리자 계정과 직접 연결된다.
+
 ## Admin API
 
 ```text
@@ -141,7 +143,7 @@ Resource·Member 실제 API E2E
 기존 Admin·Site·Project 기능 회귀 검사
 ```
 
-Resource·Member E2E는 Credential 저장 차단, Tag·Project Filter, Resource Archive, Email 중복 차단, Site별 Membership 분리, Admin Note와 Member Archive를 검증한다.
+Resource·Member E2E는 Credential 저장 차단, Tag·Project Filter, Resource Archive, Email 중복 차단, Site별 Membership 분리, Admin Note 작성자 보존과 Member Archive를 검증한다.
 
 ## 다음 Phase
 
