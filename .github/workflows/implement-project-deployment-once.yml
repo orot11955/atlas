@@ -97,11 +97,19 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path(
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              content = target.read_text(encoding='utf-8')
+              count = content.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected one replacement, found {count}')
+              target.write_text(content.replace(old, new, 1), encoding='utf-8')
+
+          domain_path = Path(
               'packages/server/src/modules/project-deployment/domain/'
               'project-deployment.ts'
           )
-          lines = path.read_text(encoding='utf-8').splitlines()
+          lines = domain_path.read_text(encoding='utf-8').splitlines()
 
           for index, line in enumerate(lines):
               if ('\\u0000' in line or '\\x00' in line) and '/' in line:
@@ -112,20 +120,39 @@ jobs:
           else:
               raise RuntimeError('The expected control-character regular expression was not found.')
 
-          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-          PY
+          domain_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-          echo '--- API Client test snippet ---'
-          nl -ba packages/server/src/api-client.test.ts | sed -n '195,210p'
-          echo '--- Repository snippet 1 ---'
-          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '200,225p'
-          echo '--- Repository snippet 2 ---'
-          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '510,540p'
-          echo '--- Repository snippet 3 ---'
-          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '615,645p'
-          echo '--- Repository snippet 4 ---'
-          nl -ba packages/server/src/modules/project-deployment/infrastructure/persistence/typeorm-project-deployment.repository.ts | sed -n '765,795p'
-          exit 1
+          replace_once(
+              'packages/server/src/api-client.test.ts',
+              '      assert.equal(principal.site.id, siteId);',
+              '      assert.ok(principal.site);\n      assert.equal(principal.site.id, siteId);',
+          )
+
+          repository_path = (
+              'packages/server/src/modules/project-deployment/infrastructure/'
+              'persistence/typeorm-project-deployment.repository.ts'
+          )
+          replace_once(
+              repository_path,
+              '      metadataJson: { ...event.metadata },',
+              '      metadataJson: { ...event.metadata } as never,',
+          )
+          replace_once(
+              repository_path,
+              '      metadataJson: { ...release.metadata },',
+              '      metadataJson: { ...release.metadata } as never,',
+          )
+          replace_once(
+              repository_path,
+              '      metadataJson: { ...event.metadata },',
+              '      metadataJson: { ...event.metadata } as never,',
+          )
+          replace_once(
+              repository_path,
+              '      responseJson: { ...record.responseJson },',
+              '      responseJson: { ...record.responseJson } as never,',
+          )
+          PY
 
       - name: Setup Node.js
         if: steps.prepare.outputs.run == 'true'
