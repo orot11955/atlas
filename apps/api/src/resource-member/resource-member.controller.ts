@@ -23,7 +23,10 @@ import {
   AdminPermissionGuard,
   RequireAdminPermission,
 } from '../admin-session/admin-permission.guard';
-import { AdminSessionGuard } from '../admin-session/admin-session.guard';
+import {
+  AdminSessionGuard,
+  requireAdminSessionPrincipal,
+} from '../admin-session/admin-session.guard';
 import { AdminWorkspaceGuard } from '../admin-sites/admin-workspace.guard';
 import {
   requireAdminWorkspace,
@@ -286,7 +289,14 @@ export class ResourceMemberController {
   ) {
     const workspace = requireAdminWorkspace(request);
     return {
-      data: toMemberNoteData(await this.service.addMemberNote(workspace.id, memberId, body.body)),
+      data: toMemberNoteData(
+        await this.service.addMemberNote(
+          workspace.id,
+          memberId,
+          body.body,
+          requireAdminSessionPrincipal(request).adminAccountId,
+        ),
+      ),
     };
   }
 }

@@ -1,12 +1,5 @@
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  createUuidV7,
-  requestContext,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, createUuidV7, systemClock } from '../../../core';
 import {
   MemberStatus,
   ResourceCollectionStatus,
@@ -585,7 +578,12 @@ export class ResourceMemberService<TTransaction> {
     });
   }
 
-  public async addMemberNote(workspaceId: string, memberId: string, bodyValue: string) {
+  public async addMemberNote(
+    workspaceId: string,
+    memberId: string,
+    bodyValue: string,
+    createdByAdminAccountId: string,
+  ) {
     const body = normalizeOptionalText(bodyValue, 2_000, 'body');
     if (!body)
       throw new DomainError({
@@ -593,12 +591,6 @@ export class ResourceMemberService<TTransaction> {
         message: 'Note body is required.',
       });
     assertNoLikelySecret([body]);
-    const actorId = requestContext.require().actorId;
-    if (!actorId)
-      throw new DomainError({
-        code: ErrorCode.AUTH_REQUIRED,
-        message: 'Administrator actor is required.',
-      });
     const now = this.clock.now();
     return this.transactionRunner.run(async (transaction) => {
       if (!(await this.repository.findMember(workspaceId, memberId, transaction))) {
@@ -609,7 +601,7 @@ export class ResourceMemberService<TTransaction> {
         workspaceId,
         memberId,
         body,
-        createdByAdminAccountId: actorId,
+        createdByAdminAccountId,
         createdAt: now,
       };
       await this.repository.addMemberNote(note, transaction);
