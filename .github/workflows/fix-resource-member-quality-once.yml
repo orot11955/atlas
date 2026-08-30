@@ -46,6 +46,18 @@ jobs:
               "  if (normalizedSubject.length > 240 || hasControlCharacter) {"
           )
           value = value.replace(old_control_check, new_control_check)
+          old_candidate = (
+              "  const candidate = values.filter((value): value is string => Boolean(value)).join('\\n');"
+          )
+          new_candidate = (
+              "  const candidate = values\n"
+              "    .filter((value): value is string => Boolean(value))\n"
+              "    .map((value) =>\n"
+              "      value.replace(/\\bsecret:\\/\\/[A-Za-z0-9][A-Za-z0-9/_-]{2,255}\\b/gu, ''),\n"
+              "    )\n"
+              "    .join('\\n');"
+          )
+          value = value.replace(old_candidate, new_candidate)
           domain.write_text(value, encoding='utf-8')
 
           service = Path('packages/server/src/modules/resource-member/application/resource-member.service.ts')
