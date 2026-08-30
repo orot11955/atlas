@@ -5,8 +5,10 @@ export interface ApiClientHttpRequest {
     authorization?: string | string[];
     origin?: string | string[];
     'idempotency-key'?: string | string[];
+    'if-none-match'?: string | string[];
   };
   params?: Record<string, string | undefined>;
+  query?: Record<string, string | string[] | undefined>;
   apiClient?: Readonly<ApiClientPrincipal>;
 }
 

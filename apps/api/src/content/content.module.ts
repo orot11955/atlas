@@ -4,12 +4,18 @@ import type { EntityManager } from 'typeorm';
 import { DataSource } from 'typeorm';
 
 import {
+  ContentDeliveryService,
   ContentDraftEntity,
   ContentEntity,
+  ContentPublicationEntity,
+  ContentPublicationService,
   ContentRevisionEntity,
   ContentService,
+  ContentSiteEntity,
+  TypeOrmContentPublicationRepository,
   TypeOrmContentRepository,
   type AuditService,
+  type ContentPublicationRepositoryPort,
   type ContentRepositoryPort,
   type TransactionRunner,
 } from '@atlas/server';
@@ -18,17 +24,30 @@ import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
+import { ContentPublicationController } from './content-publication.controller';
 import { ContentController } from './content.controller';
-import { CONTENT_REPOSITORY, CONTENT_SERVICE } from './content.tokens';
+import {
+  CONTENT_DELIVERY_SERVICE,
+  CONTENT_PUBLICATION_REPOSITORY,
+  CONTENT_PUBLICATION_SERVICE,
+  CONTENT_REPOSITORY,
+  CONTENT_SERVICE,
+} from './content.tokens';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ContentEntity, ContentDraftEntity, ContentRevisionEntity]),
+    TypeOrmModule.forFeature([
+      ContentEntity,
+      ContentDraftEntity,
+      ContentRevisionEntity,
+      ContentSiteEntity,
+      ContentPublicationEntity,
+    ]),
     PlatformModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
   ],
-  controllers: [ContentController],
+  controllers: [ContentController, ContentPublicationController],
   providers: [
     {
       provide: CONTENT_REPOSITORY,
@@ -44,7 +63,27 @@ import { CONTENT_REPOSITORY, CONTENT_SERVICE } from './content.tokens';
         auditService: AuditService<EntityManager>,
       ) => new ContentService(transactionRunner, repository, auditService),
     },
+    {
+      provide: CONTENT_PUBLICATION_REPOSITORY,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) => new TypeOrmContentPublicationRepository(dataSource),
+    },
+    {
+      provide: CONTENT_PUBLICATION_SERVICE,
+      inject: [TRANSACTION_RUNNER, CONTENT_PUBLICATION_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        transactionRunner: TransactionRunner<EntityManager>,
+        repository: ContentPublicationRepositoryPort<EntityManager>,
+        auditService: AuditService<EntityManager>,
+      ) => new ContentPublicationService(transactionRunner, repository, auditService),
+    },
+    {
+      provide: CONTENT_DELIVERY_SERVICE,
+      inject: [CONTENT_PUBLICATION_REPOSITORY],
+      useFactory: (repository: ContentPublicationRepositoryPort<EntityManager>) =>
+        new ContentDeliveryService(repository),
+    },
   ],
-  exports: [CONTENT_SERVICE],
+  exports: [CONTENT_SERVICE, CONTENT_PUBLICATION_SERVICE, CONTENT_DELIVERY_SERVICE],
 })
 export class ContentModule {}

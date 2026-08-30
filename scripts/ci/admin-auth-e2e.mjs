@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 
 import { verifyApiClientLifecycle } from './api-client-lifecycle-e2e.mjs';
+import { verifyContentPublicationDelivery } from './content-publication-delivery-e2e.mjs';
 import { verifyProjectDeploymentReadModel } from './project-deployment-e2e.mjs';
 
 const baseUrl = process.env.ATLAS_API_BASE_URL ?? 'http://localhost:4000/api';
@@ -224,6 +225,14 @@ await verifyProjectDeploymentReadModel({
   assertEqual,
 });
 
+await verifyContentPublicationDelivery({
+  request,
+  session,
+  mainBlog,
+  devLog: devLogCreated.data,
+  assertEqual,
+});
+
 mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
 
 await request(`/admin/v1/sites/${mainBlog.id}/archive`, {
@@ -306,7 +315,7 @@ await request('/admin/v1/auth/mfa/recovery/verify', {
 });
 
 process.stdout.write(
-  'Admin Password, TOTP, Session, Workspace, Site, API Client, Project and Deployment E2E passed.\n',
+  'Admin Password, TOTP, Session, Workspace, Site, API Client, Project, Deployment and Content Publication E2E passed.\n',
 );
 
 async function login() {
@@ -369,6 +378,7 @@ async function request(
     authorization,
     origin,
     idempotencyKey,
+    ifNoneMatch,
   },
 ) {
   const headers = new Headers({ accept: 'application/json' });
@@ -390,6 +400,9 @@ async function request(
   }
   if (idempotencyKey) {
     headers.set('idempotency-key', idempotencyKey);
+  }
+  if (ifNoneMatch) {
+    headers.set('if-none-match', ifNoneMatch);
   }
 
   const response = await fetch(`${baseUrl}${path}`, {
