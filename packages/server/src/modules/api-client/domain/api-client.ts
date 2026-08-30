@@ -112,7 +112,8 @@ export interface ApiClientPrincipal {
   workspaceId: string;
   type: ApiClientType;
   scopes: readonly ApiClientScope[];
-  site: Readonly<ApiClientSiteContext>;
+  siteIds: readonly string[];
+  site?: Readonly<ApiClientSiteContext>;
 }
 
 export function getApiClientScopesForType(type: ApiClientType): readonly ApiClientScope[] {

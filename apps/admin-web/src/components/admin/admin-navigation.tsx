@@ -7,10 +7,12 @@ const activeItems = [
   { href: '/admin', label: 'Dashboard', exact: true },
   { href: '/admin/sites', label: 'Site', exact: false },
   { href: '/admin/api-clients', label: 'API Client', exact: false },
+  { href: '/admin/projects', label: '프로젝트', exact: false },
+  { href: '/admin/deployments', label: '배포', exact: false },
   { href: '/admin/security/sessions', label: '활성 Session', exact: false },
 ] as const;
 
-const plannedItems = ['콘텐츠', '프로젝트', '배포', '자료실', '회원'] as const;
+const plannedItems = ['콘텐츠', '자료실', '회원'] as const;
 
 export function AdminNavigation() {
   const pathname = usePathname();

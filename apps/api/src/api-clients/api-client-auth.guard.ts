@@ -16,10 +16,12 @@ const API_CLIENT_REQUIREMENT_METADATA = 'atlas:api-client-requirement';
 export interface ApiClientAccessRequirement {
   scope: ApiClientScope;
   type?: ApiClientType;
-  siteParam?: string;
+  siteParam?: string | false;
 }
 
-export const RequireApiClientAccess = (requirement: ApiClientAccessRequirement) =>
+export const RequireApiClientAccess = (
+  requirement: ApiClientAccessRequirement,
+): MethodDecorator & ClassDecorator =>
   SetMetadata(API_CLIENT_REQUIREMENT_METADATA, Object.freeze({ ...requirement }));
 
 @Injectable()
@@ -42,9 +44,14 @@ export class ApiClientAuthenticationGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<ApiClientHttpRequest>();
     const apiKey = readBearerToken(readSingleApiClientHeader(request.headers.authorization));
-    const siteKey = request.params?.[requirement.siteParam ?? 'siteKey'];
+    const expectsSite = requirement.siteParam !== false;
+    const siteKey = expectsSite
+      ? request.params?.[
+          typeof requirement.siteParam === 'string' ? requirement.siteParam : 'siteKey'
+        ]
+      : undefined;
 
-    if (!apiKey || !siteKey) {
+    if (!apiKey || (expectsSite && !siteKey)) {
       throw createApiClientAuthenticationError();
     }
 

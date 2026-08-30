@@ -4,6 +4,7 @@ export interface ApiClientHttpRequest {
   headers: {
     authorization?: string | string[];
     origin?: string | string[];
+    'idempotency-key'?: string | string[];
   };
   params?: Record<string, string | undefined>;
   apiClient?: Readonly<ApiClientPrincipal>;

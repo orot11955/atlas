@@ -221,18 +221,30 @@ Admin Web Route:
 - [#13 Workspace and Site Foundation](https://github.com/orot11955/atlas/pull/13)
 - [#14 Site-scoped API Clients and Delivery Authentication](https://github.com/orot11955/atlas/pull/14)
 
-## 다음
+## 완료
 
 ### Phase 4. Project & Deployment Read Model
 
+- Workspace-scoped Project와 Site 연결
+- Project Timeline, Repository Connection과 Release
+- Environment, Service와 Service Environment
+- 사전 등록 Health URL과 Timeout
+- Deployment와 Deployment Event Read Model
+- 배포 상태와 Health 상태의 독립 저장·조회
+- Integration API Client Scope 기반 CI Callback
+- PostgreSQL Advisory Lock과 Idempotency Record
+- Project·Deployment Admin 화면
+- 실제 PostgreSQL·Redis·NestJS 통합 E2E
+
+## 다음
+
+### Phase 5. Content Authoring Core
+
 ```text
-Project Schema와 CRUD
-→ Project Timeline Event
-→ Repository Connection과 Release
-→ Environment와 Service
-→ Deployment·Deployment Event Read Model
-→ Health Check Result
-→ CI Callback API Client Scope 적용
-→ Project·Deployment Admin 화면
-→ 배포 성공과 Service Health 상태 분리
+Post와 Page Schema
+→ Content Revision
+→ Draft 저장과 Optimistic Lock
+→ Category와 Tag
+→ Preview Token
+→ Content Admin Editor
 ```

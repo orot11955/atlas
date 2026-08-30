@@ -19,7 +19,7 @@ export interface AuthenticateApiClientInput {
   apiKey: string;
   requiredScope: ApiClientScope;
   requiredType?: ApiClientType;
-  siteKey: string;
+  siteKey?: string;
   origin?: string;
 }
 
@@ -71,12 +71,11 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
       throw createApiClientForbiddenError('API Client scope cannot access this endpoint.');
     }
 
-    const site = await this.repository.findSiteByKey(
-      record.workspaceId,
-      normalizeSiteKey(input.siteKey),
-    );
+    const site = input.siteKey
+      ? await this.repository.findSiteByKey(record.workspaceId, normalizeSiteKey(input.siteKey))
+      : undefined;
 
-    if (!site || site.status !== 'active' || !record.siteIds.includes(site.id)) {
+    if (input.siteKey && (!site || site.status !== 'active' || !record.siteIds.includes(site.id))) {
       throw createApiClientForbiddenError('API Client cannot access this Site.');
     }
 
@@ -109,7 +108,8 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
       workspaceId: record.workspaceId,
       type: record.type,
       scopes: record.scopes,
-      site,
+      siteIds: record.siteIds,
+      ...(site ? { site } : {}),
     });
   }
 
@@ -120,7 +120,7 @@ export class ApiClientAuthenticationService<TTransaction = unknown> {
       actorType: ActorType.API_CLIENT,
       actorId: principal.apiClientId,
       workspaceId: principal.workspaceId,
-      siteId: principal.site.id,
+      siteId: principal.site?.id,
     });
   }
 
