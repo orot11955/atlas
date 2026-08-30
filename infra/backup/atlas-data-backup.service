@@ -1,0 +1,17 @@
+[Unit]
+Description=Atlas PostgreSQL and MinIO backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=atlas-backup
+Group=atlas-backup
+EnvironmentFile=/etc/atlas/backup.env
+WorkingDirectory=/opt/atlas
+ExecStart=/opt/atlas/scripts/backup/run-data-backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/atlas

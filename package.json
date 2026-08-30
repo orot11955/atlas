@@ -34,7 +34,12 @@
     "db:migration:generate": "pnpm build:server && pnpm --filter @atlas/database migration:generate",
     "db:migration:run": "pnpm build:server && pnpm --filter @atlas/database migration:run",
     "db:migration:revert": "pnpm build:server && pnpm --filter @atlas/database migration:revert",
-    "db:migration:show": "pnpm build:server && pnpm --filter @atlas/database migration:show"
+    "db:migration:show": "pnpm build:server && pnpm --filter @atlas/database migration:show",
+    "backup:postgres": "bash scripts/backup/postgres-backup.sh",
+    "backup:restore-test": "bash scripts/backup/postgres-restore-test.sh",
+    "backup:minio": "bash scripts/backup/minio-backup.sh",
+    "backup:prune": "bash scripts/backup/prune-backups.sh",
+    "backup:all": "bash scripts/backup/run-data-backup.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
