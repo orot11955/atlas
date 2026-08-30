@@ -201,7 +201,7 @@ jobs:
 
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_sites")" -ge 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications")" -ge 3
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active')" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active'")" -eq 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM (SELECT workspace_id, content_site_id FROM content_publications WHERE status = 'active' GROUP BY workspace_id, content_site_id HAVING count(*) > 1) duplicated")" -eq 0
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM (SELECT workspace_id, site_id, slug FROM content_publications WHERE status = 'active' GROUP BY workspace_id, site_id, slug HAVING count(*) > 1) duplicated")" -eq 0
 
