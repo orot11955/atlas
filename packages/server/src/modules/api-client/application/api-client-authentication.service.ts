@@ -6,16 +6,16 @@ import {
   requestContext,
   systemClock,
 } from '../../../core';
+import { normalizeSiteKey } from '../../site';
 import {
   ApiClientStatus,
-  ApiClientType,
   createApiClientAuthenticationError,
   createApiClientForbiddenError,
   isApiClientKeyUsable,
   normalizeAllowedOrigin,
   type ApiClientPrincipal,
   type ApiClientScope,
-  type ApiClientType as ApiClientTypeValue,
+  type ApiClientType,
 } from '../domain/api-client';
 import type { ApiClientKeyIssuerPort } from '../ports/api-client-key-issuer.port';
 import type { ApiClientRateLimiterPort } from '../ports/api-client-rate-limiter.port';
@@ -24,14 +24,14 @@ import type { ApiClientRepositoryPort } from '../ports/api-client.repository';
 export interface AuthenticateApiClientInput {
   apiKey: string;
   requiredScope: ApiClientScope;
-  requiredType?: ApiClientTypeValue;
+  requiredType?: ApiClientType;
   siteKey: string;
   origin?: string;
 }
 
-export class ApiClientAuthenticationService {
+export class ApiClientAuthenticationService<TTransaction = unknown> {
   public constructor(
-    private readonly repository: ApiClientRepositoryPort,
+    private readonly repository: ApiClientRepositoryPort<TTransaction>,
     private readonly keyIssuer: ApiClientKeyIssuerPort,
     private readonly rateLimiter: ApiClientRateLimiterPort,
     private readonly usageTouchIntervalMs: number,
@@ -83,7 +83,7 @@ export class ApiClientAuthenticationService {
 
     const site = await this.repository.findSiteByKey(
       record.workspaceId,
-      input.siteKey,
+      normalizeSiteKey(input.siteKey),
     );
 
     if (
@@ -168,5 +168,3 @@ export class ApiClientAuthenticationService {
     }
   }
 }
-
-export const DELIVERY_API_CLIENT_TYPE = ApiClientType.DELIVERY;
