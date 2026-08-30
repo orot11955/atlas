@@ -33,12 +33,8 @@ export function buildContentListPath(input: ContentListInput = {}): string {
   return `/contents${suffix ? `?${suffix}` : ''}`;
 }
 
-export async function loadContents(
-  input: ContentListInput = {},
-): Promise<ContentListResult> {
-  const response = await client().get<ApiEnvelope<ContentListResult>>(
-    buildContentListPath(input),
-  );
+export async function loadContents(input: ContentListInput = {}): Promise<ContentListResult> {
+  const response = await client().get<ApiEnvelope<ContentListResult>>(buildContentListPath(input));
   return response.data;
 }
 
@@ -79,9 +75,10 @@ export async function previewContentById(
   contentId: string,
   input: { title?: string; summary?: string; bodyMarkdown: string },
 ): Promise<{ html: string; warnings: readonly string[] }> {
-  const response = await client().post<
-    ApiEnvelope<{ html: string; warnings: readonly string[] }>
-  >(`/contents/${encodeURIComponent(contentId)}/preview`, input);
+  const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
+    `/contents/${encodeURIComponent(contentId)}/preview`,
+    input,
+  );
   return response.data;
 }
 
@@ -107,9 +104,7 @@ export async function createReadyRevision(
   return response.data;
 }
 
-export async function loadContentRevisions(
-  contentId: string,
-): Promise<readonly ContentRevision[]> {
+export async function loadContentRevisions(contentId: string): Promise<readonly ContentRevision[]> {
   const response = await client().get<ApiEnvelope<readonly ContentRevision[]>>(
     `/contents/${encodeURIComponent(contentId)}/revisions`,
   );
@@ -128,10 +123,7 @@ export async function restoreContentRevision(
   return response.data;
 }
 
-export async function archiveContent(
-  contentId: string,
-  contentVersion: number,
-): Promise<Content> {
+export async function archiveContent(contentId: string, contentVersion: number): Promise<Content> {
   const response = await client().post<ApiEnvelope<Content>>(
     `/contents/${encodeURIComponent(contentId)}/archive`,
     { contentVersion },
