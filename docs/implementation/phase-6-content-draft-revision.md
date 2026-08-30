@@ -76,4 +76,4 @@ Editor는 1.2초 Debounce Autosave, 충돌 표시, Server Preview, Checkpoint, R
 
 ## 검증 Gate
 
-일반 Pull Request CI에서 Format, Lint, Typecheck, Unit Test, Production Build와 Migration `up → down → up`을 통과한 소스만 `develop`에 병합한다. 일회성 Workflow나 진단 파일은 구현 결과물에 포함하지 않는다.
+일반 Pull Request CI에서 Repository에 고정된 TypeScript와 Prettier 버전을 사용해 Format, Lint, Typecheck, Unit Test, Production Build와 Migration `up → down → up`을 검증한다. 모든 검사를 통과한 소스만 `develop`에 병합하며, 일회성 Workflow나 진단 파일은 구현 결과물에 포함하지 않는다.
