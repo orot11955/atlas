@@ -33,14 +33,18 @@ jobs:
               'export function isUuid(value: string): boolean {',
               'export function isResourceMemberUuid(value: string): boolean {',
           )
-          value = value.replace(
-              "  if (normalizedSubject.length > 240 || /[\\u0000-\\u001f\\u007f]/u.test(normalizedSubject)) {",
-              """  const hasControlCharacter = [...normalizedSubject].some((character) => {
-    const codePoint = character.codePointAt(0) ?? 0;
-    return codePoint < 32 || codePoint === 127;
-  });
-  if (normalizedSubject.length > 240 || hasControlCharacter) {""",
+          old_control_check = (
+              "  if (normalizedSubject.length > 240 || "
+              "/[\\u0000-\\u001f\\u007f]/u.test(normalizedSubject)) {"
           )
+          new_control_check = (
+              "  const hasControlCharacter = [...normalizedSubject].some((character) => {\n"
+              "    const codePoint = character.codePointAt(0) ?? 0;\n"
+              "    return codePoint < 32 || codePoint === 127;\n"
+              "  });\n"
+              "  if (normalizedSubject.length > 240 || hasControlCharacter) {"
+          )
+          value = value.replace(old_control_check, new_control_check)
           domain.write_text(value, encoding='utf-8')
 
           service = Path('packages/server/src/modules/resource-member/application/resource-member.service.ts')
