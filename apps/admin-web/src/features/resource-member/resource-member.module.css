@@ -1,0 +1,232 @@
+.page,
+.form,
+.stack,
+.list,
+.timeline {
+  display: grid;
+  gap: 18px;
+}
+.pageHeader,
+.sectionHeader,
+.toolbar,
+.actions,
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.pageHeader h1,
+.sectionHeader h2,
+.card h3 {
+  margin: 0;
+}
+.pageHeader p,
+.sectionHeader p,
+.card p,
+.muted {
+  color: #9ea7b5;
+  line-height: 1.6;
+}
+.panel,
+.card,
+.empty {
+  border: 1px solid #252a31;
+  border-radius: 18px;
+  background: rgba(20, 23, 28, 0.88);
+  padding: 22px;
+}
+.twoColumn,
+.formGrid,
+.cardGrid,
+.metaGrid,
+.checkboxGrid {
+  display: grid;
+  gap: 16px;
+}
+.twoColumn {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.formGrid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.cardGrid {
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+}
+.metaGrid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 14px 0;
+}
+.field {
+  display: grid;
+  gap: 7px;
+}
+.field span,
+.fieldset legend {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #cfd5dd;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #343b45;
+  border-radius: 10px;
+  background: #111419;
+  color: #f4f7fb;
+  padding: 10px 12px;
+  font: inherit;
+}
+.field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+.fieldset {
+  border: 1px solid #343b45;
+  border-radius: 12px;
+  padding: 14px;
+}
+.checkboxGrid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.checkboxGrid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.primaryButton,
+.primaryLink,
+.secondaryButton,
+.secondaryLink,
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+.primaryButton,
+.primaryLink {
+  border: 1px solid #ffb13b;
+  background: #ffb13b;
+  color: #17110a;
+}
+.secondaryButton,
+.secondaryLink {
+  border: 1px solid #343b45;
+  background: #171b21;
+  color: #f4f7fb;
+}
+.dangerButton {
+  border: 1px solid #ff8d8d;
+  background: rgba(255, 90, 90, 0.08);
+  color: #ff9f9f;
+}
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pill,
+.tag {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid #353d47;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.pill[data-state='active'] {
+  color: #71d59b;
+  border-color: rgba(113, 213, 155, 0.45);
+}
+.pill[data-state='suspended'],
+.pill[data-state='sensitive'] {
+  color: #ffb13b;
+  border-color: rgba(255, 177, 59, 0.45);
+}
+.pill[data-state='archived'],
+.pill[data-state='withdrawn'] {
+  color: #9ea7b5;
+}
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.tableRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(120px, 0.8fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 12px;
+  background: #111419;
+  color: inherit;
+  padding: 12px 14px;
+  text-decoration: none;
+}
+.metaGrid div {
+  border-radius: 10px;
+  background: #111419;
+  padding: 10px;
+}
+.metaGrid dt {
+  color: #7f8997;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+.metaGrid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.timeline {
+  list-style: none;
+  padding: 0;
+}
+.timeline li {
+  border-left: 3px solid #343b45;
+  padding: 4px 0 16px 14px;
+}
+.error {
+  border-radius: 10px;
+  background: rgba(255, 90, 90, 0.1);
+  color: #ff9f9f;
+  padding: 12px;
+}
+.message {
+  color: #71d59b;
+}
+.empty {
+  text-align: center;
+  color: #9ea7b5;
+}
+.fullWidth {
+  grid-column: 1/-1;
+}
+@media (max-width: 860px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+  .pageHeader,
+  .sectionHeader,
+  .toolbar,
+  .actions,
+  .cardHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tableRow {
+    grid-template-columns: 1fr;
+  }
+  .fullWidth {
+    grid-column: auto;
+  }
+}
