@@ -85,7 +85,7 @@ export function normalizeAssetFileName(value: string): string {
   if (
     !normalized ||
     normalized.length > 255 ||
-    /[\u0000-\u001f\u007f]/u.test(normalized)
+    containsControlCharacter(normalized)
   ) {
     throw validationError('fileName', 'Asset file name is invalid.');
   }
@@ -199,6 +199,18 @@ export function createAssetTemporaryObjectKey(
 
 export function createAssetOriginalObjectKey(workspaceId: string, assetId: string): string {
   return `assets/${workspaceId}/${assetId}/original`;
+}
+
+function containsControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+
+    if (codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function validationError(field: string, message: string): DomainError {
