@@ -61,6 +61,15 @@ export class AssetEntity {
   @Column({ name: 'original_etag', type: 'varchar', length: 128, nullable: true })
   public originalEtag!: string | null;
 
+  @Column({ type: 'integer', nullable: true })
+  public width!: number | null;
+
+  @Column({ type: 'integer', nullable: true })
+  public height!: number | null;
+
+  @Column({ name: 'processing_failure_code', type: 'varchar', length: 80, nullable: true })
+  public processingFailureCode!: string | null;
+
   @Column({ type: 'integer', default: 1 })
   public version!: number;
 
@@ -69,6 +78,9 @@ export class AssetEntity {
 
   @Column({ name: 'uploaded_at', type: 'timestamptz', nullable: true })
   public uploadedAt!: Date | null;
+
+  @Column({ name: 'processed_at', type: 'timestamptz', nullable: true })
+  public processedAt!: Date | null;
 
   @Column({ name: 'failed_at', type: 'timestamptz', nullable: true })
   public failedAt!: Date | null;
