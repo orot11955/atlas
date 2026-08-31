@@ -62,7 +62,6 @@ await request('/admin/v1/auth/session', {
 });
 await request('/admin/v1/workspace', { expectedStatus: 401 });
 
-
 if (process.env.ATLAS_VERIFY_MEDIA_UPLOAD === '1') {
   await verifyAssetUploadFoundation({ request, session, assertEqual });
 }
