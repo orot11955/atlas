@@ -13,6 +13,7 @@ import { ContentModule } from './content/content.module';
 import { HealthModule } from './health/health.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { MediaModule } from './media/media.module';
 import { HttpLoggingMiddleware } from './middleware/http-logging.middleware';
 import { RequestContextMiddleware } from './middleware/request-context.middleware';
 import { PlatformModule } from './platform/platform.module';
@@ -48,6 +49,7 @@ import { ResourceMemberModule } from './resource-member/resource-member.module';
     ProjectDeploymentModule,
     ResourceMemberModule,
     ContentModule,
+    MediaModule,
     HealthModule,
   ],
   providers: [
