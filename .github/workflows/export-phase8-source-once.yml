@@ -23,11 +23,11 @@ jobs:
       - name: Package source
         run: |
           tar --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist \
-            -czf atlas-phase8-source.tar.gz .
+            -czf /tmp/atlas-phase8-source.tar.gz .
 
       - name: Upload source bundle
         uses: actions/upload-artifact@v4
         with:
           name: atlas-phase8-source
-          path: atlas-phase8-source.tar.gz
+          path: /tmp/atlas-phase8-source.tar.gz
           retention-days: 1
