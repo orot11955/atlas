@@ -1,0 +1,354 @@
+name: Apply Media Robustness Once
+
+on:
+  push:
+    branches:
+      - feat/media-processing-variants
+    paths:
+      - .github/workflows/apply-media-robustness-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-processing-variants
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply robustness fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              content = target.read_text()
+              if old not in content:
+                  raise RuntimeError(f"Expected block was not found in {path}: {old[:80]!r}")
+              target.write_text(content.replace(old, new, 1))
+
+          asset_service = "packages/server/src/modules/media/application/asset.service.ts"
+          replace(
+              asset_service,
+              "  detectAssetImageContentType,\n  normalizeAssetContentType,",
+              "  detectAssetImageContentType,\n  isAssetUploadCompleted,\n  normalizeAssetContentType,",
+          )
+          replace(
+              asset_service,
+              """      if (
+                aggregate.asset.status === AssetStatus.UPLOADED &&
+                aggregate.session.status === AssetUploadSessionStatus.COMPLETED
+              ) {
+          """,
+              """      if (
+                aggregate.session.status === AssetUploadSessionStatus.COMPLETED &&
+                isAssetUploadCompleted(aggregate.asset)
+              ) {
+          """,
+          )
+          replace(
+              asset_service,
+              """    uploadedAt: asset.uploadedAt ? new Date(asset.uploadedAt) : undefined,
+              failedAt: asset.failedAt ? new Date(asset.failedAt) : undefined,
+          """,
+              """    uploadedAt: asset.uploadedAt ? new Date(asset.uploadedAt) : undefined,
+              processedAt: asset.processedAt ? new Date(asset.processedAt) : undefined,
+              failedAt: asset.failedAt ? new Date(asset.failedAt) : undefined,
+          """,
+          )
+
+          asset_repository = (
+              "packages/server/src/modules/media/infrastructure/persistence/"
+              "typeorm-asset.repository.ts"
+          )
+          replace(
+              asset_repository,
+              """      originalEtag: asset.originalEtag ?? null,
+              version: asset.version,
+          """,
+              """      originalEtag: asset.originalEtag ?? null,
+              width: asset.width ?? null,
+              height: asset.height ?? null,
+              processingFailureCode: asset.processingFailureCode ?? null,
+              version: asset.version,
+              processedAt: asset.processedAt ?? null,
+          """,
+          )
+          replace(
+              asset_repository,
+              """        originalEtag: input.originalEtag,
+                version: () => 'version + 1',
+                uploadedAt: input.completedAt,
+                failedAt: null,
+          """,
+              """        originalEtag: input.originalEtag,
+                width: null,
+                height: null,
+                processingFailureCode: null,
+                version: () => 'version + 1',
+                uploadedAt: input.completedAt,
+                processedAt: null,
+                failedAt: null,
+          """,
+          )
+          replace(
+              asset_repository,
+              """        status: AssetStatus.FAILED,
+                version: () => 'version + 1',
+                failedAt: input.failedAt,
+          """,
+              """        status: AssetStatus.FAILED,
+                width: null,
+                height: null,
+                processingFailureCode: null,
+                version: () => 'version + 1',
+                processedAt: null,
+                failedAt: input.failedAt,
+          """,
+          )
+          replace(
+              asset_repository,
+              """    originalEtag: entity.originalEtag ?? undefined,
+              version: entity.version,
+          """,
+              """    originalEtag: entity.originalEtag ?? undefined,
+              width: entity.width ?? undefined,
+              height: entity.height ?? undefined,
+              processingFailureCode: entity.processingFailureCode ?? undefined,
+              version: entity.version,
+          """,
+          )
+          replace(
+              asset_repository,
+              """    uploadedAt: entity.uploadedAt ? new Date(entity.uploadedAt) : undefined,
+              failedAt: entity.failedAt ? new Date(entity.failedAt) : undefined,
+          """,
+              """    uploadedAt: entity.uploadedAt ? new Date(entity.uploadedAt) : undefined,
+              processedAt: entity.processedAt ? new Date(entity.processedAt) : undefined,
+              failedAt: entity.failedAt ? new Date(entity.failedAt) : undefined,
+          """,
+          )
+
+          processing_repository = (
+              "packages/server/src/modules/media/infrastructure/persistence/"
+              "typeorm-asset-processing.repository.ts"
+          )
+          replace(
+              processing_repository,
+              """      if (
+                !activeAttempt ||
+                new Date(activeAttempt.startedAt).getTime() > input.staleBefore.getTime()
+              ) {
+                return Object.freeze({
+                  kind: 'busy' as const,
+                  asset: toAssetRecord(asset),
+                });
+              }
+
+              await attemptRepository.update(
+                {
+                  id: activeAttempt.id,
+                  workspaceId,
+                  status: AssetProcessingAttemptStatus.PROCESSING,
+                },
+                {
+                  status: AssetProcessingAttemptStatus.FAILED,
+                  failedAt: input.startedAt,
+                  failureCode: 'asset_processing_stale',
+                  updatedAt: input.startedAt,
+                },
+              );
+          """,
+              """      if (
+                activeAttempt &&
+                new Date(activeAttempt.startedAt).getTime() > input.staleBefore.getTime()
+              ) {
+                return Object.freeze({
+                  kind: 'busy' as const,
+                  asset: toAssetRecord(asset),
+                });
+              }
+
+              if (activeAttempt) {
+                await attemptRepository.update(
+                  {
+                    id: activeAttempt.id,
+                    workspaceId,
+                    status: AssetProcessingAttemptStatus.PROCESSING,
+                  },
+                  {
+                    status: AssetProcessingAttemptStatus.FAILED,
+                    failedAt: input.startedAt,
+                    failureCode: 'asset_processing_stale',
+                    updatedAt: input.startedAt,
+                  },
+                );
+              }
+          """,
+          )
+          old_claim = """    await attemptRepository.insert({
+              id: attempt.id,
+              workspaceId: attempt.workspaceId,
+              assetId: attempt.assetId,
+              jobId: attempt.jobId,
+              attemptNumber: attempt.attemptNumber,
+              status: attempt.status,
+              startedAt: attempt.startedAt,
+              completedAt: null,
+              failedAt: null,
+              failureCode: null,
+              createdAt: attempt.createdAt,
+              updatedAt: attempt.updatedAt,
+            });
+
+            const claimed = await assetRepository.update(
+              {
+                id: assetId,
+                workspaceId,
+                status: asset.status,
+              },
+              {
+                status: AssetStatus.PROCESSING,
+                processingFailureCode: null,
+                failedAt: null,
+                version: () => 'version + 1',
+                updatedAt: input.startedAt,
+              },
+            );
+
+            if ((claimed.affected ?? 0) !== 1) {
+              return Object.freeze({
+                kind: 'busy' as const,
+                asset: assetRecord,
+              });
+            }
+          """
+          new_claim = """    const claimed = await assetRepository.update(
+              {
+                id: assetId,
+                workspaceId,
+                status: asset.status,
+              },
+              {
+                status: AssetStatus.PROCESSING,
+                processingFailureCode: null,
+                failedAt: null,
+                version: () => 'version + 1',
+                updatedAt: input.startedAt,
+              },
+            );
+
+            if ((claimed.affected ?? 0) !== 1) {
+              return Object.freeze({
+                kind: 'busy' as const,
+                asset: assetRecord,
+              });
+            }
+
+            await attemptRepository.insert({
+              id: attempt.id,
+              workspaceId: attempt.workspaceId,
+              assetId: attempt.assetId,
+              jobId: attempt.jobId,
+              attemptNumber: attempt.attemptNumber,
+              status: attempt.status,
+              startedAt: attempt.startedAt,
+              completedAt: null,
+              failedAt: null,
+              failureCode: null,
+              createdAt: attempt.createdAt,
+              updatedAt: attempt.updatedAt,
+            });
+          """
+          replace(processing_repository, old_claim, new_claim)
+
+          asset_test = "packages/server/src/asset-upload.test.ts"
+          replace(
+              asset_test,
+              """      assert.equal(storage.copied, true);
+              assert.equal(repository.aggregate?.session.status, AssetUploadSessionStatus.COMPLETED);
+              assert.deepEqual(
+          """,
+              """      assert.equal(storage.copied, true);
+              assert.equal(storage.copyCount, 1);
+              assert.equal(repository.aggregate?.session.status, AssetUploadSessionStatus.COMPLETED);
+
+              if (!repository.aggregate) {
+                throw new Error('Expected completed Asset aggregate.');
+              }
+              repository.aggregate.asset = {
+                ...repository.aggregate.asset,
+                status: AssetStatus.PROCESSING,
+              };
+              const repeated = await service.completeUpload(repository.workspaceId, created.session.id);
+
+              assert.equal(repeated.status, AssetStatus.PROCESSING);
+              assert.equal(storage.copyCount, 1);
+              assert.deepEqual(
+          """,
+          )
+          replace(
+              asset_test,
+              """  public copied = false;
+
+              public async bucketExists(): Promise<boolean> {
+          """,
+              """  public copyCount = 0;
+
+              public get copied(): boolean {
+                return this.copyCount > 0;
+              }
+
+              public async bucketExists(): Promise<boolean> {
+          """,
+          )
+          replace(
+              asset_test,
+              """  public async copyObject(): Promise<void> {
+                this.copied = true;
+              }
+          """,
+              """  public async copyObject(): Promise<void> {
+                this.copyCount += 1;
+              }
+          """,
+          )
+          PY
+
+          pnpm exec prettier --write \
+            packages/server/src/modules/media/application/asset.service.ts \
+            packages/server/src/modules/media/infrastructure/persistence/typeorm-asset.repository.ts \
+            packages/server/src/modules/media/infrastructure/persistence/typeorm-asset-processing.repository.ts \
+            packages/server/src/asset-upload.test.ts
+
+      - name: Verify server package
+        run: |
+          pnpm --filter @atlas/server lint
+          pnpm --filter @atlas/server typecheck
+          pnpm --filter @atlas/server test
+
+      - name: Commit fixes
+        run: |
+          git config user.name "Juho"
+          git config user.email "134906793+orot11955@users.noreply.github.com"
+          git add packages/server/src
+          git commit -m "fix(media): harden upload and processing transitions"
+          git push origin HEAD:feat/media-processing-variants
