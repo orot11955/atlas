@@ -9,8 +9,10 @@ import { OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
 import {
   AssetEntity,
   AssetService,
+  AssetUploadCoordinator,
   AssetUploadSessionEntity,
   TypeOrmAssetRepository,
+  type AssetProcessingQueuePort,
   type AssetRepositoryPort,
   type AuditService,
   type TransactionRunner,
@@ -21,8 +23,14 @@ import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.mo
 import { MinioModule } from '../infrastructure/minio/minio.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
+import { BullMqAssetProcessingQueue } from './bullmq-asset-processing.queue';
 import { MediaController } from './media.controller';
-import { ASSET_REPOSITORY, ASSET_SERVICE } from './media.tokens';
+import {
+  ASSET_PROCESSING_QUEUE,
+  ASSET_REPOSITORY,
+  ASSET_SERVICE,
+  ASSET_UPLOAD_COORDINATOR,
+} from './media.tokens';
 
 @Module({
   imports: [
@@ -38,6 +46,10 @@ import { ASSET_REPOSITORY, ASSET_SERVICE } from './media.tokens';
       provide: ASSET_REPOSITORY,
       inject: [DataSource],
       useFactory: (dataSource: DataSource) => new TypeOrmAssetRepository(dataSource),
+    },
+    {
+      provide: ASSET_PROCESSING_QUEUE,
+      useClass: BullMqAssetProcessingQueue,
     },
     {
       provide: ASSET_SERVICE,
@@ -60,8 +72,16 @@ import { ASSET_REPOSITORY, ASSET_SERVICE } from './media.tokens';
           ),
         }),
     },
+    {
+      provide: ASSET_UPLOAD_COORDINATOR,
+      inject: [ASSET_SERVICE, ASSET_PROCESSING_QUEUE],
+      useFactory: (
+        assetService: AssetService<EntityManager>,
+        processingQueue: AssetProcessingQueuePort,
+      ) => new AssetUploadCoordinator(assetService, processingQueue),
+    },
   ],
-  exports: [ASSET_SERVICE],
+  exports: [ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR],
 })
 export class MediaModule {}
 

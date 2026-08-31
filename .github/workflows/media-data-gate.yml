@@ -14,6 +14,8 @@ on:
       - 'apps/api/src/media/**'
       - 'apps/admin-web/src/features/media/**'
       - 'apps/admin-web/src/app/admin/assets/**'
+      - 'apps/worker/**'
+      - 'packages/config/**'
       - 'packages/server/src/modules/media/**'
       - 'packages/server/src/asset*.test.ts'
       - 'packages/object-storage/src/**'
@@ -21,6 +23,7 @@ on:
       - 'scripts/ci/asset-upload-e2e.mjs'
       - 'scripts/ci/admin-auth-e2e.mjs'
       - 'infra/minio/**'
+      - 'pnpm-lock.yaml'
       - 'compose.yml'
 
 permissions:
@@ -33,7 +36,7 @@ concurrency:
 jobs:
   media-data-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       NODE_ENV: test
       PORT: 4000
@@ -61,6 +64,14 @@ jobs:
       API_KEY_USAGE_TOUCH_SECONDS: 1
       DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
       REDIS_URL: redis://localhost:6379/0
+      SYSTEM_QUEUE_NAME: atlas-system
+      MEDIA_QUEUE_NAME: atlas-media
+      MEDIA_PROCESSING_CONCURRENCY: 1
+      ASSET_PROCESSING_MAX_INPUT_BYTES: 26214400
+      ASSET_PROCESSING_MAX_OUTPUT_BYTES: 26214400
+      ASSET_PROCESSING_MAX_PIXELS: 40000000
+      ASSET_PROCESSING_MAX_DIMENSION: 12000
+      ASSET_PROCESSING_STALE_SECONDS: 300
       MINIO_ENDPOINT: http://localhost:9000
       MINIO_ACCESS_KEY: atlas-ci-root
       MINIO_SECRET_KEY: atlas-ci-root-password-with-sufficient-length
@@ -163,13 +174,16 @@ jobs:
           printf '%s' "$owner_password" > /tmp/atlas-owner-password
           chmod 600 /tmp/atlas-owner-password
 
-      - name: Verify authenticated MinIO Asset upload
+      - name: Verify authenticated upload and Worker processing
         run: |
           pnpm build:packages
           pnpm --filter @atlas/api build
+          pnpm --filter @atlas/worker build
           pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
           api_pid=$!
-          trap 'kill "$api_pid" 2>/dev/null || true; docker rm -f atlas-media-minio >/dev/null 2>&1 || true; rm -f /tmp/atlas-owner-password' EXIT
+          pnpm --filter @atlas/worker start > /tmp/atlas-worker.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$api_pid" "$worker_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
 
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
@@ -178,6 +192,7 @@ jobs:
 
             if [ "$attempt" = '30' ]; then
               cat /tmp/atlas-api.log
+              cat /tmp/atlas-worker.log
               docker logs atlas-media-minio
               exit 1
             fi
@@ -185,15 +200,33 @@ jobs:
             sleep 1
           done
 
-          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
-            node scripts/ci/admin-auth-e2e.mjs
+          if ! ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/admin-auth-e2e.mjs; then
+            cat /tmp/atlas-api.log
+            cat /tmp/atlas-worker.log
+            docker logs atlas-media-minio
+            exit 1
+          fi
 
-      - name: Verify Asset database state
+      - name: Verify Asset processing database state
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
 
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'uploaded'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'ready'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'uploaded'")" -eq 0
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'processing'")" -eq 0
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'failed'")" -eq 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_upload_sessions WHERE status = 'completed'")" -eq 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_upload_sessions WHERE status = 'failed'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_variants")" -eq 4
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(DISTINCT variant_key) FROM asset_variants")" -eq 4
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_processing_attempts WHERE status = 'succeeded'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_processing_attempts WHERE status = 'processing'")" -eq 0
+
+      - name: Verify public Variant Objects and metadata stripping
+        run: pnpm --filter @atlas/worker exec node scripts/media-processing-storage-e2e.mjs
+
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f atlas-media-minio >/dev/null 2>&1 || true

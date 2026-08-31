@@ -36,6 +36,29 @@ const storageSchema = z.object({
   MINIO_PUBLIC_BASE_URL: z.url(),
 });
 
+const mediaQueueSchema = z.object({
+  MEDIA_QUEUE_NAME: z.string().min(1).default('atlas-media'),
+});
+
+const mediaProcessingSchema = z.object({
+  MEDIA_PROCESSING_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  ASSET_PROCESSING_MAX_INPUT_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(26_214_400)
+    .default(26_214_400),
+  ASSET_PROCESSING_MAX_OUTPUT_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(26_214_400)
+    .default(26_214_400),
+  ASSET_PROCESSING_MAX_PIXELS: z.coerce.number().int().min(1).max(100_000_000).default(40_000_000),
+  ASSET_PROCESSING_MAX_DIMENSION: z.coerce.number().int().min(1).max(50_000).default(12_000),
+  ASSET_PROCESSING_STALE_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
+});
+
 const adminAuthenticationSchema = z.object({
   TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
   AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
@@ -87,6 +110,7 @@ export const apiEnvironmentSchema = runtimeSchema.extend({
   REDIS_URL: z.url(),
   ...adminAuthenticationSchema.shape,
   ...apiClientSchema.shape,
+  ...mediaQueueSchema.shape,
   ...storageSchema.shape,
 });
 
@@ -94,6 +118,8 @@ export const workerEnvironmentSchema = runtimeSchema.extend({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   SYSTEM_QUEUE_NAME: z.string().min(1).default('atlas-system'),
+  ...mediaQueueSchema.shape,
+  ...mediaProcessingSchema.shape,
   ...storageSchema.shape,
 });
 

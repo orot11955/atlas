@@ -87,6 +87,9 @@ importers:
       '@nestjs/typeorm':
         specifier: ^12.0.0
         version: 12.0.1(@nestjs/common@12.0.1(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.0.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@1.1.0(ioredis@6.0.0(supports-color@7.2.0))(pg@8.23.0)(supports-color@7.2.0)(ts-node@10.9.2(@types/node@24.13.3)(typescript@5.9.3)))
+      bullmq:
+        specifier: ^6.3.2
+        version: 6.3.2(ioredis@6.0.0(supports-color@7.2.0))(pg@8.23.0)
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -127,6 +130,12 @@ importers:
       '@atlas/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@atlas/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@atlas/object-storage':
+        specifier: workspace:*
+        version: link:../../packages/object-storage
       '@atlas/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -142,12 +151,18 @@ importers:
       bullmq:
         specifier: ^6.3.2
         version: 6.3.2(ioredis@6.0.0(supports-color@7.2.0))(pg@8.23.0)
+      minio:
+        specifier: ^8.0.7
+        version: 8.0.7
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+      sharp:
+        specifier: ^0.35.4
+        version: 0.35.4(@types/node@24.13.3)
     devDependencies:
       '@nestjs/cli':
         specifier: ^12.0.0
@@ -155,6 +170,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.12
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -2818,8 +2836,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.4':
     optionalDependencies:
@@ -3638,8 +3655,7 @@ snapshots:
 
   depd@2.0.0: {}
 
-  detect-libc@2.1.2:
-    optional: true
+  detect-libc@2.1.2: {}
 
   diff@4.0.4: {}
 
@@ -4470,7 +4486,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.4
       '@img/sharp-win32-x64': 0.35.4
       '@types/node': 24.13.3
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:

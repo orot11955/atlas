@@ -8,6 +8,8 @@ export type AssetKind = (typeof AssetKind)[keyof typeof AssetKind];
 
 export const AssetStatus = {
   FAILED: 'failed',
+  PROCESSING: 'processing',
+  READY: 'ready',
   UPLOADED: 'uploaded',
   UPLOADING: 'uploading',
 } as const;
@@ -44,9 +46,13 @@ export interface AssetRecord {
   sha256: string;
   originalObjectKey: string;
   originalEtag?: string;
+  width?: number;
+  height?: number;
+  processingFailureCode?: string;
   version: number;
   createdByAdminAccountId: string;
   uploadedAt?: Date;
+  processedAt?: Date;
   failedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -141,10 +147,26 @@ export function detectAssetImageContentType(prefix: Buffer): AssetImageContentTy
   return undefined;
 }
 
+export function isAssetUploadCompleted(asset: AssetRecord): boolean {
+  return (
+    asset.uploadedAt !== undefined &&
+    asset.actualSize !== undefined &&
+    asset.detectedContentType !== undefined &&
+    asset.originalEtag !== undefined
+  );
+}
+
+export function canProcessAsset(asset: AssetRecord): boolean {
+  return (
+    asset.status === AssetStatus.UPLOADED ||
+    (asset.status === AssetStatus.FAILED && isAssetUploadCompleted(asset))
+  );
+}
+
 export function assertPendingAssetUpload(aggregate: AssetUploadAggregate, now: Date): void {
   if (
-    aggregate.asset.status === AssetStatus.UPLOADED &&
-    aggregate.session.status === AssetUploadSessionStatus.COMPLETED
+    aggregate.session.status === AssetUploadSessionStatus.COMPLETED &&
+    isAssetUploadCompleted(aggregate.asset)
   ) {
     return;
   }

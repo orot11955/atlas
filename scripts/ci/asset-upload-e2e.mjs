@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
 export async function verifyAssetUploadFoundation({ request, session, assertEqual }) {
-  const png = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.from('atlas-phase-8-private-original'),
-  ]);
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
   const sha256 = createHash('sha256').update(png).digest('hex');
 
   await request('/admin/v1/assets/upload-sessions', {
@@ -84,6 +84,21 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
   );
   assertEqual(completedAgain.data.id, completed.data.id, 'Idempotent Asset completion');
 
+  const ready = await waitForReadyAsset(request, completed.data.id, session.cookieHeader);
+  assertAsset(ready, 'ready');
+  assertNoStorageInternals(ready, 'READY Asset');
+
+  if (
+    !Number.isSafeInteger(ready.width) ||
+    ready.width < 1 ||
+    !Number.isSafeInteger(ready.height) ||
+    ready.height < 1 ||
+    typeof ready.processedAt !== 'string' ||
+    ready.processingFailureCode !== null
+  ) {
+    throw new Error('READY Asset processing metadata is invalid.');
+  }
+
   const listed = await request('/admin/v1/assets?limit=100', {
     expectedStatus: 200,
     cookieHeader: session.cookieHeader,
@@ -91,9 +106,9 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
 
   if (
     !Array.isArray(listed.data.items) ||
-    !listed.data.items.some((asset) => asset.id === completed.data.id)
+    !listed.data.items.some((asset) => asset.id === ready.id && asset.status === 'ready')
   ) {
-    throw new Error('Uploaded Asset is missing from the Workspace list.');
+    throw new Error('READY Asset is missing from the Workspace list.');
   }
   assertNoStorageInternals(listed.data, 'Asset list');
 
@@ -131,6 +146,36 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
       csrfToken: session.csrfToken,
     },
   );
+}
+
+async function waitForReadyAsset(request, assetId, cookieHeader) {
+  let lastStatus = 'unknown';
+
+  for (let attempt = 1; attempt <= 60; attempt += 1) {
+    const response = await request(`/admin/v1/assets/${assetId}`, {
+      expectedStatus: 200,
+      cookieHeader,
+    });
+    lastStatus = response.data?.status ?? 'unknown';
+
+    if (lastStatus === 'ready') {
+      return response.data;
+    }
+
+    if (lastStatus === 'failed') {
+      throw new Error(
+        `Asset processing failed: ${response.data?.processingFailureCode ?? 'unknown failure'}`,
+      );
+    }
+
+    await delay(500);
+  }
+
+  throw new Error(`Asset did not become READY. Last status: ${lastStatus}.`);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function assertAsset(value, status) {

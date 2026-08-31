@@ -19,6 +19,7 @@ import {
   AdminPermission,
   type AssetRecord,
   type AssetService,
+  type AssetUploadCoordinator,
   type AssetUploadSessionView,
 } from '@atlas/server';
 
@@ -34,7 +35,7 @@ import {
   type AdminWorkspaceHttpRequest,
 } from '../admin-sites/admin-workspace.request';
 import { AssetListQueryDto, CreateAssetUploadSessionDto } from './media.dto';
-import { ASSET_SERVICE } from './media.tokens';
+import { ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR } from './media.tokens';
 
 const READ_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminPermissionGuard] as const;
 const WRITE_GUARDS = [
@@ -50,6 +51,8 @@ export class MediaController {
   public constructor(
     @Inject(ASSET_SERVICE)
     private readonly assetService: AssetService<unknown>,
+    @Inject(ASSET_UPLOAD_COORDINATOR)
+    private readonly uploadCoordinator: AssetUploadCoordinator,
   ) {}
 
   @Get()
@@ -113,13 +116,15 @@ export class MediaController {
   @RequireAdminPermission(AdminPermission.CONTENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
-  @ApiOkResponse({ description: 'Verifies and finalizes a private Asset upload.' })
+  @ApiOkResponse({
+    description: 'Verifies a private Asset upload and enqueues Media processing.',
+  })
   public async completeUpload(
     @Req() request: AdminWorkspaceHttpRequest,
     @Param('uploadSessionId', new ParseUUIDPipe({ version: '7' })) uploadSessionId: string,
   ) {
     const workspace = requireAdminWorkspace(request);
-    const asset = await this.assetService.completeUpload(workspace.id, uploadSessionId);
+    const asset = await this.uploadCoordinator.completeUpload(workspace.id, uploadSessionId);
     return { data: toAssetData(asset) };
   }
 }
@@ -135,8 +140,12 @@ function toAssetData(asset: Readonly<AssetRecord>) {
     expectedSize: asset.expectedSize,
     actualSize: asset.actualSize ?? null,
     sha256: asset.sha256,
+    width: asset.width ?? null,
+    height: asset.height ?? null,
+    processingFailureCode: asset.processingFailureCode ?? null,
     version: asset.version,
     uploadedAt: asset.uploadedAt?.toISOString() ?? null,
+    processedAt: asset.processedAt?.toISOString() ?? null,
     failedAt: asset.failedAt?.toISOString() ?? null,
     createdAt: asset.createdAt.toISOString(),
     updatedAt: asset.updatedAt.toISOString(),
