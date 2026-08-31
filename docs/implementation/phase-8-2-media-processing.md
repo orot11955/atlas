@@ -115,7 +115,7 @@ asset.processing-failed
 
 Audit에는 `assetId`, `attemptId`, `attemptNumber`, 안전한 failure code와 Variant Key만 기록한다. Object Key와 URL은 기록하지 않는다.
 
-## 다음 검증
+## 완료된 CI 검증
 
 ```text
 Upload Session
@@ -127,4 +127,22 @@ Upload Session
 → AssetVariant 4개 확인
 → atlas-public Object 확인
 → EXIF·GPS 미포함 확인
+```
+
+`Media Data Gate`는 PostgreSQL, Redis, 실제 MinIO, API와 Worker를 함께 실행해 정상 이미지의 READY 전이와 손상 이미지의 최종 FAILED 전이를 검증한다.
+
+## 후속 범위
+
+다음 Content 연동은 별도 `feat/media-content-integration` Branch에서 구현한다.
+
+```text
+AssetUsage
+asset://{assetId} Parser
+Asset Picker
+Cover Image
+Alt Text
+Caption
+Publication Asset Manifest
+ACTIVE Publication 사용 Asset Archive 차단
+Delivery Snapshot의 Public Variant 고정
 ```
