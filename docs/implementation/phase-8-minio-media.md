@@ -60,6 +60,8 @@ POST /api/admin/v1/assets/upload-sessions
 POST /api/admin/v1/assets/upload-sessions/{uploadSessionId}/complete
 ```
 
+`MediaModule`은 API `AppModule`에 명시적으로 등록하며, Media Data Gate가 실제 Upload Session Route와 인증 경계를 함께 검증한다.
+
 조회는 `contents:read`, 변경은 `contents:manage` Permission을 요구한다. 변경 API는 Admin Session, Workspace Scope와 Double-submit CSRF를 모두 통과해야 한다.
 
 ## Admin Web
