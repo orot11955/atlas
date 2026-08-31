@@ -114,9 +114,10 @@ export function createAssetVariantObjectKey(
 }
 
 export function normalizeAssetProcessingFailureCode(value: string): string {
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/gu, '_');
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/gu, '_');
 
-  return normalized.length > 0 && normalized.length <= 80
-    ? normalized
-    : 'asset_processing_failed';
+  return normalized.length > 0 && normalized.length <= 80 ? normalized : 'asset_processing_failed';
 }
