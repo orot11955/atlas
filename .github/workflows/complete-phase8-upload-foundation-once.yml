@@ -38,6 +38,69 @@ jobs:
           if export_line not in content:
               modules.write_text(content.rstrip() + '\n' + export_line + '\n', encoding='utf-8')
 
+          service_path = root / 'packages/server/src/modules/media/application/asset.service.ts'
+          service = service_path.read_text(encoding='utf-8')
+          if 'export type AssetUploadSessionView' not in service:
+              service = service.replace(
+                  'export interface CreateAssetUploadSessionResult {',
+                  "export type AssetUploadSessionView = Omit<\n  AssetUploadSessionRecord,\n  'temporaryObjectKey'\n>;\n\nexport interface CreateAssetUploadSessionResult {",
+                  1,
+              )
+              service = service.replace(
+                  '  session: Readonly<AssetUploadSessionRecord>;',
+                  '  session: Readonly<AssetUploadSessionView>;',
+                  1,
+              )
+              old_helper = """function freezeUploadSession(
+  session: AssetUploadSessionRecord,
+): Readonly<AssetUploadSessionRecord> {
+  return Object.freeze({
+    ...session,
+    expiresAt: new Date(session.expiresAt),
+    completedAt: session.completedAt ? new Date(session.completedAt) : undefined,
+    failedAt: session.failedAt ? new Date(session.failedAt) : undefined,
+    createdAt: new Date(session.createdAt),
+    updatedAt: new Date(session.updatedAt),
+  });
+}
+"""
+              new_helper = """function freezeUploadSession(
+  session: AssetUploadSessionRecord,
+): Readonly<AssetUploadSessionView> {
+  return Object.freeze({
+    id: session.id,
+    workspaceId: session.workspaceId,
+    assetId: session.assetId,
+    status: session.status,
+    expectedSize: session.expectedSize,
+    expectedSha256: session.expectedSha256,
+    declaredContentType: session.declaredContentType,
+    expiresAt: new Date(session.expiresAt),
+    completedAt: session.completedAt ? new Date(session.completedAt) : undefined,
+    failedAt: session.failedAt ? new Date(session.failedAt) : undefined,
+    failureCode: session.failureCode,
+    createdAt: new Date(session.createdAt),
+    updatedAt: new Date(session.updatedAt),
+  });
+}
+"""
+              if old_helper not in service:
+                  raise RuntimeError('Asset upload session helper was not found.')
+              service = service.replace(old_helper, new_helper, 1)
+              service_path.write_text(service, encoding='utf-8')
+
+          controller_path = root / 'apps/api/src/media/media.controller.ts'
+          controller = controller_path.read_text(encoding='utf-8')
+          controller = controller.replace(
+              '  type AssetUploadSessionRecord,',
+              '  type AssetUploadSessionView,',
+          )
+          controller = controller.replace(
+              'Readonly<AssetUploadSessionRecord>',
+              'Readonly<AssetUploadSessionView>',
+          )
+          controller_path.write_text(controller, encoding='utf-8')
+
           for workflow in (root / '.github/workflows').glob('*phase8*once.yml'):
               if workflow.name != 'complete-phase8-upload-foundation-once.yml':
                   workflow.unlink()
@@ -69,7 +132,7 @@ jobs:
       - name: Format product source
         run: pnpm format
 
-      - name: Verify quality after Object Storage contract fix
+      - name: Verify quality after safe Asset result contract
         run: |
           pnpm format:check
           pnpm check
