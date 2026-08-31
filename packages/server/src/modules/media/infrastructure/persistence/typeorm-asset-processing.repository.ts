@@ -13,10 +13,12 @@ import type {
   CompleteAssetProcessingInput,
   FailAssetProcessingInput,
 } from '../../ports/asset-processing.repository';
-import { AssetEntity } from './asset.entities';
 import { AssetProcessingAttemptEntity, AssetVariantEntity } from './asset-processing.entities';
+import { AssetEntity } from './asset.entities';
 
-export class TypeOrmAssetProcessingRepository implements AssetProcessingRepositoryPort<EntityManager> {
+export class TypeOrmAssetProcessingRepository
+  implements AssetProcessingRepositoryPort<EntityManager>
+{
   public constructor(private readonly dataSource: DataSource) {}
 
   public async findVariants(
@@ -75,6 +77,7 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
 
       if (
         activeAttempt &&
+        activeAttempt.jobId !== input.jobId &&
         new Date(activeAttempt.startedAt).getTime() > input.staleBefore.getTime()
       ) {
         return Object.freeze({
@@ -98,6 +101,7 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
           },
         );
       }
+
       await assetRepository.update(
         {
           id: assetId,
@@ -148,6 +152,21 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       updatedAt: input.startedAt,
     };
 
+    await attemptRepository.insert({
+      id: attempt.id,
+      workspaceId: attempt.workspaceId,
+      assetId: attempt.assetId,
+      jobId: attempt.jobId,
+      attemptNumber: attempt.attemptNumber,
+      status: attempt.status,
+      startedAt: attempt.startedAt,
+      completedAt: null,
+      failedAt: null,
+      failureCode: null,
+      createdAt: attempt.createdAt,
+      updatedAt: attempt.updatedAt,
+    });
+
     const claimed = await assetRepository.update(
       {
         id: assetId,
@@ -170,20 +189,6 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       });
     }
 
-    await attemptRepository.insert({
-      id: attempt.id,
-      workspaceId: attempt.workspaceId,
-      assetId: attempt.assetId,
-      jobId: attempt.jobId,
-      attemptNumber: attempt.attemptNumber,
-      status: attempt.status,
-      startedAt: attempt.startedAt,
-      completedAt: null,
-      failedAt: null,
-      failureCode: null,
-      createdAt: attempt.createdAt,
-      updatedAt: attempt.updatedAt,
-    });
     return Object.freeze({
       kind: 'claimed' as const,
       asset: {
