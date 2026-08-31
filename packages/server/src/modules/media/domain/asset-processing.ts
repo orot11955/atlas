@@ -90,9 +90,7 @@ export interface AssetProcessingAttemptRecord {
   updatedAt: Date;
 }
 
-export function assetVariantContentType(
-  format: AssetVariantFormat,
-): AssetVariantContentType {
+export function assetVariantContentType(format: AssetVariantFormat): AssetVariantContentType {
   return format === AssetVariantFormat.AVIF ? 'image/avif' : 'image/webp';
 }
 

@@ -9,7 +9,11 @@ export interface ClaimAssetProcessingInput {
 }
 
 export type ClaimAssetProcessingResult =
-  | Readonly<{ kind: 'already-ready'; asset: AssetRecord; variants: readonly AssetVariantRecord[] }>
+  | Readonly<{
+      kind: 'already-ready';
+      asset: AssetRecord;
+      variants: readonly AssetVariantRecord[];
+    }>
   | Readonly<{ kind: 'busy'; asset: AssetRecord }>
   | Readonly<{
       kind: 'claimed';
