@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 
+import { verifyAssetUploadFoundation } from './asset-upload-e2e.mjs';
 import { verifyApiClientLifecycle } from './api-client-lifecycle-e2e.mjs';
 import { verifyContentPublicationDelivery } from './content-publication-delivery-e2e.mjs';
 import { verifyProjectDeploymentReadModel } from './project-deployment-e2e.mjs';
@@ -60,6 +61,11 @@ await request('/admin/v1/auth/session', {
   cookieHeader: session.cookieHeader,
 });
 await request('/admin/v1/workspace', { expectedStatus: 401 });
+
+
+if (process.env.ATLAS_VERIFY_MEDIA_UPLOAD === '1') {
+  await verifyAssetUploadFoundation({ request, session, assertEqual });
+}
 
 const workspaceResponse = await request('/admin/v1/workspace', {
   expectedStatus: 200,
