@@ -73,7 +73,11 @@ export function AssetManager() {
 
       setProgress('서버 검증 및 원본 확정 중…');
       await completeAssetUpload(session.uploadSession.id);
-      fileInput.current.value = '';
+
+      if (fileInput.current) {
+        fileInput.current.value = '';
+      }
+
       await refresh();
       setProgress('업로드와 서버 검증이 완료되었습니다.');
     } catch (caught) {
