@@ -69,7 +69,7 @@ jobs:
       - name: Format product source
         run: pnpm format
 
-      - name: Verify quality after Asset type fix
+      - name: Verify quality after Object Storage contract fix
         run: |
           pnpm format:check
           pnpm check
