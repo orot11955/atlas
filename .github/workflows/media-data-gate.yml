@@ -183,7 +183,7 @@ jobs:
           api_pid=$!
           pnpm --filter @atlas/worker start > /tmp/atlas-worker.log 2>&1 &
           worker_pid=$!
-          trap 'kill "$api_pid" "$worker_pid" 2>/dev/null || true; docker rm -f atlas-media-minio >/dev/null 2>&1 || true; rm -f /tmp/atlas-owner-password' EXIT
+          trap 'kill "$api_pid" "$worker_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
 
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
@@ -226,3 +226,7 @@ jobs:
 
       - name: Verify public Variant Objects and metadata stripping
         run: pnpm --filter @atlas/worker exec node scripts/media-processing-storage-e2e.mjs
+
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f atlas-media-minio >/dev/null 2>&1 || true
