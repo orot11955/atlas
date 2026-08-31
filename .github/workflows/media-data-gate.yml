@@ -1,0 +1,199 @@
+name: Media Data Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - '.github/workflows/media-data-gate.yml'
+      - 'apps/api/src/media/**'
+      - 'apps/admin-web/src/features/media/**'
+      - 'apps/admin-web/src/app/admin/assets/**'
+      - 'packages/server/src/modules/media/**'
+      - 'packages/server/src/asset*.test.ts'
+      - 'packages/object-storage/src/**'
+      - 'packages/database/src/migrations/*Asset*.ts'
+      - 'scripts/ci/asset-upload-e2e.mjs'
+      - 'scripts/ci/admin-auth-e2e.mjs'
+      - 'infra/minio/**'
+      - 'compose.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-media-data-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  media-data-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      AUTH_LOGIN_FINGERPRINT_PEPPER: atlas-ci-admin-login-fingerprint-secret
+      AUTH_MFA_ENCRYPTION_KEY_BASE64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      AUTH_MFA_ENCRYPTION_KEY_VERSION: ci-v1
+      AUTH_MFA_RECOVERY_CODE_PEPPER: atlas-ci-admin-recovery-code-pepper-2026
+      AUTH_MFA_ISSUER: Atlas CI
+      AUTH_MFA_WINDOW_STEPS: 1
+      AUTH_MFA_GRANT_SECONDS: 120
+      AUTH_MFA_RECOVERY_CODE_COUNT: 10
+      AUTH_MFA_FAILURE_THRESHOLD: 5
+      AUTH_SESSION_FINGERPRINT_PEPPER: atlas-ci-admin-session-fingerprint-secret
+      AUTH_SESSION_IDLE_SECONDS: 1800
+      AUTH_SESSION_ABSOLUTE_SECONDS: 43200
+      AUTH_SESSION_TOUCH_SECONDS: 60
+      AUTH_SESSION_MAX_ACTIVE: 5
+      AUTH_SESSION_BIND_IP: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_COOKIE_SECURE: 'false'
+      API_KEY_PEPPER: atlas-ci-api-key-pepper-with-sufficient-random-length
+      API_KEY_USAGE_TOUCH_SECONDS: 1
+      DATABASE_URL: postgresql://atlas:atlas-ci-password@localhost:5432/atlas_ci
+      REDIS_URL: redis://localhost:6379/0
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: atlas-ci-root
+      MINIO_SECRET_KEY: atlas-ci-root-password-with-sufficient-length
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+      ASSET_UPLOAD_TTL_SECONDS: 900
+      ASSET_UPLOAD_MAX_BYTES: 26214400
+      ATLAS_VERIFY_MEDIA_UPLOAD: '1'
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_ci
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start MinIO and create buckets
+        run: |
+          docker run -d --name atlas-media-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" \
+            -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            quay.io/minio/minio:latest \
+            server /data
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:9000/minio/health/live > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" = '30' ]; then
+              docker logs atlas-media-minio
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          docker run --rm --network host --entrypoint /bin/sh \
+            quay.io/minio/mc:latest -c "
+              mc alias set atlas http://127.0.0.1:9000 '$MINIO_ACCESS_KEY' '$MINIO_SECRET_KEY' &&
+              mc mb --ignore-existing atlas/$MINIO_PRIVATE_BUCKET &&
+              mc mb --ignore-existing atlas/$MINIO_PROCESSING_BUCKET &&
+              mc mb --ignore-existing atlas/$MINIO_PUBLIC_BUCKET
+            "
+
+      - name: Apply migrations
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Bootstrap OWNER
+        run: |
+          owner_password="Atlas-media-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ci@atlas.test \
+              --display-name 'Media Gate Owner' \
+              --password-stdin \
+              --json
+
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+      - name: Verify authenticated MinIO Asset upload
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/api start > /tmp/atlas-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; docker rm -f atlas-media-minio >/dev/null 2>&1 || true; rm -f /tmp/atlas-owner-password' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
+              break
+            fi
+
+            if [ "$attempt" = '30' ]; then
+              cat /tmp/atlas-api.log
+              docker logs atlas-media-minio
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            node scripts/ci/admin-auth-e2e.mjs
+
+      - name: Verify Asset database state
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'uploaded'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE status = 'failed'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_upload_sessions WHERE status = 'completed'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_upload_sessions WHERE status = 'failed'")" -eq 1
