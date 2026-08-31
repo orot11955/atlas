@@ -8,21 +8,26 @@
     "start": "node dist/main.js",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test"
+    "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@atlas/config": "workspace:*",
+    "@atlas/database": "workspace:*",
+    "@atlas/object-storage": "workspace:*",
     "@atlas/server": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",
     "bullmq": "^6.3.2",
+    "minio": "^8.0.7",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
     "@types/node": "^24.0.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }

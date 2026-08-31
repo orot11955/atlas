@@ -36,6 +36,10 @@ const storageSchema = z.object({
   MINIO_PUBLIC_BASE_URL: z.url(),
 });
 
+const mediaQueueSchema = z.object({
+  MEDIA_QUEUE_NAME: z.string().min(1).default('atlas-media'),
+});
+
 const adminAuthenticationSchema = z.object({
   TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
   AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
@@ -87,6 +91,7 @@ export const apiEnvironmentSchema = runtimeSchema.extend({
   REDIS_URL: z.url(),
   ...adminAuthenticationSchema.shape,
   ...apiClientSchema.shape,
+  ...mediaQueueSchema.shape,
   ...storageSchema.shape,
 });
 
@@ -94,6 +99,7 @@ export const workerEnvironmentSchema = runtimeSchema.extend({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   SYSTEM_QUEUE_NAME: z.string().min(1).default('atlas-system'),
+  ...mediaQueueSchema.shape,
   ...storageSchema.shape,
 });
 
