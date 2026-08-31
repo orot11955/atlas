@@ -1,0 +1,85 @@
+name: Complete Phase 8 upload foundation once
+
+on:
+  push:
+    branches:
+      - feat/minio-media
+    paths:
+      - .github/workflows/complete-phase8-upload-foundation-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: complete-phase8-upload-foundation-once
+  cancel-in-progress: true
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/minio-media
+
+      - name: Finalize product source boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.')
+          modules = root / 'packages/server/src/modules/index.ts'
+          content = modules.read_text(encoding='utf-8')
+          export_line = "export * from './media';"
+          if export_line not in content:
+              modules.write_text(content.rstrip() + '\n' + export_line + '\n', encoding='utf-8')
+
+          for workflow in (root / '.github/workflows').glob('*phase8*once.yml'):
+              if workflow.name != 'complete-phase8-upload-foundation-once.yml':
+                  workflow.unlink()
+
+          for path in [
+              root / 'scripts/apply-phase8-media.py',
+              root / 'scripts/finalize-phase8-media.py',
+              root / 'scripts/finalize-phase8-media-v2.py',
+              root / 'scripts/repair-phase8-media.py',
+          ]:
+              path.unlink(missing_ok=True)
+
+          shutil.rmtree(root / '.atlas-phase8', ignore_errors=True)
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install and refresh lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Format product source
+        run: pnpm format
+
+      - name: Verify quality
+        run: |
+          pnpm format:check
+          pnpm check
+          docker compose config > /dev/null
+
+      - name: Commit verified product source
+        run: |
+          rm -f .github/workflows/complete-phase8-upload-foundation-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: finalize private Asset upload foundation'
+          git push origin HEAD:feat/minio-media
