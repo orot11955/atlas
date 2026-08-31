@@ -11,9 +11,7 @@ import {
 } from '@atlas/server';
 
 @Injectable()
-export class BullMqAssetProcessingQueue
-  implements AssetProcessingQueuePort, OnApplicationShutdown
-{
+export class BullMqAssetProcessingQueue implements AssetProcessingQueuePort, OnApplicationShutdown {
   private readonly queue: Queue<AssetProcessingJobData>;
 
   public constructor(config: ConfigService<ApiEnvironment, true>) {
