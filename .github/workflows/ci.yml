@@ -18,6 +18,85 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # BEGIN MEDIA FORMAT ONCE
+  media-format-once:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/media-processing-variants' &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-processing-variants
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format Media processing changes
+        run: |
+          pnpm exec prettier --write \
+            apps/admin-web/src/features/media/asset-types.ts \
+            apps/worker/src/infrastructure/worker-database.service.ts \
+            apps/worker/src/media/media-queue.worker.ts \
+            apps/worker/src/media/media.tokens.ts \
+            apps/worker/src/media/sharp-asset-image.processor.ts \
+            apps/worker/src/sharp-asset-image.processor.test.ts \
+            apps/worker/src/worker.module.ts \
+            packages/config/src/index.ts \
+            packages/server/src/asset-processing.test.ts \
+            packages/server/src/modules/media/application/asset-processing.service.ts \
+            packages/server/src/modules/media/index.ts \
+            packages/server/src/modules/media/infrastructure/persistence/typeorm-asset-processing.repository.ts \
+            packages/server/src/modules/media/ports/asset-image-processor.port.ts \
+            packages/server/src/modules/media/ports/asset-processing-object-storage.port.ts
+
+      - name: Remove one-time formatting Job
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/ci.yml')
+          text = workflow.read_text(encoding='utf-8')
+          start_marker = '  # BEGIN MEDIA FORMAT ONCE\n'
+          end_marker = '  # END MEDIA FORMAT ONCE\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          workflow.write_text(text[:start] + text[end:], encoding='utf-8')
+          PY
+          pnpm exec prettier --write .github/workflows/ci.yml
+
+      - name: Commit formatted files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo 'No formatting changes.'
+            exit 0
+          fi
+
+          git commit -m 'chore: format Media processing worker'
+          git push origin HEAD:feat/media-processing-variants
+  # END MEDIA FORMAT ONCE
+
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
