@@ -2,13 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
-import {
-  AuditResult,
-  DomainError,
-  ErrorCode,
-  createUuidV7,
-  systemClock,
-} from '../../../core';
+import { AuditResult, DomainError, ErrorCode, createUuidV7, systemClock } from '../../../core';
 import type { AssetRecord } from '../domain/asset';
 import {
   ASSET_IMAGE_VARIANT_SPECS,
@@ -18,7 +12,10 @@ import {
   normalizeAssetProcessingFailureCode,
   type AssetVariantRecord,
 } from '../domain/asset-processing';
-import type { AssetImageProcessorPort, ProcessedAssetImage } from '../ports/asset-image-processor.port';
+import type {
+  AssetImageProcessorPort,
+  ProcessedAssetImage,
+} from '../ports/asset-image-processor.port';
 import type { AssetProcessingObjectStoragePort } from '../ports/asset-processing-object-storage.port';
 import type {
   AssetProcessingRepositoryPort,
@@ -181,11 +178,7 @@ export class AssetProcessingService<TTransaction> {
         );
       });
 
-      await safeRemoveMany(
-        this.objectStorage,
-        this.options.processingBucket,
-        processingObjectKeys,
-      );
+      await safeRemoveMany(this.objectStorage, this.options.processingBucket, processingObjectKeys);
 
       return Object.freeze({
         kind: 'ready',
@@ -249,7 +242,9 @@ export class AssetProcessingService<TTransaction> {
     let available: boolean[];
 
     try {
-      available = await Promise.all(buckets.map((bucket) => this.objectStorage.bucketExists(bucket)));
+      available = await Promise.all(
+        buckets.map((bucket) => this.objectStorage.bucketExists(bucket)),
+      );
     } catch (cause) {
       throw processingFailure(
         'asset_storage_unavailable',

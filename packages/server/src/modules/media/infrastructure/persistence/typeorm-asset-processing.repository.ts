@@ -16,9 +16,7 @@ import type {
 import { AssetProcessingAttemptEntity, AssetVariantEntity } from './asset-processing.entities';
 import { AssetEntity } from './asset.entities';
 
-export class TypeOrmAssetProcessingRepository
-  implements AssetProcessingRepositoryPort<EntityManager>
-{
+export class TypeOrmAssetProcessingRepository implements AssetProcessingRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async findVariants(

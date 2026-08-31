@@ -54,12 +54,7 @@ const mediaProcessingSchema = z.object({
     .min(1)
     .max(26_214_400)
     .default(26_214_400),
-  ASSET_PROCESSING_MAX_PIXELS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100_000_000)
-    .default(40_000_000),
+  ASSET_PROCESSING_MAX_PIXELS: z.coerce.number().int().min(1).max(100_000_000).default(40_000_000),
   ASSET_PROCESSING_MAX_DIMENSION: z.coerce.number().int().min(1).max(50_000).default(12_000),
   ASSET_PROCESSING_STALE_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
 });

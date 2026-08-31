@@ -3,7 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 
 import { workerEnvironmentSchema, type WorkerEnvironment } from '@atlas/config';
-import { MinioObjectStorageAdapter, OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
+import {
+  MinioObjectStorageAdapter,
+  OBJECT_STORAGE,
+  type ObjectStoragePort,
+} from '@atlas/object-storage';
 import {
   ATLAS_LOGGER,
   AssetProcessingService,

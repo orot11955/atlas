@@ -30,13 +30,11 @@ export class SharpAssetImageProcessor implements AssetImageProcessorPort {
 
     for (const specification of input.variants) {
       try {
-        const pipeline = sharp(input.body, sharpOptions(input))
-          .rotate()
-          .resize({
-            width: specification.maximumWidth,
-            fit: 'inside',
-            withoutEnlargement: true,
-          });
+        const pipeline = sharp(input.body, sharpOptions(input)).rotate().resize({
+          width: specification.maximumWidth,
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
         const output =
           specification.format === AssetVariantFormat.AVIF
             ? pipeline.avif({ quality: specification.quality, effort: 4 })
