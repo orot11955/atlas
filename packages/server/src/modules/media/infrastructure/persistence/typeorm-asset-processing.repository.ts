@@ -74,7 +74,7 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       });
 
       if (
-        !activeAttempt ||
+        activeAttempt &&
         new Date(activeAttempt.startedAt).getTime() > input.staleBefore.getTime()
       ) {
         return Object.freeze({
@@ -83,19 +83,21 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
         });
       }
 
-      await attemptRepository.update(
-        {
-          id: activeAttempt.id,
-          workspaceId,
-          status: AssetProcessingAttemptStatus.PROCESSING,
-        },
-        {
-          status: AssetProcessingAttemptStatus.FAILED,
-          failedAt: input.startedAt,
-          failureCode: 'asset_processing_stale',
-          updatedAt: input.startedAt,
-        },
-      );
+      if (activeAttempt) {
+        await attemptRepository.update(
+          {
+            id: activeAttempt.id,
+            workspaceId,
+            status: AssetProcessingAttemptStatus.PROCESSING,
+          },
+          {
+            status: AssetProcessingAttemptStatus.FAILED,
+            failedAt: input.startedAt,
+            failureCode: 'asset_processing_stale',
+            updatedAt: input.startedAt,
+          },
+        );
+      }
       await assetRepository.update(
         {
           id: assetId,
@@ -146,21 +148,6 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       updatedAt: input.startedAt,
     };
 
-    await attemptRepository.insert({
-      id: attempt.id,
-      workspaceId: attempt.workspaceId,
-      assetId: attempt.assetId,
-      jobId: attempt.jobId,
-      attemptNumber: attempt.attemptNumber,
-      status: attempt.status,
-      startedAt: attempt.startedAt,
-      completedAt: null,
-      failedAt: null,
-      failureCode: null,
-      createdAt: attempt.createdAt,
-      updatedAt: attempt.updatedAt,
-    });
-
     const claimed = await assetRepository.update(
       {
         id: assetId,
@@ -183,6 +170,20 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       });
     }
 
+    await attemptRepository.insert({
+      id: attempt.id,
+      workspaceId: attempt.workspaceId,
+      assetId: attempt.assetId,
+      jobId: attempt.jobId,
+      attemptNumber: attempt.attemptNumber,
+      status: attempt.status,
+      startedAt: attempt.startedAt,
+      completedAt: null,
+      failedAt: null,
+      failureCode: null,
+      createdAt: attempt.createdAt,
+      updatedAt: attempt.updatedAt,
+    });
     return Object.freeze({
       kind: 'claimed' as const,
       asset: {

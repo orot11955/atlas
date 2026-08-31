@@ -19,6 +19,7 @@ import {
   createAssetOriginalObjectKey,
   createAssetTemporaryObjectKey,
   detectAssetImageContentType,
+  isAssetUploadCompleted,
   normalizeAssetContentType,
   normalizeAssetExpectedSize,
   normalizeAssetFileName,
@@ -220,8 +221,8 @@ export class AssetService<TTransaction> {
       }
 
       if (
-        aggregate.asset.status === AssetStatus.UPLOADED &&
-        aggregate.session.status === AssetUploadSessionStatus.COMPLETED
+        aggregate.session.status === AssetUploadSessionStatus.COMPLETED &&
+        isAssetUploadCompleted(aggregate.asset)
       ) {
         return { asset: freezeAsset(aggregate.asset) } as const;
       }
@@ -544,6 +545,7 @@ function freezeAsset(asset: AssetRecord): Readonly<AssetRecord> {
   return Object.freeze({
     ...asset,
     uploadedAt: asset.uploadedAt ? new Date(asset.uploadedAt) : undefined,
+    processedAt: asset.processedAt ? new Date(asset.processedAt) : undefined,
     failedAt: asset.failedAt ? new Date(asset.failedAt) : undefined,
     createdAt: new Date(asset.createdAt),
     updatedAt: new Date(asset.updatedAt),

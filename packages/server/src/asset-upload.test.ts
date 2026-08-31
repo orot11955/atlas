@@ -92,7 +92,20 @@ test('Asset upload session verifies size, SHA-256 and magic bytes before finaliz
       assert.equal(completed.actualSize, png.length);
       assert.equal(completed.detectedContentType, 'image/png');
       assert.equal(storage.copied, true);
+      assert.equal(storage.copyCount, 1);
       assert.equal(repository.aggregate?.session.status, AssetUploadSessionStatus.COMPLETED);
+
+      if (!repository.aggregate) {
+        throw new Error('Expected completed Asset aggregate.');
+      }
+      repository.aggregate.asset = {
+        ...repository.aggregate.asset,
+        status: AssetStatus.PROCESSING,
+      };
+      const repeated = await service.completeUpload(repository.workspaceId, created.session.id);
+
+      assert.equal(repeated.status, AssetStatus.PROCESSING);
+      assert.equal(storage.copyCount, 1);
       assert.deepEqual(
         auditRepository.records.map((record) => record.action),
         ['asset.upload-session-created', 'asset.upload-completed'],
@@ -112,7 +125,11 @@ class InMemoryAuditRepository implements AuditRepositoryPort<void> {
 class FakeAssetStorage implements AssetObjectStoragePort {
   public body = Buffer.alloc(0);
   public contentType = 'image/png';
-  public copied = false;
+  public copyCount = 0;
+
+  public get copied(): boolean {
+    return this.copyCount > 0;
+  }
 
   public async bucketExists(): Promise<boolean> {
     return true;
@@ -136,7 +153,7 @@ class FakeAssetStorage implements AssetObjectStoragePort {
   }
 
   public async copyObject(): Promise<void> {
-    this.copied = true;
+    this.copyCount += 1;
   }
 
   public async removeObject(): Promise<void> {}
