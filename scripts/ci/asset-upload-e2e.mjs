@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
 export async function verifyAssetUploadFoundation({ request, session, assertEqual }) {
-  const png = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.from('atlas-phase-8-private-original'),
-  ]);
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
   const sha256 = createHash('sha256').update(png).digest('hex');
 
   await request('/admin/v1/assets/upload-sessions', {
