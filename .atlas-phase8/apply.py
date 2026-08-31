@@ -9,7 +9,7 @@ import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PARTS = [ROOT / '.atlas-phase8' / f'part-{index:02d}.txt' for index in range(14)]
+PARTS = [ROOT / '.atlas-phase8' / f'part-{index:02d}.txt' for index in range(6)]
 EXPECTED_SHA256 = 'c777c67468ce5dc0c7897c00597ea5b0fa67b05be4865ba7ddadd7a16bc9444d'
 DELETE_PATHS = ['.github/workflows/apply-phase8-media-once.yml', '.github/workflows/export-phase8-source-once.yml', '.github/workflows/finalize-phase8-media-once.yml', '.github/workflows/finalize-phase8-media-v2-once.yml', '.github/workflows/repair-phase8-media-once.yml', 'packages/server/src/asset-upload.test.ts', 'scripts/apply-phase8-media.py', 'scripts/finalize-phase8-media-v2.py', 'scripts/finalize-phase8-media.py', 'scripts/repair-phase8-media.py']
 
