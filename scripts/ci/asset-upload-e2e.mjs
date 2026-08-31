@@ -117,7 +117,9 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
   });
 
   if (!invalidUpload.ok) {
-    throw new Error(`Invalid-fixture PUT failed before server verification: ${invalidUpload.status}`);
+    throw new Error(
+      `Invalid-fixture PUT failed before server verification: ${invalidUpload.status}`,
+    );
   }
 
   await request(

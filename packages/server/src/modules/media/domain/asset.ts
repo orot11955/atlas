@@ -75,18 +75,9 @@ export interface AssetUploadAggregate {
 }
 
 export function normalizeAssetFileName(value: string): string {
-  const normalized = value
-    .normalize('NFC')
-    .split(/[\\/]/u)
-    .at(-1)
-    ?.trim()
-    .replace(/\s+/gu, ' ');
+  const normalized = value.normalize('NFC').split(/[\\/]/u).at(-1)?.trim().replace(/\s+/gu, ' ');
 
-  if (
-    !normalized ||
-    normalized.length > 255 ||
-    containsControlCharacter(normalized)
-  ) {
+  if (!normalized || normalized.length > 255 || containsControlCharacter(normalized)) {
     throw validationError('fileName', 'Asset file name is invalid.');
   }
 
@@ -97,10 +88,7 @@ export function normalizeAssetContentType(value: string): AssetImageContentType 
   const normalized = value.trim().toLowerCase();
 
   if (!ASSET_IMAGE_CONTENT_TYPES.includes(normalized as AssetImageContentType)) {
-    throw validationError(
-      'contentType',
-      'Only JPEG, PNG and WebP image uploads are supported.',
-    );
+    throw validationError('contentType', 'Only JPEG, PNG and WebP image uploads are supported.');
   }
 
   return normalized as AssetImageContentType;
@@ -114,10 +102,7 @@ export function normalizeAssetExpectedSize(value: number, maximumBytes: number):
     maximumBytes < 1 ||
     value > maximumBytes
   ) {
-    throw validationError(
-      'size',
-      `Asset size must contain between 1 and ${maximumBytes} bytes.`,
-    );
+    throw validationError('size', `Asset size must contain between 1 and ${maximumBytes} bytes.`);
   }
 
   return value;
@@ -134,12 +119,7 @@ export function normalizeAssetSha256(value: string): string {
 }
 
 export function detectAssetImageContentType(prefix: Buffer): AssetImageContentType | undefined {
-  if (
-    prefix.length >= 3 &&
-    prefix[0] === 0xff &&
-    prefix[1] === 0xd8 &&
-    prefix[2] === 0xff
-  ) {
+  if (prefix.length >= 3 && prefix[0] === 0xff && prefix[1] === 0xd8 && prefix[2] === 0xff) {
     return 'image/jpeg';
   }
 
@@ -161,10 +141,7 @@ export function detectAssetImageContentType(prefix: Buffer): AssetImageContentTy
   return undefined;
 }
 
-export function assertPendingAssetUpload(
-  aggregate: AssetUploadAggregate,
-  now: Date,
-): void {
+export function assertPendingAssetUpload(aggregate: AssetUploadAggregate, now: Date): void {
   if (
     aggregate.asset.status === AssetStatus.UPLOADED &&
     aggregate.session.status === AssetUploadSessionStatus.COMPLETED

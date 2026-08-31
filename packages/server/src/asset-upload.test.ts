@@ -32,9 +32,7 @@ test('Asset input normalization blocks active content and detects supported imag
   assert.equal(normalizeAssetContentType('IMAGE/PNG'), 'image/png');
   assert.throws(() => normalizeAssetContentType('image/svg+xml'));
   assert.equal(
-    detectAssetImageContentType(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    ),
+    detectAssetImageContentType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
     'image/png',
   );
   assert.equal(detectAssetImageContentType(Buffer.from('<svg>')), undefined);
@@ -157,10 +155,7 @@ class FakeAssetRepository implements AssetRepositoryPort<void> {
     return this.aggregate?.asset;
   }
 
-  public async insertUpload(
-    asset: AssetRecord,
-    session: AssetUploadSessionRecord,
-  ): Promise<void> {
+  public async insertUpload(asset: AssetRecord, session: AssetUploadSessionRecord): Promise<void> {
     this.aggregate = { asset: { ...asset }, session: { ...session } };
   }
 

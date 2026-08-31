@@ -41,13 +41,7 @@ import { ASSET_REPOSITORY, ASSET_SERVICE } from './media.tokens';
     },
     {
       provide: ASSET_SERVICE,
-      inject: [
-        TRANSACTION_RUNNER,
-        ASSET_REPOSITORY,
-        OBJECT_STORAGE,
-        AUDIT_SERVICE,
-        ConfigService,
-      ],
+      inject: [TRANSACTION_RUNNER, ASSET_REPOSITORY, OBJECT_STORAGE, AUDIT_SERVICE, ConfigService],
       useFactory: (
         transactionRunner: TransactionRunner<EntityManager>,
         repository: AssetRepositoryPort<EntityManager>,

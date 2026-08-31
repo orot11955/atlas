@@ -26,10 +26,7 @@ export class TypeOrmAssetRepository implements AssetRepositoryPort<EntityManager
     return entities.map(toAssetRecord);
   }
 
-  public async findById(
-    workspaceId: string,
-    assetId: string,
-  ): Promise<AssetRecord | undefined> {
+  public async findById(workspaceId: string, assetId: string): Promise<AssetRecord | undefined> {
     const entity = await this.dataSource.getRepository(AssetEntity).findOne({
       where: { id: assetId, workspaceId },
     });

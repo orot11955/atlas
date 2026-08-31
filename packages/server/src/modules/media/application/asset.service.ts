@@ -67,9 +67,11 @@ export interface CreateAssetUploadSessionInput {
   sha256: string;
 }
 
+export type AssetUploadSessionView = Omit<AssetUploadSessionRecord, 'temporaryObjectKey'>;
+
 export interface CreateAssetUploadSessionResult {
   asset: Readonly<AssetRecord>;
-  session: Readonly<AssetUploadSessionRecord>;
+  session: Readonly<AssetUploadSessionView>;
   upload: Readonly<{
     method: 'PUT';
     url: string;
@@ -102,10 +104,7 @@ export class AssetService<TTransaction> {
     return Object.freeze(records.map(freezeAsset));
   }
 
-  public async getAsset(
-    workspaceId: string,
-    assetId: string,
-  ): Promise<Readonly<AssetRecord>> {
+  public async getAsset(workspaceId: string, assetId: string): Promise<Readonly<AssetRecord>> {
     const asset = await this.repository.findById(workspaceId, assetId);
 
     if (!asset) {
@@ -329,9 +328,7 @@ export class AssetService<TTransaction> {
     return outcome.asset;
   }
 
-  private async verifyUploadedObject(
-    session: AssetUploadSessionRecord,
-  ): Promise<VerifiedUpload> {
+  private async verifyUploadedObject(session: AssetUploadSessionRecord): Promise<VerifiedUpload> {
     let metadata: AssetObjectMetadata;
 
     try {
@@ -340,7 +337,11 @@ export class AssetService<TTransaction> {
         session.temporaryObjectKey,
       );
     } catch (cause) {
-      throw validationFailure('asset_object_missing', 'Uploaded Asset Object was not found.', cause);
+      throw validationFailure(
+        'asset_object_missing',
+        'Uploaded Asset Object was not found.',
+        cause,
+      );
     }
 
     if (metadata.size !== session.expectedSize) {
@@ -462,7 +463,10 @@ async function inspectObjectStream(
     size += chunk.length;
 
     if (size > maximumBytes) {
-      throw validationFailure('asset_size_limit_exceeded', 'Uploaded Asset exceeds the size limit.');
+      throw validationFailure(
+        'asset_size_limit_exceeded',
+        'Uploaded Asset exceeds the size limit.',
+      );
     }
 
     hash.update(chunk);
@@ -476,9 +480,7 @@ async function inspectObjectStream(
 }
 
 function readMetadataContentType(metadata: Record<string, string>): string | undefined {
-  const value = Object.entries(metadata).find(
-    ([key]) => key.toLowerCase() === 'content-type',
-  )?.[1];
+  const value = Object.entries(metadata).find(([key]) => key.toLowerCase() === 'content-type')?.[1];
   return value?.split(';', 1)[0]?.trim().toLowerCase();
 }
 
@@ -548,14 +550,19 @@ function freezeAsset(asset: AssetRecord): Readonly<AssetRecord> {
   });
 }
 
-function freezeUploadSession(
-  session: AssetUploadSessionRecord,
-): Readonly<AssetUploadSessionRecord> {
+function freezeUploadSession(session: AssetUploadSessionRecord): Readonly<AssetUploadSessionView> {
   return Object.freeze({
-    ...session,
+    id: session.id,
+    workspaceId: session.workspaceId,
+    assetId: session.assetId,
+    status: session.status,
+    expectedSize: session.expectedSize,
+    expectedSha256: session.expectedSha256,
+    declaredContentType: session.declaredContentType,
     expiresAt: new Date(session.expiresAt),
     completedAt: session.completedAt ? new Date(session.completedAt) : undefined,
     failedAt: session.failedAt ? new Date(session.failedAt) : undefined,
+    failureCode: session.failureCode,
     createdAt: new Date(session.createdAt),
     updatedAt: new Date(session.updatedAt),
   });

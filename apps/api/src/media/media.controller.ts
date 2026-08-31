@@ -19,7 +19,7 @@ import {
   AdminPermission,
   type AssetRecord,
   type AssetService,
-  type AssetUploadSessionRecord,
+  type AssetUploadSessionView,
 } from '@atlas/server';
 
 import { AdminCsrfGuard } from '../admin-session/admin-csrf.guard';
@@ -57,10 +57,7 @@ export class MediaController {
   @RequireAdminPermission(AdminPermission.CONTENTS_READ)
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ description: 'Returns Workspace Assets without storage internals.' })
-  public async list(
-    @Req() request: AdminWorkspaceHttpRequest,
-    @Query() query: AssetListQueryDto,
-  ) {
+  public async list(@Req() request: AdminWorkspaceHttpRequest, @Query() query: AssetListQueryDto) {
     const workspace = requireAdminWorkspace(request);
     const assets = await this.assetService.listAssets(
       workspace.id,
@@ -146,7 +143,7 @@ function toAssetData(asset: Readonly<AssetRecord>) {
   };
 }
 
-function toUploadSessionData(session: Readonly<AssetUploadSessionRecord>) {
+function toUploadSessionData(session: Readonly<AssetUploadSessionView>) {
   return {
     id: session.id,
     assetId: session.assetId,
