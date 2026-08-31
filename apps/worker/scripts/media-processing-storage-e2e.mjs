@@ -7,7 +7,11 @@ const processingBucket = requiredEnvironment('MINIO_PROCESSING_BUCKET');
 const publicBucket = requiredEnvironment('MINIO_PUBLIC_BUCKET');
 const client = new Client({
   endPoint: endpoint.hostname,
-  port: endpoint.port ? Number(endpoint.port) : endpoint.protocol === 'https:' ? 443 : 9000,
+  port: endpoint.port
+    ? Number(endpoint.port)
+    : endpoint.protocol === 'https:'
+      ? 443
+      : 9000,
   useSSL: endpoint.protocol === 'https:',
   accessKey: requiredEnvironment('MINIO_ACCESS_KEY'),
   secretKey: requiredEnvironment('MINIO_SECRET_KEY'),
@@ -22,7 +26,10 @@ assertEqual(privateObjects.length, 1, 'Private original Object count');
 assertEqual(processingObjects.length, 0, 'Processing Object count');
 assertEqual(publicObjects.length, expectedFiles.length, 'Public Variant Object count');
 
-if (!privateObjects[0]?.name?.endsWith('/original') || privateObjects[0].name.includes('/uploads/')) {
+if (
+  !privateObjects[0]?.name?.endsWith('/original') ||
+  privateObjects[0].name.includes('/uploads/')
+) {
   throw new Error('Private bucket does not contain exactly one finalized original Object.');
 }
 
