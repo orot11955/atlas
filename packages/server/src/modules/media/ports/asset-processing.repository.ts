@@ -1,8 +1,5 @@
 import type { AssetRecord } from '../domain/asset';
-import type {
-  AssetProcessingAttemptRecord,
-  AssetVariantRecord,
-} from '../domain/asset-processing';
+import type { AssetProcessingAttemptRecord, AssetVariantRecord } from '../domain/asset-processing';
 
 export interface ClaimAssetProcessingInput {
   attemptId: string;

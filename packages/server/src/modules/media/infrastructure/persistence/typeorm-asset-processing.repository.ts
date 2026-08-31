@@ -1,10 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
-import {
-  AssetStatus,
-  canProcessAsset,
-  type AssetRecord,
-} from '../../domain/asset';
+import { AssetStatus, canProcessAsset, type AssetRecord } from '../../domain/asset';
 import {
   AssetProcessingAttemptStatus,
   type AssetProcessingAttemptRecord,
@@ -18,10 +14,7 @@ import type {
   FailAssetProcessingInput,
 } from '../../ports/asset-processing.repository';
 import { AssetEntity } from './asset.entities';
-import {
-  AssetProcessingAttemptEntity,
-  AssetVariantEntity,
-} from './asset-processing.entities';
+import { AssetProcessingAttemptEntity, AssetVariantEntity } from './asset-processing.entities';
 
 export class TypeOrmAssetProcessingRepository
   implements AssetProcessingRepositoryPort<EntityManager>

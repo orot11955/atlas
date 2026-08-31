@@ -3,8 +3,7 @@ export const AssetVariantFormat = {
   WEBP: 'webp',
 } as const;
 
-export type AssetVariantFormat =
-  (typeof AssetVariantFormat)[keyof typeof AssetVariantFormat];
+export type AssetVariantFormat = (typeof AssetVariantFormat)[keyof typeof AssetVariantFormat];
 
 export const AssetVariantKey = {
   AVIF_1920: 'avif-1920',
