@@ -1,0 +1,56 @@
+name: Format Media Storage E2E Once
+
+on:
+  push:
+    branches:
+      - feat/media-processing-variants
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atlas-format-media-storage-once
+  cancel-in-progress: false
+
+jobs:
+  format-media-storage-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-processing-variants
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format Media storage verification
+        run: pnpm exec prettier --write apps/worker/scripts/media-processing-storage-e2e.mjs
+
+      - name: Remove one-time workflow
+        run: rm -f .github/workflows/format-media-storage-once.yml
+
+      - name: Commit formatted file
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/worker/scripts/media-processing-storage-e2e.mjs .github/workflows/format-media-storage-once.yml
+          if git diff --cached --quiet; then
+            echo 'No formatting changes were required.'
+            exit 1
+          fi
+          git commit -m 'chore: format Media storage E2E'
+          git push origin HEAD:feat/media-processing-variants
