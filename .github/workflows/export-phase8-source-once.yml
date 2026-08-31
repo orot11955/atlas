@@ -1,0 +1,33 @@
+name: Export Phase 8 source once
+
+on:
+  push:
+    branches:
+      - tmp/phase8-source-export
+    paths:
+      - .github/workflows/export-phase8-source-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v7
+        with:
+          ref: tmp/phase8-source-export
+
+      - name: Package source
+        run: |
+          tar --exclude=.git --exclude=node_modules --exclude=.next --exclude=dist \
+            -czf atlas-phase8-source.tar.gz .
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-phase8-source
+          path: atlas-phase8-source.tar.gz
+          retention-days: 1
