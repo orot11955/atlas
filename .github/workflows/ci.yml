@@ -18,6 +18,82 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # BEGIN MEDIA LOCK ONCE
+  media-dependency-lock-once:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'feat/media-processing-variants' &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-processing-variants
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Generate lockfile and format Media changes
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm exec prettier --write \
+            .env.example \
+            apps/api/package.json \
+            apps/api/src/media/bullmq-asset-processing.queue.ts \
+            apps/api/src/media/media.controller.ts \
+            apps/api/src/media/media.module.ts \
+            apps/api/src/media/media.tokens.ts \
+            apps/worker/package.json \
+            packages/config/src/index.ts \
+            packages/server/src/asset-processing-queue.test.ts \
+            packages/server/src/modules/media/application/asset-upload-coordinator.ts \
+            packages/server/src/modules/media/index.ts \
+            packages/server/src/modules/media/ports/asset-processing.queue.ts
+
+      - name: Remove one-time scaffolding
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/ci.yml')
+          text = workflow.read_text(encoding='utf-8')
+          start_marker = '  # BEGIN MEDIA LOCK ONCE\n'
+          end_marker = '  # END MEDIA LOCK ONCE\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          workflow.write_text(text[:start] + text[end:], encoding='utf-8')
+          Path('.github/workflows/media-dependency-lock-once.yml').unlink(missing_ok=True)
+          PY
+          pnpm exec prettier --write .github/workflows/ci.yml
+
+      - name: Commit generated files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo 'No generated changes.'
+            exit 0
+          fi
+
+          git commit -m 'chore: finalize Media processing dependencies'
+          git push origin HEAD:feat/media-processing-variants
+  # END MEDIA LOCK ONCE
+
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
