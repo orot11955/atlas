@@ -1,4 +1,4 @@
-export type AssetStatus = 'uploading' | 'uploaded' | 'failed';
+export type AssetStatus = 'uploading' | 'uploaded' | 'processing' | 'ready' | 'failed';
 export type AssetContentType = 'image/jpeg' | 'image/png' | 'image/webp';
 
 export interface Asset {
@@ -11,8 +11,12 @@ export interface Asset {
   expectedSize: number;
   actualSize: number | null;
   sha256: string;
+  width: number | null;
+  height: number | null;
+  processingFailureCode: string | null;
   version: number;
   uploadedAt: string | null;
+  processedAt: string | null;
   failedAt: string | null;
   createdAt: string;
   updatedAt: string;
