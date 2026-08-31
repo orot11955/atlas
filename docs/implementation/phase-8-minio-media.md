@@ -70,6 +70,26 @@ POST /api/admin/v1/assets/upload-sessions/{uploadSessionId}/complete
 
 Browser에서 SHA-256을 계산한 뒤 Presigned PUT으로 직접 업로드하고, 완료 요청을 통해 서버 검증을 시작한다. 관리자 화면에는 Storage 내부 식별자를 노출하지 않고 File Name, 상태, Size, Content Type, SHA-256 Prefix와 시각만 표시한다.
 
+## Media Data Gate
+
+전용 GitHub Actions Gate가 PostgreSQL, Redis와 실제 MinIO를 함께 실행한다.
+
+```text
+OWNER Bootstrap
+→ Password·TOTP·Admin Session
+→ CSRF 없는 Upload Session 거부
+→ 정상 Upload Session 생성
+→ Presigned PUT으로 PNG Upload
+→ 서버 SHA-256·Size·Magic Byte 재검증
+→ 불변 Private 원본 확정
+→ 완료 요청 Idempotency
+→ 관리자 Asset 목록 확인
+→ SVG를 PNG로 위장한 Upload 거부
+→ UPLOADED·FAILED DB 상태 검증
+```
+
+일반 CI의 정적·Migration 회귀와 별개로, Media 관련 경로가 변경되면 `Media Data Gate`가 실행된다.
+
 ## 다음 수직 단위
 
 ```text
