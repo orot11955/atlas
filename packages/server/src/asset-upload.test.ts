@@ -5,7 +5,6 @@ import { test } from 'node:test';
 
 import {
   ActorType,
-  AssetKind,
   AssetService,
   AssetStatus,
   AssetUploadSessionStatus,
