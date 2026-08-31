@@ -7,11 +7,7 @@ const processingBucket = requiredEnvironment('MINIO_PROCESSING_BUCKET');
 const publicBucket = requiredEnvironment('MINIO_PUBLIC_BUCKET');
 const client = new Client({
   endPoint: endpoint.hostname,
-  port: endpoint.port
-    ? Number(endpoint.port)
-    : endpoint.protocol === 'https:'
-      ? 443
-      : 9000,
+  port: endpoint.port ? Number(endpoint.port) : endpoint.protocol === 'https:' ? 443 : 9000,
   useSSL: endpoint.protocol === 'https:',
   accessKey: requiredEnvironment('MINIO_ACCESS_KEY'),
   secretKey: requiredEnvironment('MINIO_SECRET_KEY'),
