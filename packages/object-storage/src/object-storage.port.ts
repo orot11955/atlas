@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream';
+
 export const OBJECT_STORAGE = Symbol.for('atlas.object-storage');
 
 export type StoredObjectMetadata = {
@@ -20,6 +22,13 @@ export interface ObjectStoragePort {
     objectKey: string,
     expiresInSeconds: number,
   ): Promise<string>;
+  getObjectStream(bucket: string, objectKey: string): Promise<Readable>;
+  copyObject(
+    sourceBucket: string,
+    sourceObjectKey: string,
+    destinationBucket: string,
+    destinationObjectKey: string,
+  ): Promise<void>;
   putBuffer(
     bucket: string,
     objectKey: string,
