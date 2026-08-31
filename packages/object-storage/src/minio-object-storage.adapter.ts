@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream';
+
 import { Client } from 'minio';
 
 import type { ObjectStoragePort, StoredObjectMetadata } from './object-storage.port';
@@ -37,6 +39,23 @@ export class MinioObjectStorageAdapter implements ObjectStoragePort {
     expiresInSeconds: number,
   ): Promise<string> {
     return this.client.presignedGetObject(bucket, objectKey, expiresInSeconds);
+  }
+
+  public getObjectStream(bucket: string, objectKey: string): Promise<Readable> {
+    return this.client.getObject(bucket, objectKey);
+  }
+
+  public async copyObject(
+    sourceBucket: string,
+    sourceObjectKey: string,
+    destinationBucket: string,
+    destinationObjectKey: string,
+  ): Promise<void> {
+    await this.client.copyObject(
+      destinationBucket,
+      destinationObjectKey,
+      `/${sourceBucket}/${sourceObjectKey}`,
+    );
   }
 
   public async putBuffer(
