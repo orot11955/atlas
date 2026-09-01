@@ -48,13 +48,13 @@ jobs:
           gzip -dc /tmp/atlas-media-content-foundation.patch.gz > /tmp/atlas-media-content-foundation.patch
           git apply --check /tmp/atlas-media-content-foundation.patch
           git apply /tmp/atlas-media-content-foundation.patch
+          git restore --source=HEAD -- .github/workflows/media-data-gate.yml
           rm -rf .github/patches/media-content-foundation
           rm -f .github/workflows/apply-media-content-chunks-once.yml
 
       - name: Format changed files
         run: |
           pnpm exec prettier --write \
-            .github/workflows/media-data-gate.yml \
             apps/api/src/content/content.module.ts \
             apps/api/src/content/content.tokens.ts \
             packages/database/src/data-source.ts \
