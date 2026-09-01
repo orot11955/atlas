@@ -5,7 +5,9 @@ import { DataSource } from 'typeorm';
 
 import { OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
 import {
+  AssetEntity,
   AssetUsageEntity,
+  AssetVariantEntity,
   ContentDeliveryService,
   ContentDraftEntity,
   ContentEntity,
@@ -46,7 +48,9 @@ import {
       ContentEntity,
       ContentDraftEntity,
       ContentRevisionEntity,
+      AssetEntity,
       AssetUsageEntity,
+      AssetVariantEntity,
       ContentSiteEntity,
       ContentPublicationEntity,
     ]),
