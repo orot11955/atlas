@@ -228,6 +228,8 @@ jobs:
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_processing_attempts WHERE status = 'processing'")" -eq 0
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages")" -eq 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages WHERE usage_kind = 'inline'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE jsonb_array_length(asset_manifest_json) = 1")" -eq 2
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active' AND jsonb_array_length(asset_manifest_json) = 1")" -eq 1
 
           if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
             -c "UPDATE asset_usages SET alt_text = 'mutated' WHERE id = (SELECT id FROM asset_usages LIMIT 1)"; then
@@ -238,6 +240,12 @@ jobs:
           if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
             -c "DELETE FROM asset_usages WHERE id = (SELECT id FROM asset_usages LIMIT 1)"; then
             echo 'Immutable AssetUsage deletion unexpectedly succeeded.' >&2
+            exit 1
+          fi
+
+          if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -c "UPDATE content_publications SET asset_manifest_json = '[]'::jsonb WHERE jsonb_array_length(asset_manifest_json) > 0"; then
+            echo 'Immutable Publication Asset Manifest mutation unexpectedly succeeded.' >&2
             exit 1
           fi
 
