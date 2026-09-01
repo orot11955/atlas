@@ -51,6 +51,7 @@ export interface InsertContentPublicationInput {
   title: string;
   summary?: string;
   bodyHtml: string;
+  assets: ContentPublicationRecord['assets'];
   seo: Readonly<Record<string, unknown>>;
   visibility: ContentSiteVisibility;
   etag: string;

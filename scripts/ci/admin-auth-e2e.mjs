@@ -62,9 +62,10 @@ await request('/admin/v1/auth/session', {
 });
 await request('/admin/v1/workspace', { expectedStatus: 401 });
 
-if (process.env.ATLAS_VERIFY_MEDIA_UPLOAD === '1') {
-  await verifyAssetUploadFoundation({ request, session, assertEqual });
-}
+const readyAsset =
+  process.env.ATLAS_VERIFY_MEDIA_UPLOAD === '1'
+    ? await verifyAssetUploadFoundation({ request, session, assertEqual })
+    : undefined;
 
 const workspaceResponse = await request('/admin/v1/workspace', {
   expectedStatus: 200,
@@ -235,6 +236,7 @@ await verifyContentPublicationDelivery({
   session,
   mainBlog,
   devLog: devLogCreated.data,
+  readyAsset,
   assertEqual,
 });
 

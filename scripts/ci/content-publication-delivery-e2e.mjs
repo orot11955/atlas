@@ -3,6 +3,7 @@ export async function verifyContentPublicationDelivery({
   session,
   mainBlog,
   devLog,
+  readyAsset,
   assertEqual,
 }) {
   const contentCreated = await request('/admin/v1/contents', {
@@ -11,8 +12,12 @@ export async function verifyContentPublicationDelivery({
       type: 'post',
       title: 'Atlas Publication Delivery',
       summary: 'Immutable READY Revision delivery test',
-      bodyMarkdown:
+      bodyMarkdown: [
         'This is the first immutable Atlas publication body with enough meaningful content.',
+        ...(readyAsset
+          ? [`![Atlas Media](asset://${readyAsset.id} \"READY Asset used by Content\")`]
+          : []),
+      ].join('\n\n'),
     },
     expectedStatus: 201,
     cookieHeader: session.cookieHeader,
@@ -75,6 +80,10 @@ export async function verifyContentPublicationDelivery({
   assertEqual(firstPublication.revisionNumber, 1, 'First Publication Revision');
   assertEqual(firstPublication.status, 'active', 'First Publication status');
 
+  if (readyAsset) {
+    assertPublicationAssetManifest(firstPublication, readyAsset.id);
+  }
+
   const replayedPublish = await request(
     `/admin/v1/contents/${content.id}/sites/${assignment.id}/publish`,
     {
@@ -130,6 +139,10 @@ export async function verifyContentPublicationDelivery({
     throw new Error(`Delivery detail ETag is invalid: ${String(firstEtag)}`);
   }
   assertEqual(firstDetail.data.revisionNumber, 1, 'Initial Delivery Revision');
+
+  if (readyAsset) {
+    assertPublicationAssetManifest(firstDetail.data, readyAsset.id);
+  }
 
   await request(`/delivery/v1/sites/${mainBlog.key}/posts/${assignment.slug}`, {
     expectedStatus: 304,
@@ -192,6 +205,7 @@ export async function verifyContentPublicationDelivery({
     })
   ).data;
   assertEqual(secondPublication.revisionNumber, 2, 'Second Publication Revision');
+  assertEqual(secondPublication.assets.length, 0, 'Second Publication Asset Manifest');
 
   const secondDetail = await request(
     `/delivery/v1/sites/${mainBlog.key}/posts/${assignment.slug}`,
@@ -264,4 +278,58 @@ export async function verifyContentPublicationDelivery({
   );
   assertEqual(restoredDetail.data.revisionNumber, 1, 'Restored Delivery Revision');
   assertEqual(restoredDetail.response.headers.get('etag'), firstEtag, 'Restored Snapshot ETag');
+
+  if (readyAsset) {
+    assertPublicationAssetManifest(restoredDetail.data, readyAsset.id);
+  }
+}
+
+function assertPublicationAssetManifest(publication, assetId) {
+  if (!Array.isArray(publication.assets) || publication.assets.length !== 1) {
+    throw new Error('Publication Asset Manifest must contain exactly one Asset usage.');
+  }
+
+  const asset = publication.assets[0];
+  assertPrimitiveEqual(asset.assetId, assetId, 'Publication Asset ID');
+  assertPrimitiveEqual(asset.ordinal, 1, 'Publication Asset ordinal');
+  assertPrimitiveEqual(asset.kind, 'inline', 'Publication Asset usage kind');
+  assertPrimitiveEqual(asset.altText, 'Atlas Media', 'Publication Asset alt text');
+  assertPrimitiveEqual(asset.caption, 'READY Asset used by Content', 'Publication Asset caption');
+
+  if (!Array.isArray(asset.variants) || asset.variants.length !== 4) {
+    throw new Error('Publication Asset Manifest must snapshot four public Variants.');
+  }
+
+  const variantKeys = asset.variants.map((variant) => variant.key).sort();
+  assertPrimitiveEqual(
+    JSON.stringify(variantKeys),
+    JSON.stringify(['avif-1920', 'webp-1280', 'webp-320', 'webp-768']),
+    'Publication Asset Variant keys',
+  );
+
+  for (const variant of asset.variants) {
+    if (
+      typeof variant.publicUrl !== 'string' ||
+      !variant.publicUrl.startsWith('http://localhost:9000/atlas-public/assets/') ||
+      typeof variant.sha256 !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(variant.sha256)
+    ) {
+      throw new Error('Publication Asset Variant Snapshot is invalid.');
+    }
+  }
+
+  if (
+    typeof publication.bodyHtml !== 'string' ||
+    !publication.bodyHtml.includes(`<picture data-asset-id=\"${assetId}\">`) ||
+    !publication.bodyHtml.includes('srcset=') ||
+    publication.bodyHtml.includes('asset://')
+  ) {
+    throw new Error('Publication bodyHtml did not resolve the immutable Asset Manifest.');
+  }
+}
+
+function assertPrimitiveEqual(actual, expected, label) {
+  if (actual !== expected) {
+    throw new Error(`${label}: expected ${String(expected)}, received ${String(actual)}.`);
+  }
 }

@@ -1,5 +1,6 @@
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
+import type { ContentPublicationAssetSnapshot } from '../../domain/content-asset';
 import type { ContentType } from '../../domain/content';
 import type {
   ContentPublicationStatus,
@@ -110,6 +111,9 @@ export class ContentPublicationEntity {
 
   @Column({ name: 'body_html', type: 'text' })
   public bodyHtml!: string;
+
+  @Column({ name: 'asset_manifest_json', type: 'jsonb', default: () => "'[]'::jsonb" })
+  public assetManifestJson!: ContentPublicationAssetSnapshot[];
 
   @Column({ name: 'seo_json', type: 'jsonb', default: () => "'{}'::jsonb" })
   public seoJson!: Record<string, unknown>;

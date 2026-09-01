@@ -8,6 +8,11 @@ import {
   systemClock,
 } from '../../../core';
 import {
+  assertContentAssetReferencesReady,
+  parseContentAssetReferences,
+  type AssetUsageRecord,
+} from '../domain/content-asset';
+import {
   ContentRevisionKind,
   ContentStatus,
   assertContentEditable,
@@ -25,6 +30,7 @@ import {
   type ContentType,
   type MarkdownPreview,
 } from '../domain/content';
+import type { ContentAssetRepositoryPort } from '../ports/content-asset.repository';
 import type { ContentListCursor, ContentRepositoryPort } from '../ports/content.repository';
 
 export interface ContentListServiceQuery {
@@ -63,6 +69,7 @@ export class ContentService<TTransaction> {
     private readonly transactionRunner: TransactionRunner<TTransaction>,
     private readonly repository: ContentRepositoryPort<TTransaction>,
     private readonly auditService: AuditService<TTransaction>,
+    private readonly assetRepository: ContentAssetRepositoryPort<TTransaction>,
     private readonly clock: Clock = systemClock,
   ) {}
 
@@ -405,8 +412,19 @@ export class ContentService<TTransaction> {
         throw versionConflictError('Content Draft was changed by another request.');
       }
 
+      const assetReferences =
+        kind === ContentRevisionKind.READY
+          ? parseContentAssetReferences(content.draft.bodyMarkdown)
+          : [];
+
       if (kind === ContentRevisionKind.READY) {
         validateReadyDraft(content.draft);
+        const targets = await this.assetRepository.findTargets(
+          workspaceId,
+          assetReferences.map((reference) => reference.assetId),
+          transaction,
+        );
+        assertContentAssetReferencesReady(assetReferences, targets);
       }
 
       const preview = renderMarkdownPreview(content.draft.bodyMarkdown);
@@ -448,6 +466,19 @@ export class ContentService<TTransaction> {
         throw versionConflictError('Content was changed by another request.');
       }
 
+      const assetUsages: AssetUsageRecord[] = assetReferences.map((reference) => ({
+        id: createUuidV7(createdAt.getTime()),
+        workspaceId,
+        revisionId: revision.id,
+        assetId: reference.assetId,
+        kind: reference.kind,
+        ordinal: reference.ordinal,
+        altText: reference.altText,
+        caption: reference.caption,
+        createdAt,
+      }));
+      await this.assetRepository.insertRevisionUsages(assetUsages, transaction);
+
       await this.auditService.record(
         {
           action:
@@ -462,6 +493,7 @@ export class ContentService<TTransaction> {
             revisionNumber,
             sourceDraftVersion: content.draft.draftVersion,
             warnings: preview.warnings,
+            assetUsageCount: assetUsages.length,
           },
         },
         transaction,

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { DomainError, ErrorCode } from '../../../core';
+import type { ContentPublicationAssetSnapshot } from './content-asset';
 import type { ContentRevisionRecord, ContentStatus, ContentType } from './content';
 import { ContentRevisionKind, ContentStatus as ContentStatusValue } from './content';
 
@@ -72,6 +73,7 @@ export interface ContentPublicationRecord extends ContentPublicationSummaryRecor
   title: string;
   summary?: string;
   bodyHtml: string;
+  assets: readonly Readonly<ContentPublicationAssetSnapshot>[];
   seo: Readonly<Record<string, unknown>>;
   visibility: ContentSiteVisibility;
   supersededAt?: Date;
@@ -109,6 +111,7 @@ export interface ContentPublicationSnapshot {
   title: string;
   summary?: string;
   bodyHtml: string;
+  assets: readonly Readonly<ContentPublicationAssetSnapshot>[];
   seo: Readonly<Record<string, unknown>>;
   visibility: ContentSiteVisibility;
 }
@@ -128,6 +131,7 @@ export interface DeliveryContentRecord {
   title: string;
   summary?: string;
   bodyHtml: string;
+  assets: readonly Readonly<ContentPublicationAssetSnapshot>[];
   seo: Readonly<Record<string, unknown>>;
   visibility: ContentSiteVisibility;
   etag: string;
@@ -291,6 +295,10 @@ export function createContentPublicationSnapshot(
     | 'visibility'
   >,
   revision: ContentRevisionRecord,
+  rendering: Readonly<{
+    bodyHtml?: string;
+    assets?: readonly Readonly<ContentPublicationAssetSnapshot>[];
+  }> = {},
 ): Readonly<ContentPublicationSnapshot> {
   const title = contentSite.titleOverride ?? revision.title;
 
@@ -315,7 +323,8 @@ export function createContentPublicationSnapshot(
     ...((contentSite.summaryOverride ?? revision.summary)
       ? { summary: contentSite.summaryOverride ?? revision.summary }
       : {}),
-    bodyHtml: revision.bodyHtml,
+    bodyHtml: rendering.bodyHtml ?? revision.bodyHtml,
+    assets: rendering.assets ?? Object.freeze([]),
     seo: contentSite.seo,
     visibility: contentSite.visibility,
   });
@@ -335,6 +344,7 @@ export function createContentPublicationEtag(snapshot: ContentPublicationSnapsho
     title: snapshot.title,
     summary: snapshot.summary ?? null,
     bodyHtml: snapshot.bodyHtml,
+    assets: snapshot.assets,
     seo: snapshot.seo,
     visibility: snapshot.visibility,
   });

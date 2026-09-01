@@ -146,6 +146,8 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
       csrfToken: session.csrfToken,
     },
   );
+
+  return ready;
 }
 
 async function waitForReadyAsset(request, assetId, cookieHeader) {
