@@ -1,0 +1,81 @@
+name: Apply Publication Asset Manifest Once
+
+on:
+  push:
+    branches:
+      - feat/media-content-integration
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atlas-apply-publication-asset-manifest-once
+  cancel-in-progress: false
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-content-integration
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Reassemble and apply Publication Asset Manifest patch
+        env:
+          PATCH_SHA256: 083982e5b8793c49aa8e8c0372baf7152fd76dc3719d82244bd315c396d2f352
+        run: |
+          cat .github/patches/publication-asset-manifest/publication-manifest-part-* |
+            tr -d '\n\r ' |
+            base64 --decode > /tmp/atlas-publication-asset-manifest.patch.gz
+          echo "$PATCH_SHA256  /tmp/atlas-publication-asset-manifest.patch.gz" | sha256sum --check --strict
+          gzip -dc /tmp/atlas-publication-asset-manifest.patch.gz > /tmp/atlas-publication-asset-manifest.patch
+          git apply --check /tmp/atlas-publication-asset-manifest.patch
+          git apply /tmp/atlas-publication-asset-manifest.patch
+          rm -rf .github/patches/publication-asset-manifest
+          rm -f .github/workflows/apply-publication-asset-manifest-once.yml
+
+      - name: Format changed files
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/content/content-publication.presenter.ts \
+            apps/api/src/content/content.module.ts \
+            docs/implementation/phase-8-3-media-content-integration.md \
+            packages/database/src/migrations/1788123600000-AddContentPublicationAssetManifest.ts \
+            packages/server/src/content-asset.test.ts \
+            packages/server/src/content-publication.test.ts \
+            packages/server/src/modules/content/application/content-publication.service.ts \
+            packages/server/src/modules/content/domain/content-asset.ts \
+            packages/server/src/modules/content/domain/content-publication.ts \
+            packages/server/src/modules/content/index.ts \
+            packages/server/src/modules/content/infrastructure/persistence/content-publication.entities.ts \
+            packages/server/src/modules/content/infrastructure/persistence/typeorm-content-asset.repository.ts \
+            packages/server/src/modules/content/infrastructure/persistence/typeorm-content-publication.repository.ts \
+            packages/server/src/modules/content/ports/content-asset.repository.ts \
+            packages/server/src/modules/content/ports/public-asset-url-builder.port.ts \
+            scripts/ci/content-publication-delivery-e2e.mjs
+
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: snapshot Publication Asset manifests'
+          git push origin HEAD:feat/media-content-integration
