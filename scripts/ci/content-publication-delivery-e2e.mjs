@@ -3,6 +3,7 @@ export async function verifyContentPublicationDelivery({
   session,
   mainBlog,
   devLog,
+  readyAsset,
   assertEqual,
 }) {
   const contentCreated = await request('/admin/v1/contents', {
@@ -11,8 +12,12 @@ export async function verifyContentPublicationDelivery({
       type: 'post',
       title: 'Atlas Publication Delivery',
       summary: 'Immutable READY Revision delivery test',
-      bodyMarkdown:
+      bodyMarkdown: [
         'This is the first immutable Atlas publication body with enough meaningful content.',
+        ...(readyAsset
+          ? [`![Atlas Media](asset://${readyAsset.id} \"READY Asset used by Content\")`]
+          : []),
+      ].join('\n\n'),
     },
     expectedStatus: 201,
     cookieHeader: session.cookieHeader,

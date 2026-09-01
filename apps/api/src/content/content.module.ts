@@ -4,6 +4,7 @@ import type { EntityManager } from 'typeorm';
 import { DataSource } from 'typeorm';
 
 import {
+  AssetUsageEntity,
   ContentDeliveryService,
   ContentDraftEntity,
   ContentEntity,
@@ -12,9 +13,11 @@ import {
   ContentRevisionEntity,
   ContentService,
   ContentSiteEntity,
+  TypeOrmContentAssetRepository,
   TypeOrmContentPublicationRepository,
   TypeOrmContentRepository,
   type AuditService,
+  type ContentAssetRepositoryPort,
   type ContentPublicationRepositoryPort,
   type ContentRepositoryPort,
   type TransactionRunner,
@@ -27,6 +30,7 @@ import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { ContentPublicationController } from './content-publication.controller';
 import { ContentController } from './content.controller';
 import {
+  CONTENT_ASSET_REPOSITORY,
   CONTENT_DELIVERY_SERVICE,
   CONTENT_PUBLICATION_REPOSITORY,
   CONTENT_PUBLICATION_SERVICE,
@@ -40,6 +44,7 @@ import {
       ContentEntity,
       ContentDraftEntity,
       ContentRevisionEntity,
+      AssetUsageEntity,
       ContentSiteEntity,
       ContentPublicationEntity,
     ]),
@@ -55,13 +60,19 @@ import {
       useFactory: (dataSource: DataSource) => new TypeOrmContentRepository(dataSource),
     },
     {
+      provide: CONTENT_ASSET_REPOSITORY,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) => new TypeOrmContentAssetRepository(dataSource),
+    },
+    {
       provide: CONTENT_SERVICE,
-      inject: [TRANSACTION_RUNNER, CONTENT_REPOSITORY, AUDIT_SERVICE],
+      inject: [TRANSACTION_RUNNER, CONTENT_REPOSITORY, AUDIT_SERVICE, CONTENT_ASSET_REPOSITORY],
       useFactory: (
         transactionRunner: TransactionRunner<EntityManager>,
         repository: ContentRepositoryPort<EntityManager>,
         auditService: AuditService<EntityManager>,
-      ) => new ContentService(transactionRunner, repository, auditService),
+        assetRepository: ContentAssetRepositoryPort<EntityManager>,
+      ) => new ContentService(transactionRunner, repository, auditService, assetRepository),
     },
     {
       provide: CONTENT_PUBLICATION_REPOSITORY,
