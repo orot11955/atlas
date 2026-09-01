@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+/* eslint-disable @next/next/no-img-element -- Runtime Public Variant URLs are not known at build time. */
+
+import { useCallback, useMemo, useState } from 'react';
 
 import { loadAssets, loadAssetVariants } from '../media/asset-api';
 import type { Asset, AssetVariant } from '../media/asset-types';
@@ -46,10 +48,14 @@ export function ContentAssetPicker({
     }
   }, []);
 
-  useEffect(() => {
-    if (!open || loaded) return;
-    void reloadAssets();
-  }, [loaded, open, reloadAssets]);
+  function togglePicker() {
+    const nextOpen = !open;
+    setOpen(nextOpen);
+
+    if (nextOpen && !loaded) {
+      void reloadAssets();
+    }
+  }
 
   async function selectAsset(asset: Asset) {
     setSelected(asset);
@@ -85,7 +91,7 @@ export function ContentAssetPicker({
         className={styles.secondary}
         disabled={disabled}
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={togglePicker}
       >
         {open ? 'Asset Picker 닫기' : 'Asset 삽입'}
       </button>
@@ -139,7 +145,6 @@ export function ContentAssetPicker({
                 <>
                   <div className={styles.assetPreview}>
                     {previewVariant ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         alt=""
                         height={previewVariant.height}
