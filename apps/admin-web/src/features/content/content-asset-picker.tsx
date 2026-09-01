@@ -127,7 +127,8 @@ export function ContentAssetPicker({
                 >
                   <strong>{asset.originalFileName}</strong>
                   <span>
-                    {formatDimensions(asset)} · {formatBytes(asset.actualSize ?? asset.expectedSize)}
+                    {formatDimensions(asset)} ·{' '}
+                    {formatBytes(asset.actualSize ?? asset.expectedSize)}
                   </span>
                 </button>
               ))}
@@ -146,7 +147,9 @@ export function ContentAssetPicker({
                         width={previewVariant.width}
                       />
                     ) : (
-                      <span>{loading ? 'Variant를 불러오는 중…' : 'Public Variant가 없습니다.'}</span>
+                      <span>
+                        {loading ? 'Variant를 불러오는 중…' : 'Public Variant가 없습니다.'}
+                      </span>
                     )}
                   </div>
                   <label className={styles.field}>
@@ -211,7 +214,10 @@ function escapeMarkdownTitle(value: string): string {
 }
 
 function defaultAltText(fileName: string): string {
-  return fileName.replace(/\.[^.]+$/u, '').replace(/[-_]+/gu, ' ').trim();
+  return fileName
+    .replace(/\.[^.]+$/u, '')
+    .replace(/[-_]+/gu, ' ')
+    .trim();
 }
 
 function formatDimensions(asset: Asset): string {

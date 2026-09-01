@@ -98,3 +98,26 @@ READY Revision
 - `bodyHtml`에는 `asset://`, Bucket Name, Object Key와 내부 MinIO Endpoint를 포함하지 않는다.
 - Rollback은 과거 Publication의 `bodyHtml`, Manifest와 ETag를 그대로 복사한다.
 - `asset_manifest_json`은 Publication Snapshot의 일부이므로 UPDATE할 수 없다.
+
+## Content Editor Asset Picker
+
+Editor는 `GET /api/admin/v1/assets`에서 `READY` Asset만 표시하고, 선택한 Asset의
+`GET /api/admin/v1/assets/{assetId}/variants` 응답으로 Public Preview를 구성한다.
+
+Picker 입력:
+
+```text
+Asset
+Alt Text (필수)
+Caption (선택)
+```
+
+삽입 결과:
+
+```markdown
+![Alt Text](asset://{assetId} 'Caption')
+```
+
+Variant 조회 응답은 `key`, `format`, `contentType`, `width`, `height`, `byteSize`,
+`sha256`, `etag`, `publicUrl`만 포함한다. Bucket, Object Key, Private Endpoint는 응답에
+포함하지 않는다.

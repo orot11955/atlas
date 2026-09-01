@@ -1,4 +1,5 @@
 export * from './application/asset-processing.service';
+export * from './application/asset-variant.service';
 export * from './application/asset-upload-coordinator';
 export * from './application/asset.service';
 export * from './domain/asset-processing';
@@ -11,4 +12,5 @@ export * from './ports/asset-image-processor.port';
 export * from './ports/asset-processing-object-storage.port';
 export * from './ports/asset-processing.queue';
 export * from './ports/asset-processing.repository';
+export * from './ports/asset-public-url-builder.port';
 export * from './ports/asset.repository';

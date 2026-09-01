@@ -11,8 +11,12 @@ import {
   AssetService,
   AssetUploadCoordinator,
   AssetUploadSessionEntity,
+  AssetVariantEntity,
+  AssetVariantService,
+  TypeOrmAssetProcessingRepository,
   TypeOrmAssetRepository,
   type AssetProcessingQueuePort,
+  type AssetProcessingRepositoryPort,
   type AssetRepositoryPort,
   type AuditService,
   type TransactionRunner,
@@ -27,14 +31,16 @@ import { BullMqAssetProcessingQueue } from './bullmq-asset-processing.queue';
 import { MediaController } from './media.controller';
 import {
   ASSET_PROCESSING_QUEUE,
+  ASSET_PROCESSING_REPOSITORY,
   ASSET_REPOSITORY,
   ASSET_SERVICE,
   ASSET_UPLOAD_COORDINATOR,
+  ASSET_VARIANT_SERVICE,
 } from './media.tokens';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AssetEntity, AssetUploadSessionEntity]),
+    TypeOrmModule.forFeature([AssetEntity, AssetUploadSessionEntity, AssetVariantEntity]),
     PlatformModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
@@ -46,6 +52,11 @@ import {
       provide: ASSET_REPOSITORY,
       inject: [DataSource],
       useFactory: (dataSource: DataSource) => new TypeOrmAssetRepository(dataSource),
+    },
+    {
+      provide: ASSET_PROCESSING_REPOSITORY,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) => new TypeOrmAssetProcessingRepository(dataSource),
     },
     {
       provide: ASSET_PROCESSING_QUEUE,
@@ -73,6 +84,15 @@ import {
         }),
     },
     {
+      provide: ASSET_VARIANT_SERVICE,
+      inject: [ASSET_REPOSITORY, ASSET_PROCESSING_REPOSITORY, OBJECT_STORAGE],
+      useFactory: (
+        assetRepository: AssetRepositoryPort<EntityManager>,
+        processingRepository: AssetProcessingRepositoryPort<EntityManager>,
+        objectStorage: ObjectStoragePort,
+      ) => new AssetVariantService(assetRepository, processingRepository, objectStorage),
+    },
+    {
       provide: ASSET_UPLOAD_COORDINATOR,
       inject: [ASSET_SERVICE, ASSET_PROCESSING_QUEUE],
       useFactory: (
@@ -81,7 +101,7 @@ import {
       ) => new AssetUploadCoordinator(assetService, processingQueue),
     },
   ],
-  exports: [ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR],
+  exports: [ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR, ASSET_VARIANT_SERVICE],
 })
 export class MediaModule {}
 

@@ -1,5 +1,11 @@
 import { createAdminApiClient } from '../../lib/api';
-import type { ApiEnvelope, Asset, AssetContentType, AssetUploadSessionResult } from './asset-types';
+import type {
+  ApiEnvelope,
+  Asset,
+  AssetContentType,
+  AssetUploadSessionResult,
+  AssetVariant,
+} from './asset-types';
 
 function client() {
   return createAdminApiClient();
@@ -7,6 +13,13 @@ function client() {
 
 export async function loadAssets(): Promise<readonly Asset[]> {
   const response = await client().get<ApiEnvelope<{ items: readonly Asset[] }>>('/assets');
+  return response.data.items;
+}
+
+export async function loadAssetVariants(assetId: string): Promise<readonly AssetVariant[]> {
+  const response = await client().get<ApiEnvelope<{ items: readonly AssetVariant[] }>>(
+    `/assets/${encodeURIComponent(assetId)}/variants`,
+  );
   return response.data.items;
 }
 
