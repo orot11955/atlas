@@ -129,6 +129,7 @@ Variant 조회 응답은 `key`, `format`, `contentType`, `width`, `height`, `byt
 - Picker의 Preview Image는 선택 보조용 장식 이미지이므로 빈 `alt`를 사용하고, 실제 공개 Alt Text는 별도 필드에서 필수로 입력한다.
 - Preview는 Public Variant URL만 사용하며 Private 원본 Presigned URL을 생성하지 않는다.
 - Variant 조회 API는 READY Asset에 대해서만 결과를 반환하고 `Cache-Control: no-store`를 적용한다.
+- Asset 목록은 Picker를 처음 여는 User Event에서만 조회하며 Render Effect에서 상태 전이를 시작하지 않는다.
 - Editor는 현재 Textarea Selection 위치에 Reference를 삽입하고 다음 편집 위치로 Cursor를 복구한다.
 
 ### 이번 수직 단위 검증
