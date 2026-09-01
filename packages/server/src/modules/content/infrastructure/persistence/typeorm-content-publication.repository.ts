@@ -1,5 +1,6 @@
 import type { DataSource, EntityManager } from 'typeorm';
 
+import { freezeContentPublicationAssetManifest } from '../../domain/content-asset';
 import { ContentRevisionKind } from '../../domain/content';
 import {
   CONTENT_DELIVERY_SCHEMA_VERSION,
@@ -303,6 +304,10 @@ export class TypeOrmContentPublicationRepository implements ContentPublicationRe
       title: input.title,
       summary: input.summary ?? null,
       bodyHtml: input.bodyHtml,
+      assetManifestJson: input.assets.map((asset) => ({
+        ...asset,
+        variants: asset.variants.map((variant) => ({ ...variant })),
+      })),
       seoJson: { ...input.seo } as never,
       visibility: input.visibility,
       etag: input.etag,
@@ -378,6 +383,7 @@ export class TypeOrmContentPublicationRepository implements ContentPublicationRe
         'publication.title AS title',
         'publication.summary AS summary',
         'publication.body_html AS body_html',
+        'publication.asset_manifest_json AS asset_manifest_json',
         'publication.seo_json AS seo_json',
         'publication.visibility AS visibility',
         'publication.etag AS etag',
@@ -431,6 +437,7 @@ export class TypeOrmContentPublicationRepository implements ContentPublicationRe
         'publication.title AS title',
         'publication.summary AS summary',
         'publication.body_html AS body_html',
+        'publication.asset_manifest_json AS asset_manifest_json',
         'publication.seo_json AS seo_json',
         'publication.visibility AS visibility',
         'publication.etag AS etag',
@@ -526,6 +533,7 @@ interface DeliveryContentRow {
   title: string;
   summary: string | null;
   body_html: string;
+  asset_manifest_json: DeliveryContentRecord['assets'] | null;
   seo_json: Record<string, unknown> | null;
   visibility: DeliveryContentRecord['visibility'];
   etag: string;
@@ -589,6 +597,7 @@ function toContentPublicationRecord(entity: ContentPublicationEntity): ContentPu
     title: entity.title,
     summary: entity.summary ?? undefined,
     bodyHtml: entity.bodyHtml,
+    assets: freezeContentPublicationAssetManifest(entity.assetManifestJson ?? []),
     seo: Object.freeze({ ...(entity.seoJson ?? {}) }),
     visibility: entity.visibility,
     etag: entity.etag,
@@ -616,6 +625,7 @@ function toDeliveryContentRecord(row: DeliveryContentRow): DeliveryContentRecord
     title: row.title,
     summary: row.summary ?? undefined,
     bodyHtml: row.body_html,
+    assets: freezeContentPublicationAssetManifest(row.asset_manifest_json ?? []),
     seo: Object.freeze({ ...(row.seo_json ?? {}) }),
     visibility: row.visibility,
     etag: row.etag,

@@ -60,3 +60,41 @@ Asset Picker
 → Delivery API Manifest 제공
 → ACTIVE Publication 사용 Asset Archive 차단
 ```
+
+## Publication Asset Manifest
+
+READY Revision을 발행할 때 `AssetUsage`와 `AssetVariant`를 다시 조회해 다음 Snapshot을 Publication에 고정한다.
+
+```text
+ContentPublication.assets[]
+├─ Asset ID
+├─ Ordinal
+├─ Usage Kind
+├─ Alt Text
+├─ Caption
+└─ Public Variant[]
+   ├─ Variant Key
+   ├─ Format / Content Type
+   ├─ Width / Height / Byte Size
+   ├─ SHA-256 / ETag
+   └─ Public URL
+```
+
+발행 시점 처리 흐름:
+
+```text
+READY Revision
+→ AssetUsage 조회
+→ Variant 4종 완전성 검증
+→ Public URL 생성
+→ Publication Asset Manifest 생성
+→ bodyMarkdown의 asset:// Reference를 <picture> HTML로 변환
+→ bodyHtml + Manifest + ETag 원자적 저장
+```
+
+- Publication Manifest는 최대 1 MiB다.
+- `webp-320`, `webp-768`, `webp-1280`, `avif-1920`이 모두 있어야 발행할 수 있다.
+- Delivery Detail은 Manifest를 반환하며 List 응답에는 포함하지 않는다.
+- `bodyHtml`에는 `asset://`, Bucket Name, Object Key와 내부 MinIO Endpoint를 포함하지 않는다.
+- Rollback은 과거 Publication의 `bodyHtml`, Manifest와 ETag를 그대로 복사한다.
+- `asset_manifest_json`은 Publication Snapshot의 일부이므로 UPDATE할 수 없다.

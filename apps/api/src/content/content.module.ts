@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import type { EntityManager } from 'typeorm';
 import { DataSource } from 'typeorm';
 
+import { OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
 import {
   AssetUsageEntity,
   ContentDeliveryService,
@@ -25,6 +26,7 @@ import {
 
 import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
+import { MinioModule } from '../infrastructure/minio/minio.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { ContentPublicationController } from './content-publication.controller';
@@ -49,6 +51,7 @@ import {
       ContentPublicationEntity,
     ]),
     PlatformModule,
+    MinioModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
   ],
@@ -81,12 +84,27 @@ import {
     },
     {
       provide: CONTENT_PUBLICATION_SERVICE,
-      inject: [TRANSACTION_RUNNER, CONTENT_PUBLICATION_REPOSITORY, AUDIT_SERVICE],
+      inject: [
+        TRANSACTION_RUNNER,
+        CONTENT_PUBLICATION_REPOSITORY,
+        AUDIT_SERVICE,
+        CONTENT_ASSET_REPOSITORY,
+        OBJECT_STORAGE,
+      ],
       useFactory: (
         transactionRunner: TransactionRunner<EntityManager>,
         repository: ContentPublicationRepositoryPort<EntityManager>,
         auditService: AuditService<EntityManager>,
-      ) => new ContentPublicationService(transactionRunner, repository, auditService),
+        assetRepository: ContentAssetRepositoryPort<EntityManager>,
+        objectStorage: ObjectStoragePort,
+      ) =>
+        new ContentPublicationService(
+          transactionRunner,
+          repository,
+          auditService,
+          assetRepository,
+          objectStorage,
+        ),
     },
     {
       provide: CONTENT_DELIVERY_SERVICE,

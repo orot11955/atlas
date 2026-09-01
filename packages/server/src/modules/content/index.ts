@@ -12,3 +12,4 @@ export * from './infrastructure/persistence/typeorm-content.repository';
 export * from './ports/content-asset.repository';
 export * from './ports/content-publication.repository';
 export * from './ports/content.repository';
+export * from './ports/public-asset-url-builder.port';

@@ -9,6 +9,11 @@ import {
   requestContext,
   systemClock,
 } from '../../../core';
+import {
+  createContentPublicationAssetManifest,
+  freezeContentPublicationAssetManifest,
+  renderContentPublicationBodyHtml,
+} from '../domain/content-asset';
 import type { ContentType } from '../domain/content';
 import {
   ContentPublicationStatus,
@@ -29,10 +34,12 @@ import {
   type ContentSiteVisibility as ContentSiteVisibilityType,
   type DeliveryContentRecord,
 } from '../domain/content-publication';
+import type { ContentAssetRepositoryPort } from '../ports/content-asset.repository';
 import type {
   ContentPublicationRepositoryPort,
   DeliveryContentCursor,
 } from '../ports/content-publication.repository';
+import type { PublicAssetUrlBuilderPort } from '../ports/public-asset-url-builder.port';
 
 export interface CreateContentSiteInput {
   siteId: string;
@@ -73,6 +80,8 @@ export class ContentPublicationService<TTransaction> {
     private readonly transactionRunner: TransactionRunner<TTransaction>,
     private readonly repository: ContentPublicationRepositoryPort<TTransaction>,
     private readonly auditService: AuditService<TTransaction>,
+    private readonly assetRepository: ContentAssetRepositoryPort<TTransaction>,
+    private readonly publicAssetUrlBuilder: PublicAssetUrlBuilderPort,
     private readonly clock: Clock = systemClock,
   ) {}
 
@@ -278,7 +287,18 @@ export class ContentPublicationService<TTransaction> {
 
         const revision = assertContentPublishable(content);
         assertSitePublishable(site.status);
-        const snapshot = createContentPublicationSnapshot(content.type, contentSite, revision);
+        const assetSources = await this.assetRepository.listRevisionPublicationSources(
+          workspaceId,
+          revision.id,
+          transaction,
+        );
+        const assets = createContentPublicationAssetManifest(assetSources, (objectKey) =>
+          this.publicAssetUrlBuilder.buildPublicUrl(objectKey),
+        );
+        const snapshot = createContentPublicationSnapshot(content.type, contentSite, revision, {
+          assets,
+          bodyHtml: renderContentPublicationBodyHtml(revision.bodyMarkdown, assets),
+        });
         const etag = createContentPublicationEtag(snapshot);
         const active = await this.repository.findActivePublication(
           workspaceId,
@@ -320,6 +340,7 @@ export class ContentPublicationService<TTransaction> {
           title: snapshot.title,
           summary: snapshot.summary,
           bodyHtml: snapshot.bodyHtml,
+          assets: snapshot.assets,
           seo: snapshot.seo,
           visibility: snapshot.visibility,
           etag,
@@ -738,6 +759,7 @@ function freezePublication(record: ContentPublicationRecord): Readonly<ContentPu
   return Object.freeze({
     ...record,
     seo: Object.freeze({ ...record.seo }),
+    assets: freezeContentPublicationAssetManifest(record.assets),
     publishedAt: new Date(record.publishedAt),
     supersededAt: record.supersededAt ? new Date(record.supersededAt) : undefined,
     withdrawnAt: record.withdrawnAt ? new Date(record.withdrawnAt) : undefined,
@@ -750,6 +772,7 @@ function freezeDeliveryContent(record: DeliveryContentRecord): Readonly<Delivery
     ...record,
     site: Object.freeze({ ...record.site }),
     seo: Object.freeze({ ...record.seo }),
+    assets: freezeContentPublicationAssetManifest(record.assets),
     publishedAt: new Date(record.publishedAt),
   });
 }

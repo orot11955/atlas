@@ -53,6 +53,7 @@ export function toContentPublicationData(publication: Readonly<ContentPublicatio
     title: publication.title,
     summary: publication.summary ?? null,
     bodyHtml: publication.bodyHtml,
+    assets: publication.assets.map(toPublicationAssetData),
     seo: publication.seo,
     visibility: publication.visibility,
     etag: publication.etag,
@@ -85,6 +86,28 @@ export function toDeliveryContentData(content: Readonly<DeliveryContentRecord>) 
   return {
     ...toDeliveryContentSummaryData(content),
     bodyHtml: content.bodyHtml,
+    assets: content.assets.map(toPublicationAssetData),
     seo: content.seo,
+  };
+}
+
+function toPublicationAssetData(asset: ContentPublicationRecord['assets'][number]) {
+  return {
+    assetId: asset.assetId,
+    ordinal: asset.ordinal,
+    kind: asset.kind,
+    altText: asset.altText,
+    caption: asset.caption ?? null,
+    variants: asset.variants.map((variant) => ({
+      key: variant.key,
+      format: variant.format,
+      contentType: variant.contentType,
+      width: variant.width,
+      height: variant.height,
+      byteSize: variant.byteSize,
+      sha256: variant.sha256,
+      etag: variant.etag,
+      publicUrl: variant.publicUrl,
+    })),
   };
 }

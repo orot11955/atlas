@@ -1,4 +1,8 @@
-import type { AssetUsageRecord, ContentAssetTargetRecord } from '../domain/content-asset';
+import type {
+  AssetUsageRecord,
+  ContentAssetPublicationSourceRecord,
+  ContentAssetTargetRecord,
+} from '../domain/content-asset';
 
 export interface ContentAssetRepositoryPort<TTransaction = unknown> {
   findTargets(
@@ -11,4 +15,9 @@ export interface ContentAssetRepositoryPort<TTransaction = unknown> {
     transaction: TTransaction,
   ): Promise<void>;
   listRevisionUsages(workspaceId: string, revisionId: string): Promise<readonly AssetUsageRecord[]>;
+  listRevisionPublicationSources(
+    workspaceId: string,
+    revisionId: string,
+    transaction: TTransaction,
+  ): Promise<readonly ContentAssetPublicationSourceRecord[]>;
 }

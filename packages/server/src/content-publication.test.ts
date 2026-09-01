@@ -21,6 +21,9 @@ import {
   requestContext,
   type AuditRecord,
   type AuditRepositoryPort,
+  type AssetUsageRecord,
+  type ContentAssetPublicationSourceRecord,
+  type ContentAssetRepositoryPort,
   type ContentPublicationRecord,
   type ContentPublicationRepositoryPort,
   type ContentSiteRecord,
@@ -114,6 +117,8 @@ test('Publish is idempotent, republish supersedes, and rollback creates a new ac
     new PassthroughTransactionRunner(),
     repository,
     new AuditService(auditRepository, clock),
+    new EmptyContentAssetRepository(),
+    { buildPublicUrl: (objectKey) => `https://assets.atlas.test/${objectKey}` },
     clock,
   );
 
@@ -206,6 +211,24 @@ test('Delivery lists public records and resolves unlisted detail without exposin
     service.getBySlug(repository.workspaceId, repository.siteId, 'private-post'),
   );
 });
+
+class EmptyContentAssetRepository implements ContentAssetRepositoryPort<void> {
+  public async findTargets(): Promise<readonly []> {
+    return [];
+  }
+
+  public async insertRevisionUsages(_usages: readonly AssetUsageRecord[]): Promise<void> {}
+
+  public async listRevisionUsages(): Promise<readonly []> {
+    return [];
+  }
+
+  public async listRevisionPublicationSources(): Promise<
+    readonly ContentAssetPublicationSourceRecord[]
+  > {
+    return [];
+  }
+}
 
 class InMemoryAuditRepository implements AuditRepositoryPort<void> {
   public readonly records: AuditRecord[] = [];
@@ -382,6 +405,7 @@ class FakeContentPublicationRepository implements ContentPublicationRepositoryPo
       title: 'Atlas',
       summary: 'Atlas publication',
       bodyHtml: '<p>Atlas</p>',
+      assets: [],
       seo: {},
       visibility,
       etag: 'a'.repeat(64),
