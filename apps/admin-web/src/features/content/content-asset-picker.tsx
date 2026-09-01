@@ -87,12 +87,7 @@ export function ContentAssetPicker({
 
   return (
     <div className={styles.assetPicker}>
-      <button
-        className={styles.secondary}
-        disabled={disabled}
-        type="button"
-        onClick={togglePicker}
-      >
+      <button className={styles.secondary} disabled={disabled} type="button" onClick={togglePicker}>
         {open ? 'Asset Picker 닫기' : 'Asset 삽입'}
       </button>
 
