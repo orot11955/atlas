@@ -26,13 +26,14 @@ source = source[:start] + section + source[end:]
 
 tail_start_marker = '\nworkflow_path = ".github/workflows/eventing-data-gate.yml"\n'
 tail_end_marker = '\nprint("Phase 9 immutable schedule target patch applied.")\n'
+
 tail_start = source.find(tail_start_marker)
 tail_end = source.find(tail_end_marker, tail_start)
 if tail_start < 0 or tail_end < 0:
     raise SystemExit('Unable to locate Eventing Data Gate patch tail.')
 
 tail_end += len(tail_end_marker)
-replacement_tail = r'''
+replacement_tail = r"""
 workflow_path = ".github/workflows/eventing-data-gate.yml"
 
 
@@ -111,7 +112,7 @@ replace_once(
 )
 
 print("Phase 9 immutable schedule target patch applied.")
-'''
+"""
 
 source = source[:tail_start] + replacement_tail + source[tail_end:]
 path.write_text(source, encoding='utf-8')
