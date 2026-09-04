@@ -35,29 +35,20 @@ jobs:
 
           port_path = Path('packages/server/src/modules/content/ports/content-publication.repository.ts')
           port = port_path.read_text(encoding='utf-8')
-          port_marker = """  findPublishableContentForUpdate(
-              workspaceId: string,
-              contentId: string,
-              transaction: TTransaction,
-            ): Promise<PublishableContentRecord | undefined>;
-            findActivePublication(
+          port_marker = """  findActivePublication(
           """
-          port_replacement = """  findPublishableContentForUpdate(
-              workspaceId: string,
-              contentId: string,
-              transaction: TTransaction,
-            ): Promise<PublishableContentRecord | undefined>;
-            findPublishableRevisionForUpdate(
+          port_method = """  findPublishableRevisionForUpdate(
               workspaceId: string,
               contentId: string,
               revisionId: string,
               transaction: TTransaction,
             ): Promise<PublishableContentRecord | undefined>;
-            findActivePublication(
           """
-          if port.count(port_marker) != 1:
-              raise SystemExit('Unexpected ContentPublicationRepositoryPort marker count')
-          port_path.write_text(port.replace(port_marker, port_replacement), encoding='utf-8')
+          if 'findPublishableRevisionForUpdate(' not in port:
+              if port.count(port_marker) != 1:
+                  raise SystemExit('Unexpected ContentPublicationRepositoryPort marker count')
+              port = port.replace(port_marker, port_method + port_marker)
+              port_path.write_text(port, encoding='utf-8')
 
           adapter_path = Path(
               'packages/server/src/modules/content/infrastructure/persistence/'
@@ -121,52 +112,37 @@ jobs:
             }
 
           """
-          if adapter.count(adapter_marker) != 1:
-              raise SystemExit('Unexpected TypeOrmContentPublicationRepository marker count')
-          adapter_path.write_text(
-              adapter.replace(adapter_marker, adapter_method + adapter_marker),
-              encoding='utf-8',
-          )
+          if 'public async findPublishableRevisionForUpdate(' not in adapter:
+              if adapter.count(adapter_marker) != 1:
+                  raise SystemExit('Unexpected TypeOrmContentPublicationRepository marker count')
+              adapter = adapter.replace(adapter_marker, adapter_method + adapter_marker)
+              adapter_path.write_text(adapter, encoding='utf-8')
 
           sender_path = Path(
               'packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts'
           )
           sender = sender_path.read_text(encoding='utf-8')
-          sender_old = """    if (family !== 0) {
-              if (!this.options.allowPrivateNetwork && isPrivateHostname(hostname)) {
-                throw new Error('Webhook URL resolved to a private network host.');
-              }
+          sender_old = 'if (family !== 0) {'
+          sender_new = 'if (family === 4 || family === 6) {'
+          if sender_old in sender:
+              sender_path.write_text(sender.replace(sender_old, sender_new, 1), encoding='utf-8')
+          elif sender_new not in sender:
+              raise SystemExit('Unexpected NodeWebhookSender family guard')
 
-              return { address: hostname, family };
-            }
-          """
-          sender_new = """    if (family === 4 || family === 6) {
-              if (!this.options.allowPrivateNetwork && isPrivateHostname(hostname)) {
-                throw new Error('Webhook URL resolved to a private network host.');
-              }
-
-              return { address: hostname, family };
-            }
-          """
-          if sender.count(sender_old) != 1:
-              raise SystemExit('Unexpected NodeWebhookSender family marker count')
-          sender_path.write_text(sender.replace(sender_old, sender_new), encoding='utf-8')
-
-          eventing_repository_path = Path(
+          repository_path = Path(
               'packages/server/src/modules/eventing/infrastructure/persistence/'
               'typeorm-eventing.repository.ts'
           )
-          eventing_repository = eventing_repository_path.read_text(encoding='utf-8')
-          payload_old = '      payloadJson: { ...input.payload, data: { ...input.payload.data } },\n'
-          payload_new = (
-              '      payloadJson: { ...input.payload, data: { ...input.payload.data } } as never,\n'
-          )
-          if eventing_repository.count(payload_old) != 1:
-              raise SystemExit('Unexpected Outbox payload marker count')
-          eventing_repository_path.write_text(
-              eventing_repository.replace(payload_old, payload_new),
-              encoding='utf-8',
-          )
+          repository = repository_path.read_text(encoding='utf-8')
+          payload_old = 'payloadJson: { ...input.payload, data: { ...input.payload.data } },'
+          payload_new = 'payloadJson: { ...input.payload, data: { ...input.payload.data } } as never,'
+          if payload_old in repository:
+              repository_path.write_text(
+                  repository.replace(payload_old, payload_new, 1),
+                  encoding='utf-8',
+              )
+          elif payload_new not in repository:
+              raise SystemExit('Unexpected Outbox payload assignment')
           PY
 
       - name: Setup Node.js
