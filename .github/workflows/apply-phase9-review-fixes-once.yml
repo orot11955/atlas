@@ -46,108 +46,123 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          def replace(path_value: str, old: str, new: str) -> None:
+          def replace_once(path_value: str, old: str, new: str, label: str) -> None:
               path = Path(path_value)
               content = path.read_text(encoding='utf-8')
-              if content.count(old) != 1:
-                  raise SystemExit(f'Expected one match in {path_value}, found {content.count(old)}')
-              path.write_text(content.replace(old, new), encoding='utf-8')
+              count = content.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match in {path_value}, found {count}')
+              path.write_text(content.replace(old, new, 1), encoding='utf-8')
 
-          replace(
-              'packages/server/src/modules/eventing/ports/eventing.repository.ts',
-              '''  listActiveWebhookEndpointsForEvent(
-              workspaceId: string,
-              siteId: string,
-              eventType: WebhookEventType,
-            ): Promise<readonly WebhookEndpointRecord[]>;''',
-              '''  listActiveWebhookEndpointsForEvent(
-              workspaceId: string,
-              siteId: string,
-              eventType: WebhookEventType,
+          port = 'packages/server/src/modules/eventing/ports/eventing.repository.ts'
+          repository = (
+              'packages/server/src/modules/eventing/infrastructure/persistence/'
+              'typeorm-eventing.repository.ts'
+          )
+          consumer = 'packages/server/src/modules/eventing/application/outbox-relay.service.ts'
+          e2e = 'scripts/ci/eventing-e2e.mjs'
+
+          replace_once(
+              port,
+              '''    eventType: WebhookEventType,
+            ): Promise<readonly WebhookEndpointRecord[]>;
+            insertWebhookDeliveryIfAbsent(''',
+              '''    eventType: WebhookEventType,
               occurredAt: Date,
-            ): Promise<readonly WebhookEndpointRecord[]>;''',
+            ): Promise<readonly WebhookEndpointRecord[]>;
+            insertWebhookDeliveryIfAbsent(''',
+              'port cutoff',
           )
 
-          replace(
-              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
-              '''  public async listActiveWebhookEndpointsForEvent(
-              workspaceId: string,
-              siteId: string,
-              eventType: WebhookEventType,
-            ): Promise<readonly WebhookEndpointRecord[]> {''',
-              '''  public async listActiveWebhookEndpointsForEvent(
-              workspaceId: string,
-              siteId: string,
-              eventType: WebhookEventType,
+          replace_once(
+              repository,
+              '''    eventType: WebhookEventType,
+            ): Promise<readonly WebhookEndpointRecord[]> {
+              const rows = await this.dataSource.query<WebhookEndpointRow[]>(''',
+              '''    eventType: WebhookEventType,
               occurredAt: Date,
-            ): Promise<readonly WebhookEndpointRecord[]> {''',
+            ): Promise<readonly WebhookEndpointRecord[]> {
+              const rows = await this.dataSource.query<WebhookEndpointRow[]>(''',
+              'repository cutoff parameter',
           )
-          replace(
-              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
-              '''          AND endpoint."status" = 'active'
-              AND $3 = ANY(endpoint."subscribed_events")
-            ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
-              '''          AND endpoint."status" = 'active'
-              AND $3 = ANY(endpoint."subscribed_events")
-              AND endpoint."created_at" <= $4
-            ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
+          replace_once(
+              repository,
+              '''          AND $3 = ANY(endpoint."subscribed_events")
+                    ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
+              '''          AND $3 = ANY(endpoint."subscribed_events")
+                      AND endpoint."created_at" <= $4
+                    ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
+              'repository cutoff predicate',
           )
-          replace(
-              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
+          replace_once(
+              repository,
               '''      [workspaceId, siteId, eventType],
-            );
+                );
 
-            return rows.map(toWebhookEndpointRecord);''',
+                return rows.map(toWebhookEndpointRecord);
+              }
+
+              public async insertWebhookDeliveryIfAbsent(''',
               '''      [workspaceId, siteId, eventType, occurredAt],
-            );
+                );
 
-            return rows.map(toWebhookEndpointRecord);''',
+                return rows.map(toWebhookEndpointRecord);
+              }
+
+              public async insertWebhookDeliveryIfAbsent(''',
+              'repository cutoff binding',
           )
 
-          replace(
-              'packages/server/src/modules/eventing/application/outbox-relay.service.ts',
+          replace_once(
+              consumer,
               '''        event.siteId,
-              event.eventType,
-            );''',
+                    event.eventType,
+                  );
+                  const deliveries = [];''',
               '''        event.siteId,
-              event.eventType,
-              event.createdAt,
-            );''',
+                    event.eventType,
+                    event.createdAt,
+                  );
+                  const deliveries = [];''',
+              'consumer cutoff propagation',
           )
 
-          replace(
-              'scripts/ci/eventing-e2e.mjs',
-              '''    verifyCapturedRequest(receiver.requests[0], secret, 'content.published');''',
+          replace_once(
+              e2e,
+              "    verifyCapturedRequest(receiver.requests[0], secret, 'content.published');",
               '''    const firstCaptured = await waitForDeliveryAttempt(receiver, firstFailure.id, 1);
-            verifyCapturedRequest(firstCaptured, secret, 'content.published');''',
+              verifyCapturedRequest(firstCaptured, secret, 'content.published');''',
+              'first captured delivery',
           )
-          replace(
-              'scripts/ci/eventing-e2e.mjs',
+          replace_once(
+              e2e,
               '''    verifyCapturedRequest(receiver.requests[1], secret, 'content.published');
-            assertEqual(
-              receiver.requests[1]?.eventId,
-              receiver.requests[0]?.eventId,
-              'Webhook retry Event ID',
-            );
-            assertEqual(receiver.requests[1]?.body, receiver.requests[0]?.body, 'Webhook retry raw body');''',
+              assertEqual(
+                receiver.requests[1]?.eventId,
+                receiver.requests[0]?.eventId,
+                'Webhook retry Event ID',
+              );
+              assertEqual(receiver.requests[1]?.body, receiver.requests[0]?.body, 'Webhook retry raw body');''',
               '''    const retryCaptured = await waitForDeliveryAttempt(receiver, firstFailure.id, 2);
-            verifyCapturedRequest(retryCaptured, secret, 'content.published');
-            assertEqual(retryCaptured.eventId, firstCaptured.eventId, 'Webhook retry Event ID');
-            assertEqual(retryCaptured.body, firstCaptured.body, 'Webhook retry raw body');''',
+              verifyCapturedRequest(retryCaptured, secret, 'content.published');
+              assertEqual(retryCaptured.eventId, firstCaptured.eventId, 'Webhook retry Event ID');
+              assertEqual(retryCaptured.body, firstCaptured.body, 'Webhook retry raw body');''',
+              'retry captured delivery',
           )
-          replace(
-              'scripts/ci/eventing-e2e.mjs',
-              '''async function waitForReceiverEvent(receiver, eventType, count) {''',
+          replace_once(
+              e2e,
+              'async function waitForReceiverEvent(receiver, eventType, count) {',
               '''async function waitForDeliveryAttempt(receiver, deliveryId, count) {
-            for (let attempt = 0; attempt < 120; attempt += 1) {
-              const matching = receiver.requests.filter((item) => item.deliveryId === deliveryId);
-              if (matching.length >= count) return matching[count - 1];
-              await delay(250);
+              for (let attempt = 0; attempt < 120; attempt += 1) {
+                const matching = receiver.requests.filter((item) => item.deliveryId === deliveryId);
+                if (matching.length >= count) return matching[count - 1];
+                await delay(250);
+              }
+              throw new Error(`Webhook Receiver did not receive attempt ${count} for ${deliveryId}.`);
             }
-            throw new Error(`Webhook Receiver did not receive attempt ${count} for ${deliveryId}.`);
-          }
 
-          async function waitForReceiverEvent(receiver, eventType, count) {''',
+            async function waitForReceiverEvent(receiver, eventType, count) {''',
+              'delivery attempt wait helper',
           )
           PY
 
