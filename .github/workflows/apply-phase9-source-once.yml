@@ -67,7 +67,7 @@ jobs:
             5536179186
             5536191049
             5536205428
-            0
+            5536312794
             5536216655
             5536228410
             5536243097
@@ -81,13 +81,10 @@ jobs:
             expected_hash=${expected_hashes[$index]}
             expected_size=${expected_sizes[$index]}
 
-            if [[ "$marker" == '09' ]]; then
-              candidate=tmp/phase9-payload/part-01
-            else
-              id=${comment_ids[$index]}
-              candidate="/tmp/phase9-chunk-$marker-$id"
-              gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
-              python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
+            id=${comment_ids[$index]}
+            candidate="/tmp/phase9-chunk-$marker-$id"
+            gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+            python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
           import json
           import pathlib
           import sys
@@ -98,7 +95,6 @@ jobs:
               raise SystemExit(f'Unexpected payload marker: {body[:32]!r}')
           pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
           PY
-            fi
 
             actual_size=$(wc -c < "$candidate" | tr -d ' ')
             actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
