@@ -160,6 +160,7 @@ export class EventingController {
   @Post('webhook-endpoints/:endpointId/secret/rotate')
   @UseGuards(...WRITE_GUARDS)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   public async rotateWebhookSecret(
     @Req() request: AdminWorkspaceHttpRequest,
@@ -180,6 +181,7 @@ export class EventingController {
   @Post('webhook-endpoints/:endpointId/enable')
   @UseGuards(...WRITE_GUARDS)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   public async enableWebhookEndpoint(
     @Req() request: AdminWorkspaceHttpRequest,
@@ -195,6 +197,7 @@ export class EventingController {
   @Post('webhook-endpoints/:endpointId/disable')
   @UseGuards(...WRITE_GUARDS)
   @RequireAdminPermission(AdminPermission.SITES_MANAGE)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   public async disableWebhookEndpoint(
     @Req() request: AdminWorkspaceHttpRequest,
@@ -287,6 +290,7 @@ export class EventingController {
   @Post('publication-schedules/:scheduleId/cancel')
   @UseGuards(...WRITE_GUARDS)
   @RequireAdminPermission(AdminPermission.CONTENT_PUBLISH)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   public async cancelPublicationSchedule(
     @Req() request: AdminWorkspaceHttpRequest,
@@ -302,6 +306,7 @@ export class EventingController {
   @Post('publication-schedules/:scheduleId/retry')
   @UseGuards(...WRITE_GUARDS)
   @RequireAdminPermission(AdminPermission.CONTENT_PUBLISH)
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   public async retryPublicationSchedule(
     @Req() request: AdminWorkspaceHttpRequest,
