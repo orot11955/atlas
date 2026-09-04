@@ -134,9 +134,9 @@ test('Webhook secrets use authenticated AES-256-GCM encryption and key version b
 test('TypeORM mutation results are normalized without leaking driver tuples', () => {
   const rows = [{ id: 'row-1' }];
 
-  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>([rows, 1]), rows);
-  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>(rows), rows);
-  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>({ records: rows }), rows);
+  assert.deepEqual(unwrapTypeOrmMutationRows<(typeof rows)[number]>([rows, 1]), rows);
+  assert.deepEqual(unwrapTypeOrmMutationRows<(typeof rows)[number]>(rows), rows);
+  assert.deepEqual(unwrapTypeOrmMutationRows<(typeof rows)[number]>({ records: rows }), rows);
   assert.throws(() => unwrapTypeOrmMutationRows('unsupported'));
 });
 

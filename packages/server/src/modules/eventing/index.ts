@@ -16,9 +16,7 @@ export {
   SubscriptionAwareTypeOrmEventingRepository,
   SubscriptionAwareTypeOrmEventingRepository as TypeOrmEventingRepository,
 } from './infrastructure/persistence/subscription-aware-typeorm-eventing.repository';
-export {
-  TypeOrmEventingRepository as BaseTypeOrmEventingRepository,
-} from './infrastructure/persistence/typeorm-eventing.repository';
+export { TypeOrmEventingRepository as BaseTypeOrmEventingRepository } from './infrastructure/persistence/typeorm-eventing.repository';
 export * from './ports/eventing-queue.port';
 export * from './ports/eventing.repository';
 export * from './ports/outbox-recorder.port';

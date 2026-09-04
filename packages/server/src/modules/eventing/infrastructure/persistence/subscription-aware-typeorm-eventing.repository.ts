@@ -1,9 +1,6 @@
 import type { DataSource } from 'typeorm';
 
-import type {
-  WebhookEndpointRecord,
-  WebhookEventType,
-} from '../../domain/eventing';
+import type { WebhookEndpointRecord, WebhookEventType } from '../../domain/eventing';
 import { SafeTypeOrmEventingRepository } from './safe-typeorm-eventing.repository';
 
 export class SubscriptionAwareTypeOrmEventingRepository extends SafeTypeOrmEventingRepository {
