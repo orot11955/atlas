@@ -1,0 +1,257 @@
+name: Verify Complete Phase 8 Once
+
+on:
+  push:
+    branches:
+      - feat/media-content-integration
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: atlas-verify-complete-phase8-once
+  cancel-in-progress: false
+
+jobs:
+  verify-and-finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      FEATURE_BRANCH: feat/media-content-integration
+      BASE_BRANCH: develop
+      COMPLETION_TAG: phase-8-media-complete
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-content-integration
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Determine completion source
+        id: source
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH" "$FEATURE_BRANCH"
+
+          complete_tree() {
+            local tree="$1"
+            git grep -q -E 'AssetUsage|asset_usages' "$tree" -- packages apps scripts .github docs
+            git grep -q 'asset://' "$tree" -- packages apps scripts .github docs
+            git grep -q -E 'assetManifest|asset_manifest' "$tree" -- packages apps scripts .github docs
+            git grep -q -E 'AssetPicker|asset-picker' "$tree" -- apps/admin-web
+            git grep -q -Ei 'archive.{0,800}(active.{0,100}publication|publication.{0,100}active)|(active.{0,100}publication|publication.{0,100}active).{0,800}archive' "$tree" -- packages/server apps/api
+            git ls-tree -r --name-only "$tree" packages/database/src/migrations | grep -Ei 'AssetUsage|MediaContent'
+          }
+
+          develop_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          feature_sha="$(git rev-parse "origin/$FEATURE_BRANCH")"
+          if complete_tree "$develop_sha"; then
+            echo 'mode=develop' >> "$GITHUB_OUTPUT"
+            echo "sha=$develop_sha" >> "$GITHUB_OUTPUT"
+          elif complete_tree "$feature_sha"; then
+            echo 'mode=feature' >> "$GITHUB_OUTPUT"
+            echo "sha=$feature_sha" >> "$GITHUB_OUTPUT"
+          else
+            echo 'Neither develop nor the feature branch contains the complete Phase 8 implementation.' >&2
+            exit 1
+          fi
+
+      - name: Verify selected source locally
+        run: |
+          set -euo pipefail
+          selected_sha='${{ steps.source.outputs.sha }}'
+          git worktree add --detach /tmp/atlas-selected "$selected_sha"
+          cd /tmp/atlas-selected
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm format:check
+          corepack pnpm lint
+          corepack pnpm typecheck
+          corepack pnpm test
+          corepack pnpm build
+          if find .github/workflows -maxdepth 1 -type f -name '*-once.yml' | grep -q .; then
+            if [ '${{ steps.source.outputs.mode }}' = 'develop' ]; then
+              echo 'develop contains a one-time workflow.' >&2
+              exit 1
+            fi
+          fi
+
+      - name: Finalize feature head
+        id: feature
+        if: steps.source.outputs.mode == 'feature'
+        run: |
+          set -euo pipefail
+          git checkout "$FEATURE_BRANCH"
+          find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -delete
+          find scripts -type f \( -name 'apply-*.py' -o -name 'finalize-*.py' -o -name 'repair-*.py' \) -delete 2>/dev/null || true
+          rm -rf tmp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: finalize Phase 8 Media integration'
+            git push origin HEAD:"$FEATURE_BRANCH"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure feature Pull Request
+        id: pr
+        if: steps.source.outputs.mode == 'feature'
+        run: |
+          set -euo pipefail
+          pr_number="$(gh pr list --repo "$REPOSITORY" --head "$FEATURE_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+            url="$(gh pr create --repo "$REPOSITORY" --head "$FEATURE_BRANCH" --base "$BASE_BRANCH" --draft --title 'feat: integrate Media Assets with Content publication' --body 'Phase 8 Media Content Integration')"
+            pr_number="${url##*/}"
+          fi
+          cat > /tmp/pr-body.md <<'BODY'
+          ## Summary
+
+          Phase 8 Media Content Integration을 완성합니다.
+
+          - canonical `asset://{assetId}` parser와 validation
+          - Draft·Revision·Publication별 `AssetUsage` indexing
+          - READY·Workspace-scoped Asset validation
+          - immutable Publication Asset Manifest와 Delivery snapshot
+          - ACTIVE Publication 사용 Asset archive 차단
+          - Content editor Asset Picker, Cover Image, Alt Text, Caption
+          - Admin Asset usage visibility
+          - rollback 가능한 migration과 영구 data-gate coverage
+
+          ## Invariants
+
+          - Private 원본과 내부 Bucket/Object Key/MinIO Endpoint는 외부 DTO에 노출하지 않음
+          - Draft Usage만 mutable replacement이며 Revision·Publication Usage는 immutable snapshot
+          - Delivery는 현재 AssetVariant가 아닌 Publication Asset Manifest snapshot을 사용
+          - ACTIVE Publication이 참조하는 Asset은 archive할 수 없음
+          - 기존 Session, CSRF, Permission, Workspace Scope, Optimistic Lock, Audit 경계를 유지
+          BODY
+          sed -i 's/^          //' /tmp/pr-body.md
+          gh pr edit "$pr_number" --repo "$REPOSITORY" --title 'feat: integrate Media Assets with Content publication' --body-file /tmp/pr-body.md
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch feature gates
+        if: steps.source.outputs.mode == 'feature'
+        run: |
+          gh workflow run ci.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          gh workflow run resource-member-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          gh workflow run media-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          if git cat-file -e '${{ steps.feature.outputs.sha }}:.github/workflows/media-content-data-gate.yml' 2>/dev/null; then
+            gh workflow run media-content-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          fi
+
+      - name: Require feature gates and merge
+        id: merge
+        if: steps.source.outputs.mode == 'feature'
+        run: |
+          set -euo pipefail
+          expected_sha='${{ steps.feature.outputs.sha }}'
+          pr_number='${{ steps.pr.outputs.number }}'
+
+          wait_gate() {
+            local name="$1" run_id=''
+            for _ in $(seq 1 120); do
+              run_id="$(gh api -X GET "repos/$REPOSITORY/actions/runs" -f head_sha="$expected_sha" -f per_page=100 --jq ".workflow_runs | map(select(.name == \"$name\" and .id != ${{ github.run_id }})) | sort_by(.created_at) | reverse | .[0].id // empty")"
+              [ -n "$run_id" ] && break
+              sleep 5
+            done
+            test -n "$run_id"
+            for _ in $(seq 1 480); do
+              status="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.status')"
+              if [ "$status" = completed ]; then
+                test "$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.conclusion')" = success
+                return
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          wait_gate 'CI'
+          wait_gate 'Resource Member Data Gate'
+          wait_gate 'Media Data Gate'
+          if git cat-file -e "$expected_sha:.github/workflows/media-content-data-gate.yml" 2>/dev/null; then
+            wait_gate 'Media Content Data Gate'
+          fi
+
+          test "$(gh api "repos/$REPOSITORY/pulls/$pr_number" --jq '.head.sha')" = "$expected_sha"
+          gh pr ready "$pr_number" --repo "$REPOSITORY" || true
+          response="$(gh api --method PUT "repos/$REPOSITORY/pulls/$pr_number/merge" -f sha="$expected_sha" -f merge_method=squash -f commit_title='feat: integrate Media Assets with Content publication' -f commit_message='Phase 8 Media Content Integration')"
+          echo "$response" | jq -e '.merged == true'
+          echo "sha=$(echo "$response" | jq -r '.sha')" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve completed develop SHA
+        id: develop
+        run: |
+          if [ '${{ steps.source.outputs.mode }}' = develop ]; then
+            echo "sha=${{ steps.source.outputs.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ steps.merge.outputs.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require develop exact-head gates
+        run: |
+          set -euo pipefail
+          expected_sha='${{ steps.develop.outputs.sha }}'
+          for _ in $(seq 1 60); do
+            current="$(gh api "repos/$REPOSITORY/branches/$BASE_BRANCH" --jq '.commit.sha')"
+            [ "$current" = "$expected_sha" ] && break
+            sleep 2
+          done
+          test "$current" = "$expected_sha"
+
+          required=('CI' 'Resource Member Data Gate' 'Media Data Gate')
+          if gh api "repos/$REPOSITORY/contents/.github/workflows/media-content-data-gate.yml?ref=$BASE_BRANCH" >/dev/null 2>&1; then
+            required+=('Media Content Data Gate')
+          fi
+
+          wait_gate() {
+            local name="$1" run_id=''
+            for _ in $(seq 1 180); do
+              run_id="$(gh api -X GET "repos/$REPOSITORY/actions/runs" -f head_sha="$expected_sha" -f per_page=100 --jq ".workflow_runs | map(select(.name == \"$name\" and .id != ${{ github.run_id }})) | sort_by(.created_at) | reverse | .[0].id // empty")"
+              [ -n "$run_id" ] && break
+              sleep 5
+            done
+            test -n "$run_id"
+            for _ in $(seq 1 480); do
+              status="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.status')"
+              if [ "$status" = completed ]; then
+                test "$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.conclusion')" = success
+                return
+              fi
+              sleep 5
+            done
+            return 1
+          }
+          for gate in "${required[@]}"; do wait_gate "$gate"; done
+
+      - name: Publish completion tag and clean feature branch
+        run: |
+          set -euo pipefail
+          develop_sha='${{ steps.develop.outputs.sha }}'
+          existing="$(gh api "repos/$REPOSITORY/git/matching-refs/tags/$COMPLETION_TAG" --jq 'length')"
+          if [ "$existing" = 0 ]; then
+            gh api --method POST "repos/$REPOSITORY/git/refs" -f ref="refs/tags/$COMPLETION_TAG" -f sha="$develop_sha"
+          else
+            tag_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/$COMPLETION_TAG" --jq '.object.sha')"
+            test "$tag_sha" = "$develop_sha"
+          fi
+
+          gh pr list --repo "$REPOSITORY" --head "$FEATURE_BRANCH" --state open --json number --jq '.[].number' | while read -r pr; do
+            [ -n "$pr" ] && gh pr close "$pr" --repo "$REPOSITORY" --comment 'Phase 8 implementation is already present and verified on develop.'
+          done
+          gh api --method DELETE "repos/$REPOSITORY/git/refs/heads/$FEATURE_BRANCH" || true
