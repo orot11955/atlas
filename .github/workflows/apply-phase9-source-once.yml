@@ -57,31 +57,37 @@ jobs:
             a7e8670ea0b6b3eb575806b99da88834c6b15c7e7a8528683f05059a096ef7ec
           )
           expected_sizes=(13000 13000 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6324)
+          comment_ids=(
+            5536082009
+            5536099936
+            5536115100
+            5536130954
+            5536157744
+            5536168538
+            5536179186
+            5536191049
+            5536205428
+            0
+            5536216655
+            5536228410
+            5536243097
+            5536255527
+          )
 
-          gh api --paginate "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" \
-            --slurp > /tmp/phase9-comment-pages.json
-          jq 'add' /tmp/phase9-comment-pages.json > /tmp/phase9-comments.json
           : > /tmp/phase9-source.b64
 
           for index in $(seq 0 13); do
             marker=$(printf '%02d' "$index")
             expected_hash=${expected_hashes[$index]}
             expected_size=${expected_sizes[$index]}
-            found=0
 
             if [[ "$marker" == '09' ]]; then
-              candidates=(tmp/phase9-payload/part-01)
+              candidate=tmp/phase9-payload/part-01
             else
-              mapfile -t ids < <(
-                jq -r --arg prefix "PHASE9_PAYLOAD_${marker}" \
-                  '.[] | select(.body | startswith($prefix)) | .id' \
-                  /tmp/phase9-comments.json
-              )
-              candidates=()
-              for id in "${ids[@]}"; do
-                candidate="/tmp/phase9-chunk-$marker-$id"
-                gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
-                python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
+              id=${comment_ids[$index]}
+              candidate="/tmp/phase9-chunk-$marker-$id"
+              gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+              python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
           import json
           import pathlib
           import sys
@@ -89,28 +95,17 @@ jobs:
           body = json.load(open(sys.argv[1], encoding='utf-8'))['body']
           prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
           if not body.startswith(prefix):
-              raise SystemExit('Unexpected payload marker')
+              raise SystemExit(f'Unexpected payload marker: {body[:32]!r}')
           pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
           PY
-                candidates+=("$candidate")
-              done
             fi
 
-            for candidate in "${candidates[@]}"; do
-              [[ -f "$candidate" ]] || continue
-              actual_size=$(wc -c < "$candidate" | tr -d ' ')
-              actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
-              if [[ "$actual_size" == "$expected_size" && "$actual_hash" == "$expected_hash" ]]; then
-                cat "$candidate" >> /tmp/phase9-source.b64
-                found=1
-                break
-              fi
-            done
-
-            if [[ "$found" != '1' ]]; then
-              echo "No valid payload chunk found for marker $marker" >&2
-              exit 1
-            fi
+            actual_size=$(wc -c < "$candidate" | tr -d ' ')
+            actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
+            echo "marker=$marker size=$actual_size hash=$actual_hash"
+            test "$actual_size" = "$expected_size"
+            test "$actual_hash" = "$expected_hash"
+            cat "$candidate" >> /tmp/phase9-source.b64
           done
 
           test "$(wc -c < /tmp/phase9-source.b64 | tr -d ' ')" = '102724'
@@ -162,11 +157,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > /tmp/phase9-cleanup-comments.json
-          mapfile -t ids < <(
-            jq -r '.[] | select(.body | startswith("PHASE9_PAYLOAD_")) | .id' \
-              /tmp/phase9-cleanup-comments.json
-          )
-          for id in "${ids[@]}"; do
-            gh api --method DELETE "repos/$REPOSITORY/issues/comments/$id"
+          for id in 5536082009 5536099936 5536115100 5536130954 5536157744 5536168538 5536179186 5536191049 5536205428 5536216655 5536228410 5536243097 5536255527 5536312794; do
+            gh api --method DELETE "repos/$REPOSITORY/issues/comments/$id" || true
           done
