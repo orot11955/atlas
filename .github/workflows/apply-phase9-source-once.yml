@@ -58,19 +58,9 @@ jobs:
           )
           expected_sizes=(13000 13000 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6324)
 
-          comments_json=/tmp/phase9-comments.json
           gh api --paginate "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" \
-            --slurp > "$comments_json"
-
-          python3 - "$comments_json" <<'PY'
-          import json
-          import sys
-
-          pages = json.load(open(sys.argv[1], encoding='utf-8'))
-          comments = [item for page in pages for item in page]
-          json.dump(comments, open(sys.argv[1], 'w', encoding='utf-8'))
-          PY
-
+            --slurp > /tmp/phase9-comment-pages.json
+          jq 'add' /tmp/phase9-comment-pages.json > /tmp/phase9-comments.json
           : > /tmp/phase9-source.b64
 
           for index in $(seq 0 13); do
@@ -79,37 +69,26 @@ jobs:
             expected_size=${expected_sizes[$index]}
             found=0
 
-            mapfile -t ids < <(
-              python3 - "$comments_json" "$marker" <<'PY'
-          import json
-          import sys
+            if [[ "$marker" == '09' ]]; then
+              candidates=(tmp/phase9-payload/part-01)
+            else
+              mapfile -t ids < <(
+                jq -r --arg prefix "PHASE9_PAYLOAD_${marker}\n" \
+                  '.[] | select(.body | startswith($prefix)) | .id' \
+                  /tmp/phase9-comments.json
+              )
+              candidates=()
+              for id in "${ids[@]}"; do
+                candidate="/tmp/phase9-chunk-$marker-$id"
+                gh api "repos/$REPOSITORY/issues/comments/$id" --jq '.body' | tail -n +2 > "$candidate"
+                candidates+=("$candidate")
+              done
+            fi
 
-          comments = json.load(open(sys.argv[1], encoding='utf-8'))
-          prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
-          for comment in comments:
-              if comment.get('body', '').startswith(prefix):
-                  print(comment['id'])
-          PY
-            )
-
-            for id in "${ids[@]}"; do
-              candidate="/tmp/phase9-chunk-$marker-$id"
-              gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
-              python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
-          import json
-          import pathlib
-          import sys
-
-          body = json.load(open(sys.argv[1], encoding='utf-8'))['body']
-          prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
-          if not body.startswith(prefix):
-              raise SystemExit('Unexpected payload marker')
-          pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
-          PY
-
+            for candidate in "${candidates[@]}"; do
+              [[ -f "$candidate" ]] || continue
               actual_size=$(wc -c < "$candidate" | tr -d ' ')
               actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
-
               if [[ "$actual_size" == "$expected_size" && "$actual_hash" == "$expected_hash" ]]; then
                 cat "$candidate" >> /tmp/phase9-source.b64
                 found=1
@@ -126,8 +105,7 @@ jobs:
           test "$(wc -c < /tmp/phase9-source.b64 | tr -d ' ')" = '102724'
           base64 --decode /tmp/phase9-source.b64 > /tmp/phase9-source.tar.bz2
           echo "$ARCHIVE_SHA256  /tmp/phase9-source.tar.bz2" | sha256sum --check --strict
-          tar -tjf /tmp/phase9-source.tar.bz2 > /tmp/phase9-source-files.txt
-          test "$(wc -l < /tmp/phase9-source-files.txt | tr -d ' ')" = '60'
+          test "$(tar -tjf /tmp/phase9-source.tar.bz2 | wc -l | tr -d ' ')" = '60'
 
       - name: Apply source and remove transport artifacts
         shell: bash
@@ -136,6 +114,7 @@ jobs:
           tar -xjf /tmp/phase9-source.tar.bz2 -C "$GITHUB_WORKSPACE"
           rm -rf tmp
           rm -f .github/workflows/apply-phase9-source-once.yml
+          rm -f scripts/apply-phase9-once.py
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -174,14 +153,8 @@ jobs:
           set -euo pipefail
           gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > /tmp/phase9-cleanup-comments.json
           mapfile -t ids < <(
-            python3 - /tmp/phase9-cleanup-comments.json <<'PY'
-          import json
-          import sys
-
-          for comment in json.load(open(sys.argv[1], encoding='utf-8')):
-              if comment.get('body', '').startswith('PHASE9_PAYLOAD_'):
-                  print(comment['id'])
-          PY
+            jq -r '.[] | select(.body | startswith("PHASE9_PAYLOAD_")) | .id' \
+              /tmp/phase9-cleanup-comments.json
           )
           for id in "${ids[@]}"; do
             gh api --method DELETE "repos/$REPOSITORY/issues/comments/$id"
