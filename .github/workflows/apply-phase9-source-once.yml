@@ -1,0 +1,188 @@
+name: Apply Phase 9 Source Once
+
+on:
+  push:
+    branches:
+      - feat/outbox-webhook-scheduling
+    paths:
+      - .github/workflows/apply-phase9-source-once.yml
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: atlas-apply-phase9-source-once
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: '31'
+      FEATURE_BRANCH: feat/outbox-webhook-scheduling
+      ARCHIVE_SHA256: 3c8f50fb355a4f86a63194404dd8383e63fff3237a6a56649e156c6b6407f61a
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/outbox-webhook-scheduling
+          fetch-depth: 0
+
+      - name: Reconstruct and verify source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected_hashes=(
+            5abf32fbd4c09cc245747b0cca48b58f06cb4508f463250bba8c3e551875182c
+            c6d998a0083792ab112b113789e0c645dd3f1e7cb694d87c66f3f7e75516087e
+            75021b65df2f89e821e2aabf44f08654a385181b828d6ed913fd1f2d99a2d40a
+            1b0955ba130c23360d56cd99ff94ea0e7db54d38f6baa0b6b79a93b7698835da
+            e68a643f439cff5ae4b43a234b9b4158a7f5c275a91d43613ed28c2dfe12a35b
+            77db5ed95994489b4ed12c0245d13879e40b9a3f4c6101a1034c442490b5dd69
+            00153c00eac834e2f6fd3cccb145d75f216dbdaf3308d419a04cc4f55554ed35
+            042c3e3a993e0ec5e83bbb5dccd09a973346cb9cb71603bdb095b3c16af2d05d
+            c893b60a558bcd7d5bb54da3fc8a3bab80154ddb971efbf6a5109e61137ad8e0
+            864ace4e2d735c1f926f543a2be20b35d52d94222ae5bc2249b011029cb692af
+            b21d997084335ff3a1139b8f155e996cdc9c76a13ab9d3eb218def8557af0bda
+            188319e3a24547b796d3c5db58e8119b863bde17e436af7b7bc2f05bc4768310
+            fd60140092effd5ebe988368a567d635f4d617cf8bc8f2cbc544d0c7e1246d1e
+            a7e8670ea0b6b3eb575806b99da88834c6b15c7e7a8528683f05059a096ef7ec
+          )
+          expected_sizes=(13000 13000 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6400 6324)
+
+          comments_json=/tmp/phase9-comments.json
+          gh api --paginate "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" \
+            --slurp > "$comments_json"
+
+          python3 - "$comments_json" <<'PY'
+          import json
+          import sys
+
+          pages = json.load(open(sys.argv[1], encoding='utf-8'))
+          comments = [item for page in pages for item in page]
+          json.dump(comments, open(sys.argv[1], 'w', encoding='utf-8'))
+          PY
+
+          : > /tmp/phase9-source.b64
+
+          for index in $(seq 0 13); do
+            marker=$(printf '%02d' "$index")
+            expected_hash=${expected_hashes[$index]}
+            expected_size=${expected_sizes[$index]}
+            found=0
+
+            mapfile -t ids < <(
+              python3 - "$comments_json" "$marker" <<'PY'
+          import json
+          import sys
+
+          comments = json.load(open(sys.argv[1], encoding='utf-8'))
+          prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
+          for comment in comments:
+              if comment.get('body', '').startswith(prefix):
+                  print(comment['id'])
+          PY
+            )
+
+            for id in "${ids[@]}"; do
+              candidate="/tmp/phase9-chunk-$marker-$id"
+              gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+              python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          body = json.load(open(sys.argv[1], encoding='utf-8'))['body']
+          prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
+          if not body.startswith(prefix):
+              raise SystemExit('Unexpected payload marker')
+          pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
+          PY
+
+              actual_size=$(wc -c < "$candidate" | tr -d ' ')
+              actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
+
+              if [[ "$actual_size" == "$expected_size" && "$actual_hash" == "$expected_hash" ]]; then
+                cat "$candidate" >> /tmp/phase9-source.b64
+                found=1
+                break
+              fi
+            done
+
+            if [[ "$found" != '1' ]]; then
+              echo "No valid payload chunk found for marker $marker" >&2
+              exit 1
+            fi
+          done
+
+          test "$(wc -c < /tmp/phase9-source.b64 | tr -d ' ')" = '102724'
+          base64 --decode /tmp/phase9-source.b64 > /tmp/phase9-source.tar.bz2
+          echo "$ARCHIVE_SHA256  /tmp/phase9-source.tar.bz2" | sha256sum --check --strict
+          tar -tjf /tmp/phase9-source.tar.bz2 > /tmp/phase9-source-files.txt
+          test "$(wc -l < /tmp/phase9-source-files.txt | tr -d ' ')" = '60'
+
+      - name: Apply source and remove transport artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xjf /tmp/phase9-source.tar.bz2 -C "$GITHUB_WORKSPACE"
+          rm -rf tmp
+          rm -f .github/workflows/apply-phase9-source-once.yml
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install and format
+        shell: bash
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm format
+          pnpm format:check
+          git diff --check
+
+      - name: Commit product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          test -n "$(git status --short)"
+          git commit -m 'feat: add Transactional Outbox, Webhook and Publication Scheduling'
+          git push origin HEAD:"$FEATURE_BRANCH"
+
+      - name: Delete payload comments
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > /tmp/phase9-cleanup-comments.json
+          mapfile -t ids < <(
+            python3 - /tmp/phase9-cleanup-comments.json <<'PY'
+          import json
+          import sys
+
+          for comment in json.load(open(sys.argv[1], encoding='utf-8')):
+              if comment.get('body', '').startswith('PHASE9_PAYLOAD_'):
+                  print(comment['id'])
+          PY
+          )
+          for id in "${ids[@]}"; do
+            gh api --method DELETE "repos/$REPOSITORY/issues/comments/$id"
+          done
