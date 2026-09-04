@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createAssetMarkdownReference } from './features/content/content-asset-picker';
+import { createAssetMarkdownReference } from './features/content/content-asset-reference';
 
 test('Content Asset Picker creates a Markdown image Reference', () => {
   assert.equal(

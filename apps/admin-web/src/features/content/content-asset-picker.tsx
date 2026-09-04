@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { loadAssets, loadAssetVariants } from '../media/asset-api';
 import type { Asset, AssetVariant } from '../media/asset-types';
+import { createAssetMarkdownReference } from './content-asset-reference';
 import styles from './content.module.css';
 
 export function ContentAssetPicker({
@@ -188,29 +189,6 @@ export function ContentAssetPicker({
   );
 }
 
-export function createAssetMarkdownReference(
-  assetId: string,
-  altText: string,
-  caption?: string,
-): string {
-  const normalizedAlt = escapeMarkdownAltText(altText.trim());
-  const normalizedCaption = escapeMarkdownTitle(caption?.trim() ?? '');
-
-  if (!assetId || !normalizedAlt) {
-    throw new Error('Asset ID and Alt Text are required.');
-  }
-
-  return `![${normalizedAlt}](asset://${assetId}${normalizedCaption ? ` "${normalizedCaption}"` : ''})`;
-}
-
-function escapeMarkdownAltText(value: string): string {
-  return value.replace(/\\/gu, '\\\\').replace(/\[/gu, '\\[').replace(/\]/gu, '\\]');
-}
-
-function escapeMarkdownTitle(value: string): string {
-  return value.replace(/\s+/gu, ' ').replace(/\\/gu, '\\\\').replace(/"/gu, '\\"');
-}
-
 function defaultAltText(fileName: string): string {
   return fileName
     .replace(/\.[^.]+$/u, '')
@@ -219,7 +197,7 @@ function defaultAltText(fileName: string): string {
 }
 
 function formatDimensions(asset: Asset): string {
-  return asset.width && asset.height ? `${asset.width}×${asset.height}` : '크기 확인 중';
+  return asset.width && asset.height ? `${asset.width}×${asset.height}` : '푬기 확인 중';
 }
 
 function formatBytes(bytes: number): string {
