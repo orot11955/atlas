@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
-import type { EntityManager } from 'typeorm';
+import type { EntityManager } from '@atlas/database';
 
 import { workerEnvironmentSchema, type WorkerEnvironment } from '@atlas/config';
 import {
