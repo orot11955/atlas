@@ -73,7 +73,7 @@ jobs:
               candidates=(tmp/phase9-payload/part-01)
             else
               mapfile -t ids < <(
-                jq -r --arg prefix "PHASE9_PAYLOAD_${marker}\n" \
+                jq -r --arg prefix "PHASE9_PAYLOAD_${marker}" \
                   '.[] | select(.body | startswith($prefix)) | .id' \
                   /tmp/phase9-comments.json
               )
