@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element -- Runtime Public Variant URLs are not known at build time. */
-
 import { useCallback, useMemo, useState } from 'react';
 
 import { loadAssets, loadAssetVariants } from '../media/asset-api';
