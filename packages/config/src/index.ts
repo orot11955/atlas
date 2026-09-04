@@ -137,7 +137,7 @@ const apiClientSchema = z.object({
   API_KEY_USAGE_TOUCH_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
 });
 
-export const apiEnvironmentSchema = runtimeSchema.extend({
+const apiEnvironmentObjectSchema = runtimeSchema.extend({
   PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
@@ -149,7 +149,7 @@ export const apiEnvironmentSchema = runtimeSchema.extend({
   ...storageSchema.shape,
 });
 
-export const workerEnvironmentSchema = runtimeSchema.extend({
+const workerEnvironmentObjectSchema = runtimeSchema.extend({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   SYSTEM_QUEUE_NAME: z.string().min(1).default('atlas-system'),
@@ -159,6 +159,16 @@ export const workerEnvironmentSchema = runtimeSchema.extend({
   ...eventingWorkerSchema.shape,
   ...storageSchema.shape,
 });
+
+export const apiEnvironmentSchema = z.preprocess(
+  applyTestEventingDefaults,
+  apiEnvironmentObjectSchema,
+);
+
+export const workerEnvironmentSchema = z.preprocess(
+  applyTestEventingDefaults,
+  workerEnvironmentObjectSchema,
+);
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
 export type WorkerEnvironment = z.infer<typeof workerEnvironmentSchema>;
@@ -191,6 +201,29 @@ export function parseOriginList(value: string): string[] {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+}
+
+function applyTestEventingDefaults(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const environment = value as Record<string, unknown>;
+
+  if (
+    environment.NODE_ENV !== 'test' ||
+    (typeof environment.WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64 === 'string' &&
+      environment.WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64.trim())
+  ) {
+    return value;
+  }
+
+  return {
+    ...environment,
+    WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 0x41).toString('base64'),
+    WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION:
+      environment.WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION ?? 'test-v1',
+  };
 }
 
 function isBase64Encoded32ByteKey(value: string): boolean {
