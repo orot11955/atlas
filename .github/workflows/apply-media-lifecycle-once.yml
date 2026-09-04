@@ -24,37 +24,56 @@ jobs:
           ref: feat/media-lifecycle-completion
           fetch-depth: 0
 
+      - name: Detect staged lifecycle patch
+        id: staged
+        run: |
+          if compgen -G 'tmp/media-lifecycle.patch.gz.b64.*' > /dev/null; then
+            echo 'apply=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'apply=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Apply lifecycle patch
+        if: steps.staged.outputs.apply == 'true'
         run: |
           cat tmp/media-lifecycle.patch.gz.b64.* | base64 --decode | gzip --decompress > /tmp/media-lifecycle.patch
           git apply --whitespace=nowarn /tmp/media-lifecycle.patch
+          git checkout HEAD -- .github/workflows
 
       - name: Setup Node.js
+        if: steps.staged.outputs.apply == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - name: Enable pnpm
+        if: steps.staged.outputs.apply == 'true'
         run: |
           corepack enable
           corepack prepare pnpm@11.24.0 --activate
 
       - name: Install dependencies
+        if: steps.staged.outputs.apply == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Format lifecycle changes
-        run: pnpm exec prettier --write .
-
-      - name: Remove one-time files
+        if: steps.staged.outputs.apply == 'true'
         run: |
-          rm -f .github/workflows/apply-media-lifecycle-once.yml
+          pnpm exec prettier --write .
+          git checkout HEAD -- .github/workflows
+
+      - name: Remove staged patch chunks
+        if: steps.staged.outputs.apply == 'true'
+        run: |
           rm -f tmp/media-lifecycle.patch.gz.b64.*
           rmdir tmp 2>/dev/null || true
 
       - name: Commit lifecycle completion
+        if: steps.staged.outputs.apply == 'true'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test -z "$(git status --porcelain -- .github/workflows)"
           git add -A
           git diff --cached --check
           git commit -m 'feat: complete Media Content lifecycle'
