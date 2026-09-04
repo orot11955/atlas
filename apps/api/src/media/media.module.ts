@@ -8,13 +8,16 @@ import type { ApiEnvironment } from '@atlas/config';
 import { OBJECT_STORAGE, type ObjectStoragePort } from '@atlas/object-storage';
 import {
   AssetEntity,
+  AssetLifecycleService,
   AssetService,
   AssetUploadCoordinator,
   AssetUploadSessionEntity,
   AssetVariantEntity,
   AssetVariantService,
+  TypeOrmAssetLifecycleRepository,
   TypeOrmAssetProcessingRepository,
   TypeOrmAssetRepository,
+  type AssetLifecycleRepositoryPort,
   type AssetProcessingQueuePort,
   type AssetProcessingRepositoryPort,
   type AssetRepositoryPort,
@@ -30,6 +33,8 @@ import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
 import { BullMqAssetProcessingQueue } from './bullmq-asset-processing.queue';
 import { MediaController } from './media.controller';
 import {
+  ASSET_LIFECYCLE_REPOSITORY,
+  ASSET_LIFECYCLE_SERVICE,
   ASSET_PROCESSING_QUEUE,
   ASSET_PROCESSING_REPOSITORY,
   ASSET_REPOSITORY,
@@ -52,6 +57,21 @@ import {
       provide: ASSET_REPOSITORY,
       inject: [DataSource],
       useFactory: (dataSource: DataSource) => new TypeOrmAssetRepository(dataSource),
+    },
+
+    {
+      provide: ASSET_LIFECYCLE_REPOSITORY,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) => new TypeOrmAssetLifecycleRepository(dataSource),
+    },
+    {
+      provide: ASSET_LIFECYCLE_SERVICE,
+      inject: [TRANSACTION_RUNNER, ASSET_LIFECYCLE_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        transactionRunner: TransactionRunner<EntityManager>,
+        repository: AssetLifecycleRepositoryPort<EntityManager>,
+        auditService: AuditService<EntityManager>,
+      ) => new AssetLifecycleService(transactionRunner, repository, auditService),
     },
     {
       provide: ASSET_PROCESSING_REPOSITORY,
@@ -101,7 +121,12 @@ import {
       ) => new AssetUploadCoordinator(assetService, processingQueue),
     },
   ],
-  exports: [ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR, ASSET_VARIANT_SERVICE],
+  exports: [
+    ASSET_LIFECYCLE_SERVICE,
+    ASSET_SERVICE,
+    ASSET_UPLOAD_COORDINATOR,
+    ASSET_VARIANT_SERVICE,
+  ],
 })
 export class MediaModule {}
 

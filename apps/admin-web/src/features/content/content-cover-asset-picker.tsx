@@ -4,24 +4,25 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { loadAssets, loadAssetVariants } from '../media/asset-api';
 import type { Asset, AssetVariant } from '../media/asset-types';
-import { createAssetMarkdownReference } from './content-asset-reference';
+import type { ContentCoverAsset } from './content-types';
 import styles from './content.module.css';
 
-export function ContentAssetPicker({
+export function ContentCoverAssetPicker({
   disabled,
-  onInsert,
+  value,
+  onChange,
 }: Readonly<{
   disabled: boolean;
-  onInsert: (markdown: string) => void;
+  value: ContentCoverAsset | null;
+  onChange: (cover: ContentCoverAsset | null) => void;
 }>) {
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState<readonly Asset[]>([]);
   const [selected, setSelected] = useState<Asset>();
   const [variants, setVariants] = useState<readonly AssetVariant[]>([]);
-  const [altText, setAltText] = useState('');
-  const [caption, setCaption] = useState('');
+  const [altText, setAltText] = useState(value?.altText ?? '');
+  const [caption, setCaption] = useState(value?.caption ?? '');
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string>();
 
   const previewVariant = useMemo(
@@ -37,30 +38,50 @@ export function ContentAssetPicker({
     setError(undefined);
 
     try {
-      const items = await loadAssets();
-      setAssets(items.filter((asset) => asset.status === 'ready' && asset.archivedAt === null));
+      const items = (await loadAssets()).filter(
+        (asset) => asset.status === 'ready' && asset.archivedAt === null,
+      );
+      setAssets(items);
+
+      const current = value ? items.find((asset) => asset.id === value.assetId) : undefined;
+
+      if (current) {
+        setSelected(current);
+        setAltText(value?.altText ?? defaultAltText(current.originalFileName));
+        setCaption(value?.caption ?? '');
+        setVariants(await loadAssetVariants(current.id));
+      } else if (value) {
+        setError('현재 Cover Asset은 Archive되었거나 더 이상 READY 상태가 아닙니다.');
+      }
     } catch (caught) {
       setError(readError(caught));
     } finally {
-      setLoaded(true);
       setLoading(false);
     }
-  }, []);
+  }, [value]);
 
-  function togglePicker() {
-    const nextOpen = !open;
-    setOpen(nextOpen);
-
-    if (nextOpen && !loaded) {
-      void reloadAssets();
+  function toggle() {
+    if (open) {
+      setOpen(false);
+      setSelected(undefined);
+      setVariants([]);
+      setAltText(value?.altText ?? '');
+      setCaption(value?.caption ?? '');
+      setError(undefined);
+      return;
     }
+
+    setOpen(true);
+    void reloadAssets();
   }
 
   async function selectAsset(asset: Asset) {
     setSelected(asset);
     setVariants([]);
-    setAltText(defaultAltText(asset.originalFileName));
-    setCaption('');
+    setAltText(
+      value?.assetId === asset.id ? value.altText : defaultAltText(asset.originalFileName),
+    );
+    setCaption(value?.assetId === asset.id ? (value.caption ?? '') : '');
     setLoading(true);
     setError(undefined);
 
@@ -73,29 +94,53 @@ export function ContentAssetPicker({
     }
   }
 
-  function insert() {
-    if (!selected || !altText.trim()) return;
+  function apply() {
+    if (!selected || !altText.trim() || variants.length === 0) {
+      return;
+    }
 
-    onInsert(createAssetMarkdownReference(selected.id, altText, caption));
+    onChange({
+      assetId: selected.id,
+      altText: altText.trim(),
+      ...(caption.trim() ? { caption: caption.trim() } : {}),
+    });
     setOpen(false);
+  }
+
+  function remove() {
+    onChange(null);
     setSelected(undefined);
     setVariants([]);
     setAltText('');
     setCaption('');
+    setOpen(false);
   }
 
   return (
     <div className={styles.assetPicker}>
-      <button className={styles.secondary} disabled={disabled} type="button" onClick={togglePicker}>
-        {open ? 'Asset Picker 닫기' : 'Asset 삽입'}
-      </button>
+      <div className={styles.actions}>
+        <button className={styles.secondary} disabled={disabled} type="button" onClick={toggle}>
+          {open ? 'Cover Picker 닫기' : value ? 'Cover 변경' : 'Cover 선택'}
+        </button>
+        {value ? (
+          <button className={styles.danger} disabled={disabled} type="button" onClick={remove}>
+            Cover 제거
+          </button>
+        ) : null}
+      </div>
+
+      {value && !open ? (
+        <p className={styles.muted}>
+          Cover Asset <code>{value.assetId.slice(0, 12)}…</code> · {value.altText}
+        </p>
+      ) : null}
 
       {open ? (
         <div className={styles.assetPickerPanel}>
           <div className={styles.assetPickerHeader}>
             <div>
-              <strong>READY Asset</strong>
-              <p>Private 원본이 아닌 Public Variant를 확인하고 Reference를 삽입합니다.</p>
+              <strong>READY Cover Asset</strong>
+              <p>Archive되지 않은 Public Variant만 Preview합니다.</p>
             </div>
             <button
               className={styles.secondary}
@@ -112,10 +157,10 @@ export function ContentAssetPicker({
           <div className={styles.assetPickerGrid}>
             <div className={styles.assetPickerList}>
               {loading && assets.length === 0 ? (
-                <p className={styles.muted}>Asset을 불러오는 중입니다…</p>
+                <p className={styles.muted}>Asset을 불러오는 중…</p>
               ) : null}
               {!loading && assets.length === 0 ? (
-                <p className={styles.muted}>삽입할 수 있는 READY Asset이 없습니다.</p>
+                <p className={styles.muted}>선택 가능한 READY Asset이 없습니다.</p>
               ) : null}
               {assets.map((asset) => (
                 <button
@@ -154,8 +199,7 @@ export function ContentAssetPicker({
                   <label className={styles.field}>
                     <span>Alt Text</span>
                     <input
-                      maxLength={500}
-                      placeholder="이미지를 설명하는 대체 텍스트"
+                      maxLength={300}
                       value={altText}
                       onChange={(event) => setAltText(event.target.value)}
                     />
@@ -163,8 +207,7 @@ export function ContentAssetPicker({
                   <label className={styles.field}>
                     <span>Caption</span>
                     <input
-                      maxLength={500}
-                      placeholder="선택 사항"
+                      maxLength={1_000}
                       value={caption}
                       onChange={(event) => setCaption(event.target.value)}
                     />
@@ -173,9 +216,9 @@ export function ContentAssetPicker({
                     className={styles.button}
                     disabled={!altText.trim() || variants.length === 0 || loading}
                     type="button"
-                    onClick={insert}
+                    onClick={apply}
                   >
-                    Markdown에 삽입
+                    Cover로 설정
                   </button>
                 </>
               ) : (
@@ -197,15 +240,17 @@ function defaultAltText(fileName: string): string {
 }
 
 function formatDimensions(asset: Asset): string {
-  return asset.width && asset.height ? `${asset.width}×${asset.height}` : '푬기 확인 중';
+  return asset.width && asset.height ? `${asset.width}×${asset.height}` : '크기 확인 중';
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1_024) return `${bytes} B`;
-  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`;
-  return `${(bytes / 1_048_576).toFixed(1)} MiB`;
+function formatBytes(value: number): string {
+  if (value < 1_024) return `${value} B`;
+  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
+  return `${(value / 1_048_576).toFixed(1)} MiB`;
 }
 
 function readError(error: unknown): string {
-  return error instanceof Error ? error.message : 'Asset을 불러오지 못했습니다.';
+  return error instanceof Error && error.message
+    ? error.message
+    : 'Cover Asset을 불러오지 못했습니다.';
 }

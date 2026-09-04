@@ -102,6 +102,9 @@ export class TypeOrmContentRepository implements ContentRepositoryPort<EntityMan
       title: input.draft.title,
       summary: input.draft.summary ?? null,
       bodyMarkdown: input.draft.bodyMarkdown,
+      coverAssetId: input.draft.cover?.assetId ?? null,
+      coverAltText: input.draft.cover?.altText ?? null,
+      coverCaption: input.draft.cover?.caption ?? null,
       draftVersion: input.draft.draftVersion,
       updatedByAdminAccountId: input.draft.updatedByAdminAccountId,
       updatedAt: input.draft.updatedAt,
@@ -124,6 +127,9 @@ export class TypeOrmContentRepository implements ContentRepositoryPort<EntityMan
         title: input.title,
         summary: input.summary ?? null,
         bodyMarkdown: input.bodyMarkdown,
+        coverAssetId: input.cover?.assetId ?? null,
+        coverAltText: input.cover?.altText ?? null,
+        coverCaption: input.cover?.caption ?? null,
         draftVersion: input.nextDraftVersion,
         updatedByAdminAccountId: input.updatedByAdminAccountId,
         updatedAt: input.updatedAt,
@@ -156,6 +162,9 @@ export class TypeOrmContentRepository implements ContentRepositoryPort<EntityMan
       summary: input.revision.summary ?? null,
       bodyMarkdown: input.revision.bodyMarkdown,
       bodyHtml: input.revision.bodyHtml,
+      coverAssetId: input.revision.cover?.assetId ?? null,
+      coverAltText: input.revision.cover?.altText ?? null,
+      coverCaption: input.revision.cover?.caption ?? null,
       sourceDraftVersion: input.revision.sourceDraftVersion,
       note: input.revision.note ?? null,
       createdByAdminAccountId: input.revision.createdByAdminAccountId,
@@ -294,6 +303,7 @@ function toDraftRecord(draft: ContentDraftEntity): ContentDraftRecord {
     title: draft.title,
     summary: draft.summary ?? undefined,
     bodyMarkdown: draft.bodyMarkdown,
+    cover: toContentCover(draft.coverAssetId, draft.coverAltText, draft.coverCaption),
     draftVersion: draft.draftVersion,
     updatedByAdminAccountId: draft.updatedByAdminAccountId,
     updatedAt: new Date(draft.updatedAt),
@@ -311,10 +321,27 @@ function toRevisionRecord(revision: ContentRevisionEntity): ContentRevisionRecor
     summary: revision.summary ?? undefined,
     bodyMarkdown: revision.bodyMarkdown,
     bodyHtml: revision.bodyHtml,
+    cover: toContentCover(revision.coverAssetId, revision.coverAltText, revision.coverCaption),
     sourceDraftVersion: revision.sourceDraftVersion,
     note: revision.note ?? undefined,
     createdByAdminAccountId: revision.createdByAdminAccountId,
     createdAt: new Date(revision.createdAt),
+  };
+}
+
+function toContentCover(
+  assetId: string | null,
+  altText: string | null,
+  caption: string | null,
+): ContentDraftRecord['cover'] {
+  if (!assetId || !altText) {
+    return undefined;
+  }
+
+  return {
+    assetId,
+    altText,
+    ...(caption ? { caption } : {}),
   };
 }
 

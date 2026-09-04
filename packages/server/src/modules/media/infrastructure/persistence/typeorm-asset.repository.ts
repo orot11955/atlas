@@ -59,6 +59,7 @@ export class TypeOrmAssetRepository implements AssetRepositoryPort<EntityManager
       uploadedAt: asset.uploadedAt ?? null,
       processedAt: asset.processedAt ?? null,
       failedAt: asset.failedAt ?? null,
+      archivedAt: asset.archivedAt ?? null,
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
     });
@@ -249,6 +250,7 @@ function toAssetRecord(entity: AssetEntity): AssetRecord {
     uploadedAt: entity.uploadedAt ? new Date(entity.uploadedAt) : undefined,
     processedAt: entity.processedAt ? new Date(entity.processedAt) : undefined,
     failedAt: entity.failedAt ? new Date(entity.failedAt) : undefined,
+    archivedAt: entity.archivedAt ? new Date(entity.archivedAt) : undefined,
     createdAt: new Date(entity.createdAt),
     updatedAt: new Date(entity.updatedAt),
   };

@@ -57,6 +57,15 @@ export class ContentDraftEntity {
   @Column({ name: 'body_markdown', type: 'text' })
   public bodyMarkdown!: string;
 
+  @Column({ name: 'cover_asset_id', type: 'uuid', nullable: true })
+  public coverAssetId!: string | null;
+
+  @Column({ name: 'cover_alt_text', type: 'varchar', length: 300, nullable: true })
+  public coverAltText!: string | null;
+
+  @Column({ name: 'cover_caption', type: 'varchar', length: 1_000, nullable: true })
+  public coverCaption!: string | null;
+
   @Column({ name: 'draft_version', type: 'integer', default: 1 })
   public draftVersion!: number;
 
@@ -99,6 +108,15 @@ export class ContentRevisionEntity {
 
   @Column({ name: 'body_html', type: 'text' })
   public bodyHtml!: string;
+
+  @Column({ name: 'cover_asset_id', type: 'uuid', nullable: true })
+  public coverAssetId!: string | null;
+
+  @Column({ name: 'cover_alt_text', type: 'varchar', length: 300, nullable: true })
+  public coverAltText!: string | null;
+
+  @Column({ name: 'cover_caption', type: 'varchar', length: 1_000, nullable: true })
+  public coverCaption!: string | null;
 
   @Column({ name: 'source_draft_version', type: 'integer' })
   public sourceDraftVersion!: number;

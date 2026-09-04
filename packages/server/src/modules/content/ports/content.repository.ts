@@ -1,4 +1,5 @@
 import type {
+  ContentCoverAsset,
   ContentDraftRecord,
   ContentRecord,
   ContentRevisionKind,
@@ -29,6 +30,7 @@ export interface UpdateContentDraftInput {
   title: string;
   summary?: string;
   bodyMarkdown: string;
+  cover?: ContentCoverAsset;
   expectedDraftVersion: number;
   nextDraftVersion: number;
   updatedByAdminAccountId: string;
@@ -49,6 +51,7 @@ export interface RestoreContentDraftInput {
   title: string;
   summary?: string;
   bodyMarkdown: string;
+  cover?: ContentCoverAsset;
   expectedDraftVersion: number;
   nextDraftVersion: number;
   updatedByAdminAccountId: string;

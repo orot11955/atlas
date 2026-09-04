@@ -54,6 +54,7 @@ export interface AssetRecord {
   uploadedAt?: Date;
   processedAt?: Date;
   failedAt?: Date;
+  archivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -157,10 +158,43 @@ export function isAssetUploadCompleted(asset: AssetRecord): boolean {
 }
 
 export function canProcessAsset(asset: AssetRecord): boolean {
+  if (asset.archivedAt) {
+    return false;
+  }
+
   return (
     asset.status === AssetStatus.UPLOADED ||
     (asset.status === AssetStatus.FAILED && isAssetUploadCompleted(asset))
   );
+}
+
+export function assertAssetArchivable(
+  asset: Readonly<AssetRecord>,
+  activePublicationCount: number,
+): void {
+  if (asset.archivedAt) {
+    return;
+  }
+
+  if (asset.status !== AssetStatus.READY && asset.status !== AssetStatus.FAILED) {
+    throw new DomainError({
+      code: ErrorCode.INVALID_STATE_TRANSITION,
+      message: 'Only READY or FAILED Assets can be archived.',
+      details: { status: asset.status },
+    });
+  }
+
+  if (!Number.isSafeInteger(activePublicationCount) || activePublicationCount < 0) {
+    throw new TypeError('Active Publication count must be a non-negative safe integer.');
+  }
+
+  if (activePublicationCount > 0) {
+    throw new DomainError({
+      code: ErrorCode.ACTION_NOT_ALLOWED,
+      message: 'Asset is used by an ACTIVE Publication and cannot be archived.',
+      details: { activePublicationCount },
+    });
+  }
 }
 
 export function assertPendingAssetUpload(aggregate: AssetUploadAggregate, now: Date): void {

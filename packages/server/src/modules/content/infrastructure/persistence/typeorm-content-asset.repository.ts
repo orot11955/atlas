@@ -22,17 +22,21 @@ export class TypeOrmContentAssetRepository implements ContentAssetRepositoryPort
       return [];
     }
 
-    const assets = await transaction.getRepository(AssetEntity).find({
-      where: {
-        workspaceId,
-        id: In([...new Set(assetIds)]),
-      },
-    });
+    const uniqueAssetIds = [...new Set(assetIds)].sort();
+    const assets = await transaction
+      .getRepository(AssetEntity)
+      .createQueryBuilder('asset')
+      .setLock('pessimistic_read')
+      .where('asset.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('asset.id IN (:...assetIds)', { assetIds: uniqueAssetIds })
+      .orderBy('asset.id', 'ASC')
+      .getMany();
 
     return assets.map((asset) => ({
       id: asset.id,
       kind: asset.kind,
       status: asset.status,
+      archivedAt: asset.archivedAt ? new Date(asset.archivedAt) : undefined,
     }));
   }
 
@@ -85,10 +89,20 @@ export class TypeOrmContentAssetRepository implements ContentAssetRepositoryPort
       return [];
     }
 
+    const assetIds = [...new Set(usages.map((usage) => usage.assetId))].sort();
+    const assets = await transaction
+      .getRepository(AssetEntity)
+      .createQueryBuilder('asset')
+      .setLock('pessimistic_read')
+      .where('asset.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('asset.id IN (:...assetIds)', { assetIds })
+      .orderBy('asset.id', 'ASC')
+      .getMany();
+    const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
     const variants = await transaction.getRepository(AssetVariantEntity).find({
       where: {
         workspaceId,
-        assetId: In([...new Set(usages.map((usage) => usage.assetId))]),
+        assetId: In(assetIds),
       },
     });
     const variantsByAssetId = new Map<string, typeof variants>();
@@ -99,24 +113,38 @@ export class TypeOrmContentAssetRepository implements ContentAssetRepositoryPort
       variantsByAssetId.set(variant.assetId, entries);
     }
 
-    return usages.map((usage) => ({
-      usage: toAssetUsageRecord(usage),
-      variants: (variantsByAssetId.get(usage.assetId) ?? []).map((variant) => ({
-        id: variant.id,
-        workspaceId: variant.workspaceId,
-        assetId: variant.assetId,
-        key: variant.key,
-        format: variant.format,
-        contentType: variant.contentType,
-        width: variant.width,
-        height: variant.height,
-        byteSize: variant.byteSize,
-        sha256: variant.sha256,
-        objectKey: variant.objectKey,
-        etag: variant.etag,
-        createdAt: variant.createdAt,
-      })),
-    }));
+    return usages.map((usage) => {
+      const asset = assetsById.get(usage.assetId);
+
+      return {
+        usage: toAssetUsageRecord(usage),
+        ...(asset
+          ? {
+              asset: {
+                id: asset.id,
+                kind: asset.kind,
+                status: asset.status,
+                archivedAt: asset.archivedAt ? new Date(asset.archivedAt) : undefined,
+              },
+            }
+          : {}),
+        variants: (variantsByAssetId.get(usage.assetId) ?? []).map((variant) => ({
+          id: variant.id,
+          workspaceId: variant.workspaceId,
+          assetId: variant.assetId,
+          key: variant.key,
+          format: variant.format,
+          contentType: variant.contentType,
+          width: variant.width,
+          height: variant.height,
+          byteSize: variant.byteSize,
+          sha256: variant.sha256,
+          objectKey: variant.objectKey,
+          etag: variant.etag,
+          createdAt: variant.createdAt,
+        })),
+      };
+    });
   }
 }
 

@@ -18,6 +18,15 @@ export async function verifyContentPublicationDelivery({
           ? [`![Atlas Media](asset://${readyAsset.id} \"READY Asset used by Content\")`]
           : []),
       ].join('\n\n'),
+      ...(readyAsset
+        ? {
+            cover: {
+              assetId: readyAsset.id,
+              altText: 'Atlas Cover',
+              caption: 'READY Asset used as Cover',
+            },
+          }
+        : {}),
     },
     expectedStatus: 201,
     cookieHeader: session.cookieHeader,
@@ -281,40 +290,107 @@ export async function verifyContentPublicationDelivery({
 
   if (readyAsset) {
     assertPublicationAssetManifest(restoredDetail.data, readyAsset.id);
+
+    const usages = await request(`/admin/v1/assets/${readyAsset.id}/usages`, {
+      expectedStatus: 200,
+      cookieHeader: session.cookieHeader,
+    });
+
+    if (
+      !Array.isArray(usages.data.items) ||
+      usages.data.items.length < 2 ||
+      !usages.data.items.some(
+        (usage) => usage.kind === 'cover' && usage.activePublicationCount > 0,
+      ) ||
+      !usages.data.items.some(
+        (usage) => usage.kind === 'inline' && usage.activePublicationCount > 0,
+      )
+    ) {
+      throw new Error('Asset Usage history did not include active Cover and inline usages.');
+    }
+
+    const currentAsset = await request(`/admin/v1/assets/${readyAsset.id}`, {
+      expectedStatus: 200,
+      cookieHeader: session.cookieHeader,
+    });
+
+    await request(`/admin/v1/assets/${readyAsset.id}/archive`, {
+      method: 'POST',
+      body: { version: currentAsset.data.version },
+      expectedStatus: 403,
+      cookieHeader: session.cookieHeader,
+      csrfToken: session.csrfToken,
+    });
+
+    await request(`/admin/v1/contents/${content.id}/sites/${assignment.id}/withdraw`, {
+      method: 'POST',
+      expectedStatus: 200,
+      cookieHeader: session.cookieHeader,
+      csrfToken: session.csrfToken,
+    });
+
+    const archivedAsset = await request(`/admin/v1/assets/${readyAsset.id}/archive`, {
+      method: 'POST',
+      body: { version: currentAsset.data.version },
+      expectedStatus: 200,
+      cookieHeader: session.cookieHeader,
+      csrfToken: session.csrfToken,
+    });
+    assertPrimitiveEqual(
+      typeof archivedAsset.data.archivedAt,
+      'string',
+      'Archived Asset timestamp type',
+    );
   }
 }
 
 function assertPublicationAssetManifest(publication, assetId) {
-  if (!Array.isArray(publication.assets) || publication.assets.length !== 1) {
-    throw new Error('Publication Asset Manifest must contain exactly one Asset usage.');
+  if (!Array.isArray(publication.assets) || publication.assets.length !== 2) {
+    throw new Error('Publication Asset Manifest must contain Cover and inline usages.');
   }
 
-  const asset = publication.assets[0];
-  assertPrimitiveEqual(asset.assetId, assetId, 'Publication Asset ID');
-  assertPrimitiveEqual(asset.ordinal, 1, 'Publication Asset ordinal');
-  assertPrimitiveEqual(asset.kind, 'inline', 'Publication Asset usage kind');
-  assertPrimitiveEqual(asset.altText, 'Atlas Media', 'Publication Asset alt text');
-  assertPrimitiveEqual(asset.caption, 'READY Asset used by Content', 'Publication Asset caption');
+  const cover = publication.assets.find((asset) => asset.kind === 'cover');
+  const inline = publication.assets.find((asset) => asset.kind === 'inline');
 
-  if (!Array.isArray(asset.variants) || asset.variants.length !== 4) {
-    throw new Error('Publication Asset Manifest must snapshot four public Variants.');
+  if (!cover || !inline) {
+    throw new Error('Publication Asset Manifest usage kinds are invalid.');
   }
 
-  const variantKeys = asset.variants.map((variant) => variant.key).sort();
+  assertPrimitiveEqual(cover.assetId, assetId, 'Publication Cover Asset ID');
+  assertPrimitiveEqual(cover.ordinal, 0, 'Publication Cover ordinal');
+  assertPrimitiveEqual(cover.altText, 'Atlas Cover', 'Publication Cover alt text');
+  assertPrimitiveEqual(cover.caption, 'READY Asset used as Cover', 'Publication Cover caption');
+
+  assertPrimitiveEqual(inline.assetId, assetId, 'Publication inline Asset ID');
+  assertPrimitiveEqual(inline.ordinal, 1, 'Publication inline Asset ordinal');
+  assertPrimitiveEqual(inline.altText, 'Atlas Media', 'Publication inline Asset alt text');
   assertPrimitiveEqual(
-    JSON.stringify(variantKeys),
-    JSON.stringify(['avif-1920', 'webp-1280', 'webp-320', 'webp-768']),
-    'Publication Asset Variant keys',
+    inline.caption,
+    'READY Asset used by Content',
+    'Publication inline Asset caption',
   );
 
-  for (const variant of asset.variants) {
-    if (
-      typeof variant.publicUrl !== 'string' ||
-      !variant.publicUrl.startsWith('http://localhost:9000/atlas-public/assets/') ||
-      typeof variant.sha256 !== 'string' ||
-      !/^[0-9a-f]{64}$/u.test(variant.sha256)
-    ) {
-      throw new Error('Publication Asset Variant Snapshot is invalid.');
+  for (const asset of [cover, inline]) {
+    if (!Array.isArray(asset.variants) || asset.variants.length !== 4) {
+      throw new Error('Publication Asset Manifest must snapshot four public Variants per usage.');
+    }
+
+    const variantKeys = asset.variants.map((variant) => variant.key).sort();
+    assertPrimitiveEqual(
+      JSON.stringify(variantKeys),
+      JSON.stringify(['avif-1920', 'webp-1280', 'webp-320', 'webp-768']),
+      'Publication Asset Variant keys',
+    );
+
+    for (const variant of asset.variants) {
+      if (
+        typeof variant.publicUrl !== 'string' ||
+        !variant.publicUrl.startsWith('http://localhost:9000/atlas-public/assets/') ||
+        typeof variant.sha256 !== 'string' ||
+        !/^[0-9a-f]{64}$/u.test(variant.sha256)
+      ) {
+        throw new Error('Publication Asset Variant Snapshot is invalid.');
+      }
     }
   }
 
@@ -322,9 +398,10 @@ function assertPublicationAssetManifest(publication, assetId) {
     typeof publication.bodyHtml !== 'string' ||
     !publication.bodyHtml.includes(`<picture data-asset-id=\"${assetId}\">`) ||
     !publication.bodyHtml.includes('srcset=') ||
-    publication.bodyHtml.includes('asset://')
+    publication.bodyHtml.includes('asset://') ||
+    (publication.bodyHtml.match(/<picture/gu) ?? []).length !== 1
   ) {
-    throw new Error('Publication bodyHtml did not resolve the immutable Asset Manifest.');
+    throw new Error('Publication bodyHtml did not resolve only the inline Asset usage.');
   }
 }
 

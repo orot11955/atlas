@@ -2,10 +2,17 @@ export type ContentType = 'post' | 'page' | 'document';
 export type ContentStatus = 'draft' | 'ready' | 'archived';
 export type ContentRevisionKind = 'checkpoint' | 'ready';
 
+export interface ContentCoverAsset {
+  assetId: string;
+  altText: string;
+  caption?: string;
+}
+
 export interface ContentDraft {
   title: string;
   summary: string | null;
   bodyMarkdown: string;
+  cover: ContentCoverAsset | null;
   draftVersion: number;
   updatedByAdminAccountId: string;
   updatedAt: string;
@@ -35,6 +42,7 @@ export interface ContentRevision {
   summary: string | null;
   bodyMarkdown: string;
   bodyHtml: string;
+  cover: ContentCoverAsset | null;
   sourceDraftVersion: number;
   note: string | null;
   createdByAdminAccountId: string;

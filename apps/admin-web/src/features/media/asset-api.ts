@@ -4,6 +4,7 @@ import type {
   Asset,
   AssetContentType,
   AssetUploadSessionResult,
+  AssetUsageResult,
   AssetVariant,
 } from './asset-types';
 
@@ -21,6 +22,21 @@ export async function loadAssetVariants(assetId: string): Promise<readonly Asset
     `/assets/${encodeURIComponent(assetId)}/variants`,
   );
   return response.data.items;
+}
+
+export async function loadAssetUsages(assetId: string): Promise<AssetUsageResult> {
+  const response = await client().get<ApiEnvelope<AssetUsageResult>>(
+    `/assets/${encodeURIComponent(assetId)}/usages`,
+  );
+  return response.data;
+}
+
+export async function archiveAsset(assetId: string, version: number): Promise<Asset> {
+  const response = await client().post<ApiEnvelope<Asset>>(
+    `/assets/${encodeURIComponent(assetId)}/archive`,
+    { version },
+  );
+  return response.data;
 }
 
 export async function createAssetUploadSession(input: {

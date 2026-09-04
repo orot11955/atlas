@@ -547,6 +547,7 @@ function freezeAsset(asset: AssetRecord): Readonly<AssetRecord> {
     uploadedAt: asset.uploadedAt ? new Date(asset.uploadedAt) : undefined,
     processedAt: asset.processedAt ? new Date(asset.processedAt) : undefined,
     failedAt: asset.failedAt ? new Date(asset.failedAt) : undefined,
+    archivedAt: asset.archivedAt ? new Date(asset.archivedAt) : undefined,
     createdAt: new Date(asset.createdAt),
     updatedAt: new Date(asset.updatedAt),
   });

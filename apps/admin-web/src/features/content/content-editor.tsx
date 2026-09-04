@@ -15,7 +15,8 @@ import {
   saveContentDraft,
 } from './content-api';
 import { ContentAssetPicker } from './content-asset-picker';
-import type { Content, ContentRevision } from './content-types';
+import { ContentCoverAssetPicker } from './content-cover-asset-picker';
+import type { Content, ContentCoverAsset, ContentRevision } from './content-types';
 import { ContentPublicationManager } from './content-publication-manager';
 import styles from './content.module.css';
 
@@ -25,6 +26,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [bodyMarkdown, setBodyMarkdown] = useState('');
+  const [cover, setCover] = useState<ContentCoverAsset | null>(null);
   const [note, setNote] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewWarnings, setPreviewWarnings] = useState<readonly string[]>([]);
@@ -51,7 +53,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     }, 1_200);
 
     return () => window.clearTimeout(timer);
-  }, [title, summary, bodyMarkdown, dirty, content]);
+  }, [title, summary, bodyMarkdown, cover, dirty, content]);
 
   async function reload() {
     setWorking('load');
@@ -77,6 +79,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     setTitle(next.draft.title);
     setSummary(next.draft.summary ?? '');
     setBodyMarkdown(next.draft.bodyMarkdown);
+    setCover(next.draft.cover);
     setDirty(false);
     initialised.current = true;
   }
@@ -118,6 +121,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
         title,
         summary: summary.trim() || undefined,
         bodyMarkdown,
+        cover,
       });
 
       if (sequence === saveSequence.current || mode === 'manual') {
@@ -147,6 +151,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
         title,
         summary: summary.trim() || undefined,
         bodyMarkdown,
+        cover,
       });
       setPreviewHtml(result.html);
       setPreviewWarnings(result.warnings);
@@ -171,6 +176,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           title,
           summary: summary.trim() || undefined,
           bodyMarkdown,
+          cover,
         });
         setContent(current);
         setDirty(false);
@@ -324,6 +330,20 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
                 onChange={(event) => markDirty(() => setSummary(event.target.value))}
               />
             </label>
+
+            <div className={`${styles.field} ${styles.full}`}>
+              <div className={styles.fieldHeading}>
+                <span>Cover Image</span>
+                <ContentCoverAssetPicker
+                  disabled={working !== undefined || archived}
+                  value={cover}
+                  onChange={(nextCover) => markDirty(() => setCover(nextCover))}
+                />
+              </div>
+              <p className={styles.muted}>
+                Cover는 READY Revision과 Publication Asset Manifest에 불변 Snapshot으로 포함됩니다.
+              </p>
+            </div>
             <div className={`${styles.field} ${styles.full}`}>
               <div className={styles.fieldHeading}>
                 <label htmlFor="content-body-markdown">본문</label>

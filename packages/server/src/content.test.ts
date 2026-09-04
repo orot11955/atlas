@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DomainError, renderMarkdownPreview, validateReadyDraft } from './index';
+import {
+  DomainError,
+  normalizeContentCoverAsset,
+  renderMarkdownPreview,
+  validateReadyDraft,
+} from './index';
 
 test('Markdown preview escapes raw HTML and removes unsafe links', () => {
   const preview = renderMarkdownPreview(`
@@ -37,5 +42,29 @@ test('READY validation requires a title and meaningful Markdown body', () => {
       summary: 'Draft and immutable Revision boundary',
       bodyMarkdown: 'This body contains enough meaningful content to create a READY revision.',
     }),
+  );
+});
+
+test('Content Cover Asset normalizes immutable READY reference metadata', () => {
+  assert.deepEqual(
+    normalizeContentCoverAsset({
+      assetId: '01999999-9999-7999-8999-999999999999',
+      altText: '  Atlas   cover  ',
+      caption: '  Public   snapshot  ',
+    }),
+    {
+      assetId: '01999999-9999-7999-8999-999999999999',
+      altText: 'Atlas cover',
+      caption: 'Public snapshot',
+    },
+  );
+
+  assert.throws(
+    () =>
+      normalizeContentCoverAsset({
+        assetId: 'not-an-asset',
+        altText: 'Atlas cover',
+      }),
+    DomainError,
   );
 });
