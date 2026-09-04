@@ -118,6 +118,28 @@ jobs:
               adapter = adapter.replace(adapter_marker, adapter_method + adapter_marker)
               adapter_path.write_text(adapter, encoding='utf-8')
 
+          test_path = Path('packages/server/src/content-publication.test.ts')
+          test_source = test_path.read_text(encoding='utf-8')
+          test_marker = '  public async findActivePublication(): Promise<ContentPublicationRecord | undefined> {\n'
+          test_method = """  public async findPublishableRevisionForUpdate(
+              _workspaceId: string,
+              _contentId: string,
+              revisionId: string,
+            ): Promise<PublishableContentRecord | undefined> {
+              const publishable = await this.findPublishableContentForUpdate();
+
+              return publishable?.revision?.id === revisionId ? publishable : undefined;
+            }
+
+          """
+          if 'public async findPublishableRevisionForUpdate(' not in test_source:
+              if test_source.count(test_marker) != 1:
+                  raise SystemExit('Unexpected FakeContentPublicationRepository marker count')
+              test_path.write_text(
+                  test_source.replace(test_marker, test_method + test_marker),
+                  encoding='utf-8',
+              )
+
           sender_path = Path(
               'packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts'
           )
@@ -159,6 +181,7 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm exec prettier --write \
+            packages/server/src/content-publication.test.ts \
             packages/server/src/modules/content/ports/content-publication.repository.ts \
             packages/server/src/modules/content/infrastructure/persistence/typeorm-content-publication.repository.ts \
             packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
@@ -173,6 +196,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
+            packages/server/src/content-publication.test.ts \
             packages/server/src/modules/content/ports/content-publication.repository.ts \
             packages/server/src/modules/content/infrastructure/persistence/typeorm-content-publication.repository.ts \
             packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
