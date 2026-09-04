@@ -1,0 +1,232 @@
+name: Eventing Data Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - '.github/workflows/eventing-data-gate.yml'
+      - 'apps/api/src/eventing/**'
+      - 'apps/api/src/content/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/worker/src/eventing/**'
+      - 'apps/worker/src/processors/system-queue.worker.ts'
+      - 'apps/worker/src/worker.module.ts'
+      - 'packages/config/src/**'
+      - 'packages/database/src/**'
+      - 'packages/server/src/modules/eventing/**'
+      - 'packages/server/src/modules/content/**'
+      - 'packages/server/src/eventing.test.ts'
+      - 'scripts/ci/admin-auth-e2e.mjs'
+      - 'scripts/ci/eventing-e2e.mjs'
+      - 'pnpm-lock.yaml'
+  push:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/eventing-data-gate.yml'
+      - 'apps/api/src/eventing/**'
+      - 'apps/api/src/content/**'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/worker/src/eventing/**'
+      - 'apps/worker/src/processors/system-queue.worker.ts'
+      - 'apps/worker/src/worker.module.ts'
+      - 'packages/config/src/**'
+      - 'packages/database/src/**'
+      - 'packages/server/src/modules/eventing/**'
+      - 'packages/server/src/modules/content/**'
+      - 'packages/server/src/eventing.test.ts'
+      - 'scripts/ci/admin-auth-e2e.mjs'
+      - 'scripts/ci/eventing-e2e.mjs'
+      - 'pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-eventing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eventing-data-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_eventing
+          POSTGRES_USER: atlas
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_eventing"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure isolated test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'NODE_ENV=test'
+            echo 'PORT=4000'
+            echo 'CORS_ORIGINS=http://localhost:3000'
+            echo 'TRUST_PROXY=false'
+            echo 'LOG_LEVEL=info'
+            echo "AUTH_LOGIN_FINGERPRINT_PEPPER=$(node -e "process.stdout.write('L'.repeat(48))")"
+            echo "AUTH_MFA_ENCRYPTION_KEY_BASE64=$(node -e "process.stdout.write(Buffer.alloc(32, 77).toString('base64'))")"
+            echo 'AUTH_MFA_ENCRYPTION_KEY_VERSION=test-v1'
+            echo "AUTH_MFA_RECOVERY_CODE_PEPPER=$(node -e "process.stdout.write('R'.repeat(48))")"
+            echo 'AUTH_MFA_ISSUER=Atlas-Test'
+            echo 'AUTH_MFA_WINDOW_STEPS=1'
+            echo 'AUTH_MFA_GRANT_SECONDS=120'
+            echo 'AUTH_MFA_RECOVERY_CODE_COUNT=10'
+            echo 'AUTH_MFA_FAILURE_THRESHOLD=5'
+            echo "AUTH_SESSION_FINGERPRINT_PEPPER=$(node -e "process.stdout.write('S'.repeat(48))")"
+            echo 'AUTH_SESSION_IDLE_SECONDS=1800'
+            echo 'AUTH_SESSION_ABSOLUTE_SECONDS=43200'
+            echo 'AUTH_SESSION_TOUCH_SECONDS=1'
+            echo 'AUTH_SESSION_MAX_ACTIVE=5'
+            echo 'AUTH_SESSION_BIND_IP=false'
+            echo 'AUTH_SESSION_COOKIE_NAME=atlas_admin_session'
+            echo 'AUTH_CSRF_COOKIE_NAME=atlas_admin_csrf'
+            echo 'AUTH_COOKIE_SECURE=false'
+            echo "API_KEY_PEPPER=$(node -e "process.stdout.write('A'.repeat(48))")"
+            echo 'API_KEY_USAGE_TOUCH_SECONDS=1'
+            echo 'DATABASE_URL=postgresql://atlas@localhost:5432/atlas_eventing'
+            echo 'REDIS_URL=redis://localhost:6379/0'
+            echo 'SYSTEM_QUEUE_NAME=atlas-system-eventing-test'
+            echo 'MEDIA_QUEUE_NAME=atlas-media-eventing-test'
+            echo 'MINIO_ENDPOINT=http://localhost:9000'
+            echo 'MINIO_ACCESS_KEY=test-access'
+            echo "MINIO_SECRET_KEY=$(node -e "process.stdout.write('M'.repeat(24))")"
+            echo 'MINIO_PRIVATE_BUCKET=atlas-private'
+            echo 'MINIO_PROCESSING_BUCKET=atlas-processing'
+            echo 'MINIO_PUBLIC_BUCKET=atlas-public'
+            echo 'MINIO_PUBLIC_BASE_URL=http://localhost:9000/atlas-public'
+            echo "WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64=$(node -e "process.stdout.write(Buffer.alloc(32, 87).toString('base64'))")"
+            echo 'WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION=test-v1'
+            echo 'WEBHOOK_ALLOW_HTTP=true'
+            echo 'WEBHOOK_ALLOW_PRIVATE_NETWORK=true'
+            echo 'WEBHOOK_DELIVERY_TIMEOUT_MS=5000'
+            echo 'WEBHOOK_ENDPOINT_FAILURE_THRESHOLD=3'
+            echo 'OUTBOX_RELAY_POLL_MS=250'
+            echo 'OUTBOX_RELAY_BATCH_SIZE=50'
+            echo 'OUTBOX_CLAIM_TIMEOUT_SECONDS=30'
+            echo 'OUTBOX_RELAY_MAX_ATTEMPTS=5'
+            echo 'EVENTING_QUEUE_CONCURRENCY=4'
+            echo 'WEBHOOK_DELIVERY_POLL_MS=250'
+            echo 'WEBHOOK_DELIVERY_BATCH_SIZE=25'
+            echo 'WEBHOOK_DELIVERY_CLAIM_TIMEOUT_SECONDS=30'
+            echo 'WEBHOOK_RESPONSE_MAX_BYTES=4096'
+            echo 'PUBLICATION_SCHEDULE_POLL_MS=250'
+            echo 'PUBLICATION_SCHEDULE_BATCH_SIZE=25'
+            echo 'PUBLICATION_SCHEDULE_CLAIM_TIMEOUT_SECONDS=30'
+          } >> "$GITHUB_ENV"
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+
+      - name: Apply migrations
+        run: |
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+
+      - name: Bootstrap OWNER
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner_password="Atlas-eventing-$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")"
+          printf '%s\n%s\n' "$owner_password" "$owner_password" |
+            pnpm admin:bootstrap-owner -- \
+              --email owner-ci@atlas.test \
+              --display-name 'Eventing Gate Owner' \
+              --password-stdin \
+              --json
+          printf '%s' "$owner_password" > /tmp/atlas-owner-password
+          chmod 600 /tmp/atlas-owner-password
+
+      - name: Verify Outbox, Webhook and Publication scheduling
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm --filter @atlas/worker build
+          pnpm --filter @atlas/api start > /tmp/atlas-eventing-api.log 2>&1 &
+          api_pid=$!
+          pnpm --filter @atlas/worker start > /tmp/atlas-eventing-worker.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$api_pid" "$worker_pid" 2>/dev/null || true; rm -f /tmp/atlas-owner-password' EXIT
+
+          for attempt in $(seq 1 40); do
+            if curl -fsS http://localhost:4000/api/health/live > /dev/null; then
+              break
+            fi
+            if [ "$attempt" = '40' ]; then
+              cat /tmp/atlas-eventing-api.log
+              cat /tmp/atlas-eventing-worker.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if ! ATLAS_OWNER_PASSWORD="$(cat /tmp/atlas-owner-password)" \
+            ATLAS_VERIFY_EVENTING=1 \
+            node scripts/ci/admin-auth-e2e.mjs; then
+            cat /tmp/atlas-eventing-api.log
+            cat /tmp/atlas-eventing-worker.log
+            exit 1
+          fi
+
+      - name: Verify Eventing database state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM outbox_events WHERE status <> 'dispatched'")" -eq 0
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM outbox_events WHERE status = 'dispatched'")" -ge 8
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM event_consumptions WHERE status <> 'succeeded'")" -eq 0
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM event_consumptions WHERE status = 'succeeded'")" -ge 8
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_endpoints")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_endpoints WHERE status = 'disabled'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_deliveries")" -eq 3
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_deliveries WHERE status = 'succeeded'")" -eq 3
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_delivery_attempts WHERE status = 'failed'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM webhook_delivery_attempts WHERE status = 'succeeded'")" -eq 3
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM publication_schedules WHERE status = 'completed'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM publication_schedules WHERE status = 'cancelled'")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM publication_schedules WHERE status IN ('pending', 'processing', 'failed')")" -eq 0
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM audit_logs WHERE action = 'webhook.delivery-succeeded'")" -ge 3
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM audit_logs WHERE action = 'content.publication-scheduled'")" -eq 2
