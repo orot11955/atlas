@@ -47,8 +47,9 @@ export async function verifyEventing({ request, session, mainBlog, assertEqual }
     const updatedEndpoint = await request(`/admin/v1/webhook-endpoints/${endpoint.id}`, {
       method: 'PATCH',
       body: {
-        ...endpointInput,
         name: 'Atlas Eventing E2E Receiver Updated',
+        url: endpointInput.url,
+        subscribedEvents: endpointInput.subscribedEvents,
         version: endpoint.version,
       },
       expectedStatus: 200,
@@ -60,7 +61,12 @@ export async function verifyEventing({ request, session, mainBlog, assertEqual }
 
     await request(`/admin/v1/webhook-endpoints/${endpoint.id}`, {
       method: 'PATCH',
-      body: { ...endpointInput, version: 1 },
+      body: {
+        name: 'Atlas Eventing E2E Receiver Updated',
+        url: endpointInput.url,
+        subscribedEvents: endpointInput.subscribedEvents,
+        version: 1,
+      },
       expectedStatus: 409,
       cookieHeader: session.cookieHeader,
       csrfToken: session.csrfToken,

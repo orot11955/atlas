@@ -25,6 +25,7 @@ import {
   normalizeWebhookUrl,
   requestContext,
   retryAt,
+  unwrapTypeOrmMutationRows,
   verifyWebhookSignature,
   type AuditService,
   type EventingRepositoryPort,
@@ -120,9 +121,23 @@ test('Webhook secrets use authenticated AES-256-GCM encryption and key version b
   assert.notEqual(encrypted.encryptedValue, secret);
   assert.equal(cipher.decrypt(encrypted.encryptedValue, encrypted.keyVersion), secret);
   assert.throws(() => cipher.decrypt(encrypted.encryptedValue, 'v2'));
-  assert.throws(() =>
-    cipher.decrypt(`${encrypted.encryptedValue.slice(0, -1)}x`, encrypted.keyVersion),
-  );
+
+  const tamperedParts = encrypted.encryptedValue.split('.');
+  const ciphertext = Buffer.from(tamperedParts[3] ?? '', 'base64url');
+  assert.ok(ciphertext.length > 0);
+  ciphertext[0] = (ciphertext[0] ?? 0) ^ 0x01;
+  tamperedParts[3] = ciphertext.toString('base64url');
+
+  assert.throws(() => cipher.decrypt(tamperedParts.join('.'), encrypted.keyVersion));
+});
+
+test('TypeORM mutation results are normalized without leaking driver tuples', () => {
+  const rows = [{ id: 'row-1' }];
+
+  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>([rows, 1]), rows);
+  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>(rows), rows);
+  assert.deepEqual(unwrapTypeOrmMutationRows<typeof rows[number]>({ records: rows }), rows);
+  assert.throws(() => unwrapTypeOrmMutationRows('unsupported'));
 });
 
 test('Publication local time conversion is host-timezone independent and rejects invalid windows', () => {

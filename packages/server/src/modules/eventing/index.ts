@@ -8,7 +8,13 @@ export * from './infrastructure/crypto/aes256-gcm-webhook-secret-cipher';
 export * from './infrastructure/crypto/node-webhook-secret-generator';
 export * from './infrastructure/http/node-webhook-sender';
 export * from './infrastructure/persistence/eventing.entities';
-export * from './infrastructure/persistence/typeorm-eventing.repository';
+export {
+  SafeTypeOrmEventingRepository as TypeOrmEventingRepository,
+  unwrapTypeOrmMutationRows,
+} from './infrastructure/persistence/safe-typeorm-eventing.repository';
+export {
+  TypeOrmEventingRepository as BaseTypeOrmEventingRepository,
+} from './infrastructure/persistence/typeorm-eventing.repository';
 export * from './ports/eventing-queue.port';
 export * from './ports/eventing.repository';
 export * from './ports/outbox-recorder.port';
