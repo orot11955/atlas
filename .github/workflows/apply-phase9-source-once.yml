@@ -80,7 +80,18 @@ jobs:
               candidates=()
               for id in "${ids[@]}"; do
                 candidate="/tmp/phase9-chunk-$marker-$id"
-                gh api "repos/$REPOSITORY/issues/comments/$id" --jq '.body' | tail -n +2 > "$candidate"
+                gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+                python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          body = json.load(open(sys.argv[1], encoding='utf-8'))['body']
+          prefix = f'PHASE9_PAYLOAD_{sys.argv[2]}\n'
+          if not body.startswith(prefix):
+              raise SystemExit('Unexpected payload marker')
+          pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
+          PY
                 candidates+=("$candidate")
               done
             fi
