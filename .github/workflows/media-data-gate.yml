@@ -226,10 +226,12 @@ jobs:
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(DISTINCT variant_key) FROM asset_variants")" -eq 4
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_processing_attempts WHERE status = 'succeeded'")" -eq 1
           test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_processing_attempts WHERE status = 'processing'")" -eq 0
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages")" -eq 1
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages WHERE usage_kind = 'inline'")" -eq 1
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE jsonb_array_length(asset_manifest_json) = 1")" -eq 2
-          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active' AND jsonb_array_length(asset_manifest_json) = 1")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM assets WHERE archived_at IS NOT NULL")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages")" -eq 2
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages WHERE usage_kind = 'cover' AND ordinal = 0")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM asset_usages WHERE usage_kind = 'inline' AND ordinal = 1")" -eq 1
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE jsonb_array_length(asset_manifest_json) = 2")" -eq 2
+          test "$(psql "$DATABASE_URL" -Atc "SELECT count(*) FROM content_publications WHERE status = 'active' AND jsonb_array_length(asset_manifest_json) > 0")" -eq 0
 
           if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
             -c "UPDATE asset_usages SET alt_text = 'mutated' WHERE id = (SELECT id FROM asset_usages LIMIT 1)"; then
