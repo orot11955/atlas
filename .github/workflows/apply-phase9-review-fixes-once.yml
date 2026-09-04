@@ -1,0 +1,166 @@
+name: Apply Phase 9 Review Fixes Once
+
+on:
+  push:
+    branches:
+      - feat/outbox-webhook-scheduling
+    paths:
+      - .github/workflows/apply-phase9-review-fixes-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase9-review-fixes-once
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/outbox-webhook-scheduling
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply semantic fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace(path_value: str, old: str, new: str) -> None:
+              path = Path(path_value)
+              content = path.read_text(encoding='utf-8')
+              if content.count(old) != 1:
+                  raise SystemExit(f'Expected one match in {path_value}, found {content.count(old)}')
+              path.write_text(content.replace(old, new), encoding='utf-8')
+
+          replace(
+              'packages/server/src/modules/eventing/ports/eventing.repository.ts',
+              '''  listActiveWebhookEndpointsForEvent(
+              workspaceId: string,
+              siteId: string,
+              eventType: WebhookEventType,
+            ): Promise<readonly WebhookEndpointRecord[]>;''',
+              '''  listActiveWebhookEndpointsForEvent(
+              workspaceId: string,
+              siteId: string,
+              eventType: WebhookEventType,
+              occurredAt: Date,
+            ): Promise<readonly WebhookEndpointRecord[]>;''',
+          )
+
+          replace(
+              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
+              '''  public async listActiveWebhookEndpointsForEvent(
+              workspaceId: string,
+              siteId: string,
+              eventType: WebhookEventType,
+            ): Promise<readonly WebhookEndpointRecord[]> {''',
+              '''  public async listActiveWebhookEndpointsForEvent(
+              workspaceId: string,
+              siteId: string,
+              eventType: WebhookEventType,
+              occurredAt: Date,
+            ): Promise<readonly WebhookEndpointRecord[]> {''',
+          )
+          replace(
+              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
+              '''          AND endpoint."status" = 'active'
+              AND $3 = ANY(endpoint."subscribed_events")
+            ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
+              '''          AND endpoint."status" = 'active'
+              AND $3 = ANY(endpoint."subscribed_events")
+              AND endpoint."created_at" <= $4
+            ORDER BY endpoint."created_at" ASC, endpoint."id" ASC''',
+          )
+          replace(
+              'packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts',
+              '''      [workspaceId, siteId, eventType],
+            );
+
+            return rows.map(toWebhookEndpointRecord);''',
+              '''      [workspaceId, siteId, eventType, occurredAt],
+            );
+
+            return rows.map(toWebhookEndpointRecord);''',
+          )
+
+          replace(
+              'packages/server/src/modules/eventing/application/outbox-relay.service.ts',
+              '''        event.siteId,
+              event.eventType,
+            );''',
+              '''        event.siteId,
+              event.eventType,
+              event.createdAt,
+            );''',
+          )
+
+          replace(
+              'scripts/ci/eventing-e2e.mjs',
+              '''    verifyCapturedRequest(receiver.requests[0], secret, 'content.published');''',
+              '''    const firstCaptured = await waitForDeliveryAttempt(receiver, firstFailure.id, 1);
+            verifyCapturedRequest(firstCaptured, secret, 'content.published');''',
+          )
+          replace(
+              'scripts/ci/eventing-e2e.mjs',
+              '''    verifyCapturedRequest(receiver.requests[1], secret, 'content.published');
+            assertEqual(
+              receiver.requests[1]?.eventId,
+              receiver.requests[0]?.eventId,
+              'Webhook retry Event ID',
+            );
+            assertEqual(receiver.requests[1]?.body, receiver.requests[0]?.body, 'Webhook retry raw body');''',
+              '''    const retryCaptured = await waitForDeliveryAttempt(receiver, firstFailure.id, 2);
+            verifyCapturedRequest(retryCaptured, secret, 'content.published');
+            assertEqual(retryCaptured.eventId, firstCaptured.eventId, 'Webhook retry Event ID');
+            assertEqual(retryCaptured.body, firstCaptured.body, 'Webhook retry raw body');''',
+          )
+          replace(
+              'scripts/ci/eventing-e2e.mjs',
+              '''async function waitForReceiverEvent(receiver, eventType, count) {''',
+              '''async function waitForDeliveryAttempt(receiver, deliveryId, count) {
+            for (let attempt = 0; attempt < 120; attempt += 1) {
+              const matching = receiver.requests.filter((item) => item.deliveryId === deliveryId);
+              if (matching.length >= count) return matching[count - 1];
+              await delay(250);
+            }
+            throw new Error(`Webhook Receiver did not receive attempt ${count} for ${deliveryId}.`);
+          }
+
+          async function waitForReceiverEvent(receiver, eventType, count) {''',
+          )
+          PY
+
+      - name: Normalize formatting
+        run: pnpm exec prettier --write .
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && { echo 'No changes produced.'; exit 1; }
+          git commit -m 'fix: enforce Webhook subscription cutover semantics'
+          git push origin HEAD:feat/outbox-webhook-scheduling
