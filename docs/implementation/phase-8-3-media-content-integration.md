@@ -98,3 +98,42 @@ READY Revision
 - `bodyHtml`에는 `asset://`, Bucket Name, Object Key와 내부 MinIO Endpoint를 포함하지 않는다.
 - Rollback은 과거 Publication의 `bodyHtml`, Manifest와 ETag를 그대로 복사한다.
 - `asset_manifest_json`은 Publication Snapshot의 일부이므로 UPDATE할 수 없다.
+
+## Content Editor Asset Picker
+
+Editor는 `GET /api/admin/v1/assets`에서 `READY` Asset만 표시하고, 선택한 Asset의
+`GET /api/admin/v1/assets/{assetId}/variants` 응답으로 Public Preview를 구성한다.
+
+Picker 입력:
+
+```text
+Asset
+Alt Text (필수)
+Caption (선택)
+```
+
+삽입 결과:
+
+```markdown
+![Alt Text](asset://{assetId} 'Caption')
+```
+
+Variant 조회 응답은 `key`, `format`, `contentType`, `width`, `height`, `byteSize`,
+`sha256`, `etag`, `publicUrl`만 포함한다. Bucket, Object Key, Private Endpoint는 응답에
+포함하지 않는다.
+
+### 접근성 및 Preview 경계
+
+- Alt Text가 비어 있으면 Markdown Reference를 삽입할 수 없다.
+- Caption은 선택 사항이며 줄바꿈과 따옴표를 안전한 Markdown Title로 정규화한다.
+- Picker의 Preview Image는 선택 보조용 장식 이미지이므로 빈 `alt`를 사용하고, 실제 공개 Alt Text는 별도 필드에서 필수로 입력한다.
+- Preview는 Public Variant URL만 사용하며 Private 원본 Presigned URL을 생성하지 않는다.
+- Variant 조회 API는 READY Asset에 대해서만 결과를 반환하고 `Cache-Control: no-store`를 적용한다.
+- Asset 목록은 Picker를 처음 여는 User Event에서만 조회하며 Render Effect에서 상태 전이를 시작하지 않는다.
+- Editor는 현재 Textarea Selection 위치에 Reference를 삽입하고 다음 편집 위치로 Cursor를 복구한다.
+
+### 이번 수직 단위 검증
+
+- Server Unit Test에서 READY 상태, Workspace Asset 존재 여부와 Storage 식별자 비노출을 검증한다.
+- Admin Web Unit Test에서 Alt Text 필수, 대괄호·역슬래시 Escape와 Caption 정규화를 검증한다.
+- Media Data Gate에서 실제 READY Asset의 Public Variant 4개를 조회하고 URL·Dimension·SHA-256·ETag를 검증한다.

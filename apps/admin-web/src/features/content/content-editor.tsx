@@ -14,6 +14,7 @@ import {
   restoreContentRevision,
   saveContentDraft,
 } from './content-api';
+import { ContentAssetPicker } from './content-asset-picker';
 import type { Content, ContentRevision } from './content-types';
 import { ContentPublicationManager } from './content-publication-manager';
 import styles from './content.module.css';
@@ -33,6 +34,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
   const [error, setError] = useState<string>();
   const initialised = useRef(false);
   const saveSequence = useRef(0);
+  const bodyTextarea = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     void reload();
@@ -83,6 +85,26 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     action();
     setDirty(true);
     setMessage(undefined);
+  }
+
+  function insertAssetMarkdown(markdown: string) {
+    const textarea = bodyTextarea.current;
+    const start = textarea?.selectionStart ?? bodyMarkdown.length;
+    const end = textarea?.selectionEnd ?? start;
+    const before = bodyMarkdown.slice(0, start);
+    const after = bodyMarkdown.slice(end);
+    const prefix = blockSeparatorBefore(before);
+    const suffix = blockSeparatorAfter(after);
+    const insertion = `${prefix}${markdown}${suffix}`;
+    const next = `${before}${insertion}${after}`;
+    const cursor = start + prefix.length + markdown.length;
+
+    markDirty(() => setBodyMarkdown(next));
+    setMessage('Asset Reference를 Markdown에 삽입했습니다.');
+    window.requestAnimationFrame(() => {
+      bodyTextarea.current?.focus();
+      bodyTextarea.current?.setSelectionRange(cursor, cursor);
+    });
   }
 
   async function saveDraft(mode: 'autosave' | 'manual', sequence = ++saveSequence.current) {
@@ -302,15 +324,23 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
                 onChange={(event) => markDirty(() => setSummary(event.target.value))}
               />
             </label>
-            <label className={`${styles.field} ${styles.full}`}>
-              <span>본문</span>
+            <div className={`${styles.field} ${styles.full}`}>
+              <div className={styles.fieldHeading}>
+                <label htmlFor="content-body-markdown">본문</label>
+                <ContentAssetPicker
+                  disabled={working !== undefined || archived}
+                  onInsert={insertAssetMarkdown}
+                />
+              </div>
               <textarea
+                ref={bodyTextarea}
                 disabled={archived}
+                id="content-body-markdown"
                 maxLength={500_000}
                 value={bodyMarkdown}
                 onChange={(event) => markDirty(() => setBodyMarkdown(event.target.value))}
               />
-            </label>
+            </div>
           </div>
         </div>
 
@@ -444,4 +474,14 @@ function readError(error: unknown): string {
   }
 
   return '콘텐츠 요청을 처리하지 못했습니다.';
+}
+
+function blockSeparatorBefore(value: string): string {
+  if (value.length === 0 || value.endsWith('\n\n')) return '';
+  return value.endsWith('\n') ? '\n' : '\n\n';
+}
+
+function blockSeparatorAfter(value: string): string {
+  if (value.length === 0 || value.startsWith('\n\n')) return '';
+  return value.startsWith('\n') ? '\n' : '\n\n';
 }

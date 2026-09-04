@@ -22,6 +22,21 @@ export interface Asset {
   updatedAt: string;
 }
 
+export type AssetVariantKey = 'webp-320' | 'webp-768' | 'webp-1280' | 'avif-1920';
+export type AssetVariantFormat = 'webp' | 'avif';
+
+export interface AssetVariant {
+  key: AssetVariantKey;
+  format: AssetVariantFormat;
+  contentType: 'image/webp' | 'image/avif';
+  width: number;
+  height: number;
+  byteSize: number;
+  sha256: string;
+  etag: string;
+  publicUrl: string;
+}
+
 export interface AssetUploadSession {
   id: string;
   assetId: string;

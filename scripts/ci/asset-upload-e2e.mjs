@@ -112,6 +112,30 @@ export async function verifyAssetUploadFoundation({ request, session, assertEqua
   }
   assertNoStorageInternals(listed.data, 'Asset list');
 
+  const variants = await request(`/admin/v1/assets/${ready.id}/variants`, {
+    expectedStatus: 200,
+    cookieHeader: session.cookieHeader,
+  });
+
+  if (!Array.isArray(variants.data.items) || variants.data.items.length !== 4) {
+    throw new Error('READY Asset public Variant list is invalid.');
+  }
+
+  for (const variant of variants.data.items) {
+    if (
+      typeof variant.key !== 'string' ||
+      typeof variant.publicUrl !== 'string' ||
+      !variant.publicUrl.startsWith('http://localhost:9000/atlas-public/') ||
+      !Number.isSafeInteger(variant.width) ||
+      !Number.isSafeInteger(variant.height) ||
+      typeof variant.sha256 !== 'string' ||
+      typeof variant.etag !== 'string'
+    ) {
+      throw new Error('Public Asset Variant response is invalid.');
+    }
+  }
+  assertNoStorageInternals(variants.data, 'Asset Variant list');
+
   const invalidBody = Buffer.from('<svg><script>alert(1)</script></svg>');
   const invalidCreated = await request('/admin/v1/assets/upload-sessions', {
     method: 'POST',

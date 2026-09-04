@@ -340,3 +340,154 @@
     flex-direction: column;
   }
 }
+
+.fieldHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fieldHeading > label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.assetPicker {
+  position: relative;
+}
+
+.assetPickerPanel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(760px, calc(100vw - 64px));
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-strong);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+}
+
+.assetPickerHeader,
+.assetPickerGrid {
+  display: flex;
+  gap: 16px;
+}
+
+.assetPickerHeader {
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.assetPickerHeader p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.assetPickerGrid {
+  align-items: stretch;
+}
+
+.assetPickerList,
+.assetPickerDetail {
+  min-width: 0;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.assetPickerList {
+  flex: 0 0 42%;
+  padding: 8px;
+}
+
+.assetPickerDetail {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 14px;
+}
+
+.assetPickerItem {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--foreground);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assetPickerItem:hover,
+.assetPickerItem[data-selected='true'] {
+  border-color: var(--accent);
+  background: rgb(249 115 22 / 9%);
+}
+
+.assetPickerItem span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.assetPreview {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background:
+    linear-gradient(45deg, rgb(255 255 255 / 4%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 4%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 4%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 4%) 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+}
+
+.assetPreview img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+.assetPreview span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 760px) {
+  .assetPickerPanel {
+    position: fixed;
+    inset: 72px 16px 16px;
+    width: auto;
+    overflow: auto;
+  }
+
+  .assetPickerGrid {
+    display: grid;
+  }
+
+  .assetPickerList,
+  .assetPickerDetail {
+    max-height: none;
+  }
+}

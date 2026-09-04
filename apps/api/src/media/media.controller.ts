@@ -19,6 +19,7 @@ import {
   AdminPermission,
   type AssetRecord,
   type AssetService,
+  type AssetVariantService,
   type AssetUploadCoordinator,
   type AssetUploadSessionView,
 } from '@atlas/server';
@@ -35,7 +36,7 @@ import {
   type AdminWorkspaceHttpRequest,
 } from '../admin-sites/admin-workspace.request';
 import { AssetListQueryDto, CreateAssetUploadSessionDto } from './media.dto';
-import { ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR } from './media.tokens';
+import { ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR, ASSET_VARIANT_SERVICE } from './media.tokens';
 
 const READ_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminPermissionGuard] as const;
 const WRITE_GUARDS = [
@@ -53,6 +54,8 @@ export class MediaController {
     private readonly assetService: AssetService<unknown>,
     @Inject(ASSET_UPLOAD_COORDINATOR)
     private readonly uploadCoordinator: AssetUploadCoordinator,
+    @Inject(ASSET_VARIANT_SERVICE)
+    private readonly assetVariantService: AssetVariantService<unknown>,
   ) {}
 
   @Get()
@@ -82,6 +85,20 @@ export class MediaController {
     const workspace = requireAdminWorkspace(request);
     const asset = await this.assetService.getAsset(workspace.id, assetId);
     return { data: toAssetData(asset) };
+  }
+
+  @Get(':assetId/variants')
+  @UseGuards(...READ_GUARDS)
+  @RequireAdminPermission(AdminPermission.CONTENTS_READ)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Returns public Asset Variants without storage internals.' })
+  public async listVariants(
+    @Req() request: AdminWorkspaceHttpRequest,
+    @Param('assetId', new ParseUUIDPipe({ version: '7' })) assetId: string,
+  ) {
+    const workspace = requireAdminWorkspace(request);
+    const variants = await this.assetVariantService.listVariants(workspace.id, assetId);
+    return { data: { items: variants } };
   }
 
   @Post('upload-sessions')
