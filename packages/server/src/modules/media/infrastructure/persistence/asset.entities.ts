@@ -85,6 +85,9 @@ export class AssetEntity {
   @Column({ name: 'failed_at', type: 'timestamptz', nullable: true })
   public failedAt!: Date | null;
 
+  @Column({ name: 'archived_at', type: 'timestamptz', nullable: true })
+  public archivedAt!: Date | null;
+
   @Column({ name: 'created_at', type: 'timestamptz' })
   public createdAt!: Date;
 

@@ -27,10 +27,17 @@ export const ContentRevisionKind = {
 
 export type ContentRevisionKind = (typeof ContentRevisionKind)[keyof typeof ContentRevisionKind];
 
+export interface ContentCoverAsset {
+  assetId: string;
+  altText: string;
+  caption?: string;
+}
+
 export interface ContentDraftSnapshot {
   title: string;
   summary?: string;
   bodyMarkdown: string;
+  cover?: ContentCoverAsset;
 }
 
 export interface ContentDraftRecord extends ContentDraftSnapshot {
@@ -106,6 +113,39 @@ export function normalizeContentSummary(value?: string): string | undefined {
   return normalized;
 }
 
+export function normalizeContentCoverAsset(
+  value?: Readonly<ContentCoverAsset>,
+): ContentCoverAsset | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const assetId = value.assetId.trim().toLowerCase();
+  const altText = value.altText.trim().replace(/\s+/gu, ' ');
+  const caption = value.caption?.trim().replace(/\s+/gu, ' ');
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(assetId)) {
+    throw validationError('cover.assetId', 'Content Cover Asset identifier is invalid.');
+  }
+
+  if (!altText || altText.length > 300) {
+    throw validationError(
+      'cover.altText',
+      'Content Cover Alt Text must contain between 1 and 300 characters.',
+    );
+  }
+
+  if (caption && caption.length > 1_000) {
+    throw validationError('cover.caption', 'Content Cover Caption cannot exceed 1,000 characters.');
+  }
+
+  return {
+    assetId,
+    altText,
+    ...(caption ? { caption } : {}),
+  };
+}
+
 export function normalizeContentMarkdown(value: string): string {
   const normalized = value.replace(/\r\n?/gu, '\n');
 
@@ -141,6 +181,8 @@ export function assertContentEditable(status: ContentStatus): void {
 
 export function validateReadyDraft(draft: ContentDraftSnapshot): void {
   const errors: string[] = [];
+
+  normalizeContentCoverAsset(draft.cover);
 
   if (normalizeContentTitle(draft.title).length < 1) {
     errors.push('A title is required.');

@@ -5,6 +5,7 @@ import type {
   ContentListResult,
   ContentRevision,
   ContentStatus,
+  ContentCoverAsset,
   ContentType,
 } from './content-types';
 
@@ -43,6 +44,7 @@ export async function createContent(input: {
   title?: string;
   summary?: string;
   bodyMarkdown?: string;
+  cover?: ContentCoverAsset | null;
 }): Promise<Content> {
   const response = await client().post<ApiEnvelope<Content>>('/contents', input);
   return response.data;
@@ -62,6 +64,7 @@ export async function saveContentDraft(
     title: string;
     summary?: string;
     bodyMarkdown: string;
+    cover?: ContentCoverAsset | null;
   },
 ): Promise<Content> {
   const response = await client().patch<ApiEnvelope<Content>>(
@@ -73,7 +76,12 @@ export async function saveContentDraft(
 
 export async function previewContentById(
   contentId: string,
-  input: { title?: string; summary?: string; bodyMarkdown: string },
+  input: {
+    title?: string;
+    summary?: string;
+    bodyMarkdown: string;
+    cover?: ContentCoverAsset | null;
+  },
 ): Promise<{ html: string; warnings: readonly string[] }> {
   const response = await client().post<ApiEnvelope<{ html: string; warnings: readonly string[] }>>(
     `/contents/${encodeURIComponent(contentId)}/preview`,

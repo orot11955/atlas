@@ -8,6 +8,7 @@ import {
   systemClock,
 } from '../../../core';
 import {
+  AssetUsageKind,
   assertContentAssetReferencesReady,
   parseContentAssetReferences,
   type AssetUsageRecord,
@@ -16,6 +17,7 @@ import {
   ContentRevisionKind,
   ContentStatus,
   assertContentEditable,
+  normalizeContentCoverAsset,
   normalizeContentMarkdown,
   normalizeContentSummary,
   normalizeContentTitle,
@@ -121,6 +123,7 @@ export class ContentService<TTransaction> {
     const title = normalizeContentTitle(input.title);
     const summary = normalizeContentSummary(input.summary);
     const bodyMarkdown = normalizeContentMarkdown(input.bodyMarkdown);
+    const cover = normalizeContentCoverAsset(input.cover);
     const content: ContentRecord = {
       id,
       workspaceId,
@@ -136,6 +139,7 @@ export class ContentService<TTransaction> {
         title,
         summary,
         bodyMarkdown,
+        cover,
         draftVersion: 1,
         updatedByAdminAccountId: actorId,
         updatedAt: now,
@@ -172,6 +176,7 @@ export class ContentService<TTransaction> {
     const title = normalizeContentTitle(input.title);
     const summary = normalizeContentSummary(input.summary);
     const bodyMarkdown = normalizeContentMarkdown(input.bodyMarkdown);
+    const cover = normalizeContentCoverAsset(input.cover);
     const updatedAt = this.clock.now();
 
     return this.transactionRunner.run(async (transaction) => {
@@ -189,6 +194,7 @@ export class ContentService<TTransaction> {
           title,
           summary,
           bodyMarkdown,
+          cover,
           expectedDraftVersion: input.draftVersion,
           nextDraftVersion: input.draftVersion + 1,
           updatedByAdminAccountId: actorId,
@@ -209,6 +215,7 @@ export class ContentService<TTransaction> {
           title,
           summary,
           bodyMarkdown,
+          cover,
           draftVersion: input.draftVersion + 1,
           updatedByAdminAccountId: actorId,
           updatedAt,
@@ -220,6 +227,7 @@ export class ContentService<TTransaction> {
   public preview(input: ContentDraftSnapshot): Readonly<MarkdownPreview> {
     normalizeContentTitle(input.title);
     normalizeContentSummary(input.summary);
+    normalizeContentCoverAsset(input.cover);
     return renderMarkdownPreview(input.bodyMarkdown);
   }
 
@@ -288,6 +296,7 @@ export class ContentService<TTransaction> {
           title: revision.title,
           summary: revision.summary,
           bodyMarkdown: revision.bodyMarkdown,
+          cover: revision.cover,
           expectedDraftVersion: input.draftVersion,
           nextDraftVersion: input.draftVersion + 1,
           updatedByAdminAccountId: actorId,
@@ -323,6 +332,7 @@ export class ContentService<TTransaction> {
           title: revision.title,
           summary: revision.summary,
           bodyMarkdown: revision.bodyMarkdown,
+          cover: revision.cover,
           draftVersion: input.draftVersion + 1,
           updatedByAdminAccountId: actorId,
           updatedAt,
@@ -412,10 +422,23 @@ export class ContentService<TTransaction> {
         throw versionConflictError('Content Draft was changed by another request.');
       }
 
-      const assetReferences =
+      const inlineAssetReferences =
         kind === ContentRevisionKind.READY
           ? parseContentAssetReferences(content.draft.bodyMarkdown)
           : [];
+      const coverAssetReference =
+        kind === ContentRevisionKind.READY && content.draft.cover
+          ? {
+              assetId: content.draft.cover.assetId,
+              kind: AssetUsageKind.COVER,
+              ordinal: 0,
+              altText: content.draft.cover.altText,
+              ...(content.draft.cover.caption ? { caption: content.draft.cover.caption } : {}),
+            }
+          : undefined;
+      const assetReferences = coverAssetReference
+        ? [coverAssetReference, ...inlineAssetReferences]
+        : inlineAssetReferences;
 
       if (kind === ContentRevisionKind.READY) {
         validateReadyDraft(content.draft);
@@ -438,6 +461,7 @@ export class ContentService<TTransaction> {
         title: content.draft.title,
         summary: content.draft.summary,
         bodyMarkdown: content.draft.bodyMarkdown,
+        cover: content.draft.cover,
         bodyHtml: preview.html,
         sourceDraftVersion: content.draft.draftVersion,
         note,
@@ -532,6 +556,7 @@ function freezeContent(content: ContentRecord): Readonly<ContentRecord> {
     archivedAt: content.archivedAt ? new Date(content.archivedAt) : undefined,
     draft: Object.freeze({
       ...content.draft,
+      cover: content.draft.cover ? Object.freeze({ ...content.draft.cover }) : undefined,
       updatedAt: new Date(content.draft.updatedAt),
     }),
   });
@@ -540,6 +565,7 @@ function freezeContent(content: ContentRecord): Readonly<ContentRecord> {
 function freezeRevision(revision: ContentRevisionRecord): Readonly<ContentRevisionRecord> {
   return Object.freeze({
     ...revision,
+    cover: revision.cover ? Object.freeze({ ...revision.cover }) : undefined,
     createdAt: new Date(revision.createdAt),
   });
 }

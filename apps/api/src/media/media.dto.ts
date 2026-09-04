@@ -26,3 +26,10 @@ export class CreateAssetUploadSessionDto {
   @Matches(/^[0-9a-fA-F]{64}$/u)
   public sha256!: string;
 }
+
+export class ArchiveAssetDto {
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  public version!: number;
+}

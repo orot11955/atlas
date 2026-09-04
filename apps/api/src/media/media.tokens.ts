@@ -1,3 +1,5 @@
+export const ASSET_LIFECYCLE_REPOSITORY = Symbol.for('atlas.asset-lifecycle-repository');
+export const ASSET_LIFECYCLE_SERVICE = Symbol.for('atlas.asset-lifecycle-service');
 export const ASSET_PROCESSING_QUEUE = Symbol.for('atlas.asset-processing-queue');
 export const ASSET_PROCESSING_REPOSITORY = Symbol.for('atlas.asset-processing-repository');
 export const ASSET_REPOSITORY = Symbol.for('atlas.asset-repository');

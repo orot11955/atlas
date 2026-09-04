@@ -1,10 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 import { AtlasApiError } from '../../lib/api';
-import { completeAssetUpload, createAssetUploadSession, loadAssets } from './asset-api';
-import type { Asset, AssetContentType } from './asset-types';
+import {
+  archiveAsset,
+  completeAssetUpload,
+  createAssetUploadSession,
+  loadAssets,
+  loadAssetUsages,
+} from './asset-api';
+import type { Asset, AssetContentType, AssetUsageResult } from './asset-types';
 import styles from './asset.module.css';
 
 const SUPPORTED_CONTENT_TYPES = new Set<AssetContentType>([
@@ -15,6 +22,7 @@ const SUPPORTED_CONTENT_TYPES = new Set<AssetContentType>([
 
 export function AssetManager() {
   const [assets, setAssets] = useState<readonly Asset[]>([]);
+  const [selected, setSelected] = useState<AssetUsageResult>();
   const [working, setWorking] = useState(false);
   const [progress, setProgress] = useState<string>();
   const [error, setError] = useState<string>();
@@ -26,10 +34,30 @@ export function AssetManager() {
 
   async function refresh() {
     setError(undefined);
+
     try {
-      setAssets(await loadAssets());
+      const items = await loadAssets();
+      setAssets(items);
+
+      if (selected) {
+        const current = items.find((asset) => asset.id === selected.asset.id);
+        setSelected(current ? await loadAssetUsages(current.id) : undefined);
+      }
     } catch (caught) {
       setError(readError(caught));
+    }
+  }
+
+  async function selectAsset(asset: Asset) {
+    setWorking(true);
+    setError(undefined);
+
+    try {
+      setSelected(await loadAssetUsages(asset.id));
+    } catch (caught) {
+      setError(readError(caught));
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -88,15 +116,36 @@ export function AssetManager() {
     }
   }
 
+  async function archiveSelected() {
+    if (!selected) return;
+    setWorking(true);
+    setError(undefined);
+    setProgress(undefined);
+
+    try {
+      const archived = await archiveAsset(selected.asset.id, selected.asset.version);
+      const nextAssets = assets.map((asset) => (asset.id === archived.id ? archived : asset));
+      setAssets(nextAssets);
+      setSelected({ ...selected, asset: archived });
+      setProgress(
+        'Asset을 Archive했습니다. 기존 Publication Snapshot과 Public Variant는 유지됩니다.',
+      );
+    } catch (caught) {
+      setError(readError(caught));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
           <p className="eyebrow">MEDIA · PRIVATE ORIGINAL</p>
-          <h1>Asset Upload</h1>
+          <h1>Asset Lifecycle</h1>
           <p>
-            Browser는 Presigned PUT으로 MinIO에 직접 업로드하고, Atlas API가 크기·SHA-256·이미지
-            형식을 다시 검증합니다.
+            Browser Upload, Worker Variant 처리, Content Usage와 Publication 보존 정책을 한 화면에서
+            관리합니다.
           </p>
         </div>
       </header>
@@ -135,7 +184,13 @@ export function AssetManager() {
         <div className={styles.assets}>
           {assets.length === 0 ? <div className={styles.empty}>아직 Asset이 없습니다.</div> : null}
           {assets.map((asset) => (
-            <article className={styles.asset} key={asset.id}>
+            <button
+              className={styles.asset}
+              data-selected={selected?.asset.id === asset.id}
+              key={asset.id}
+              type="button"
+              onClick={() => selectAsset(asset)}
+            >
               <div>
                 <strong>{asset.originalFileName}</strong>
                 <p className={styles.muted}>
@@ -144,14 +199,70 @@ export function AssetManager() {
                 </p>
               </div>
               <span className={styles.pill} data-status={asset.status}>
-                {asset.status}
+                {asset.archivedAt ? 'archived' : asset.status}
               </span>
               <code>{asset.sha256.slice(0, 12)}…</code>
               <time dateTime={asset.createdAt}>{formatDate(asset.createdAt)}</time>
-            </article>
+            </button>
           ))}
         </div>
       </section>
+
+      {selected ? (
+        <section className={styles.panel}>
+          <div className={styles.listHeader}>
+            <div>
+              <p className="eyebrow">ASSET USAGE</p>
+              <h2>{selected.asset.originalFileName}</h2>
+              <p className={styles.muted}>
+                Revision Usage는 불변이며 ACTIVE Publication에서 사용 중이면 Archive할 수 없습니다.
+              </p>
+            </div>
+            <button
+              className={styles.danger}
+              disabled={
+                working ||
+                selected.asset.archivedAt !== null ||
+                !['ready', 'failed'].includes(selected.asset.status) ||
+                selected.items.some((usage) => usage.activePublicationCount > 0)
+              }
+              type="button"
+              onClick={archiveSelected}
+            >
+              {selected.asset.archivedAt ? 'Archived' : 'Archive Asset'}
+            </button>
+          </div>
+
+          {selected.items.some((usage) => usage.activePublicationCount > 0) ? (
+            <p className={styles.warning}>
+              ACTIVE Publication에서 참조 중입니다. 해당 Publication을 Withdraw 또는 Supersede해야
+              Archive할 수 있습니다.
+            </p>
+          ) : null}
+
+          <div className={styles.usages}>
+            {selected.items.length === 0 ? (
+              <div className={styles.empty}>아직 READY Revision Usage가 없습니다.</div>
+            ) : null}
+            {selected.items.map((usage) => (
+              <article className={styles.usage} key={usage.id}>
+                <div>
+                  <strong>{usage.contentTitle || '제목 없음'}</strong>
+                  <p className={styles.muted}>
+                    Revision {usage.revisionNumber} · {usage.kind} · ordinal {usage.ordinal}
+                  </p>
+                  <p>{usage.altText}</p>
+                  {usage.caption ? <p className={styles.muted}>{usage.caption}</p> : null}
+                </div>
+                <div className={styles.usageMeta}>
+                  <span>ACTIVE {usage.activePublicationCount}</span>
+                  <Link href={`/admin/contents/${usage.contentId}`}>Content 열기</Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -164,9 +275,9 @@ async function calculateSha256(file: File): Promise<string> {
 }
 
 function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+  if (value < 1_024) return `${value} B`;
+  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
+  return `${(value / 1_048_576).toFixed(1)} MiB`;
 }
 
 function formatDate(value: string): string {

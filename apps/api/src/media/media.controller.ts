@@ -17,6 +17,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import {
   AdminPermission,
+  type AssetLifecycleService,
   type AssetRecord,
   type AssetService,
   type AssetVariantService,
@@ -35,8 +36,13 @@ import {
   requireAdminWorkspace,
   type AdminWorkspaceHttpRequest,
 } from '../admin-sites/admin-workspace.request';
-import { AssetListQueryDto, CreateAssetUploadSessionDto } from './media.dto';
-import { ASSET_SERVICE, ASSET_UPLOAD_COORDINATOR, ASSET_VARIANT_SERVICE } from './media.tokens';
+import { ArchiveAssetDto, AssetListQueryDto, CreateAssetUploadSessionDto } from './media.dto';
+import {
+  ASSET_LIFECYCLE_SERVICE,
+  ASSET_SERVICE,
+  ASSET_UPLOAD_COORDINATOR,
+  ASSET_VARIANT_SERVICE,
+} from './media.tokens';
 
 const READ_GUARDS = [AdminSessionGuard, AdminWorkspaceGuard, AdminPermissionGuard] as const;
 const WRITE_GUARDS = [
@@ -50,6 +56,8 @@ const WRITE_GUARDS = [
 @Controller('admin/v1/assets')
 export class MediaController {
   public constructor(
+    @Inject(ASSET_LIFECYCLE_SERVICE)
+    private readonly assetLifecycleService: AssetLifecycleService<unknown>,
     @Inject(ASSET_SERVICE)
     private readonly assetService: AssetService<unknown>,
     @Inject(ASSET_UPLOAD_COORDINATOR)
@@ -99,6 +107,61 @@ export class MediaController {
     const workspace = requireAdminWorkspace(request);
     const variants = await this.assetVariantService.listVariants(workspace.id, assetId);
     return { data: { items: variants } };
+  }
+
+  @Get(':assetId/usages')
+  @UseGuards(...READ_GUARDS)
+  @RequireAdminPermission(AdminPermission.CONTENTS_READ)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Returns immutable Content usage history for one Asset.' })
+  public async listUsages(
+    @Req() request: AdminWorkspaceHttpRequest,
+    @Param('assetId', new ParseUUIDPipe({ version: '7' })) assetId: string,
+  ) {
+    const workspace = requireAdminWorkspace(request);
+    const asset = await this.assetService.getAsset(workspace.id, assetId);
+    const usages = await this.assetLifecycleService.listUsages(workspace.id, assetId);
+
+    return {
+      data: {
+        asset: toAssetData(asset),
+        items: usages.map((usage) => ({
+          id: usage.id,
+          contentId: usage.contentId,
+          revisionId: usage.revisionId,
+          revisionNumber: usage.revisionNumber,
+          contentTitle: usage.contentTitle,
+          kind: usage.kind,
+          ordinal: usage.ordinal,
+          altText: usage.altText,
+          caption: usage.caption ?? null,
+          activePublicationCount: usage.activePublicationCount,
+          createdAt: usage.createdAt.toISOString(),
+        })),
+      },
+    };
+  }
+
+  @Post(':assetId/archive')
+  @UseGuards(...WRITE_GUARDS)
+  @RequireAdminPermission(AdminPermission.CONTENTS_MANAGE)
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({
+    description: 'Archives an Asset unless an ACTIVE Publication still uses it.',
+  })
+  public async archive(
+    @Req() request: AdminWorkspaceHttpRequest,
+    @Param('assetId', new ParseUUIDPipe({ version: '7' })) assetId: string,
+    @Body() body: ArchiveAssetDto,
+  ) {
+    const workspace = requireAdminWorkspace(request);
+    const asset = await this.assetLifecycleService.archiveAsset(
+      workspace.id,
+      assetId,
+      body.version,
+    );
+    return { data: toAssetData(asset) };
   }
 
   @Post('upload-sessions')
@@ -164,6 +227,7 @@ function toAssetData(asset: Readonly<AssetRecord>) {
     uploadedAt: asset.uploadedAt?.toISOString() ?? null,
     processedAt: asset.processedAt?.toISOString() ?? null,
     failedAt: asset.failedAt?.toISOString() ?? null,
+    archivedAt: asset.archivedAt?.toISOString() ?? null,
     createdAt: asset.createdAt.toISOString(),
     updatedAt: asset.updatedAt.toISOString(),
   };

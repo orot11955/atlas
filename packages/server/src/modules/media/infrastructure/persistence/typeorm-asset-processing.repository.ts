@@ -50,6 +50,13 @@ export class TypeOrmAssetProcessingRepository implements AssetProcessingReposito
       return Object.freeze({ kind: 'missing' as const });
     }
 
+    if (asset.archivedAt) {
+      return Object.freeze({
+        kind: 'not-processable' as const,
+        asset: toAssetRecord(asset),
+      });
+    }
+
     if (asset.status === AssetStatus.READY) {
       const variants = await transaction.getRepository(AssetVariantEntity).find({
         where: { workspaceId, assetId },
@@ -338,6 +345,7 @@ function toAssetRecord(entity: AssetEntity): AssetRecord {
     uploadedAt: entity.uploadedAt ? new Date(entity.uploadedAt) : undefined,
     processedAt: entity.processedAt ? new Date(entity.processedAt) : undefined,
     failedAt: entity.failedAt ? new Date(entity.failedAt) : undefined,
+    archivedAt: entity.archivedAt ? new Date(entity.archivedAt) : undefined,
     createdAt: new Date(entity.createdAt),
     updatedAt: new Date(entity.updatedAt),
   };

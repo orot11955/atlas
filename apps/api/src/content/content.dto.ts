@@ -1,5 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, Length, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 import {
   CONTENT_STATUSES,
@@ -7,6 +19,26 @@ import {
   type ContentStatus,
   type ContentType,
 } from '@atlas/server';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+
+export class ContentCoverAssetDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  @Matches(UUID_PATTERN)
+  public assetId!: string;
+
+  @ApiProperty({ maxLength: 300 })
+  @IsString()
+  @Length(1, 300)
+  public altText!: string;
+
+  @ApiPropertyOptional({ maxLength: 1_000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000)
+  public caption?: string;
+}
 
 export class CreateContentDto {
   @ApiProperty({ enum: CONTENT_TYPES })
@@ -30,6 +62,12 @@ export class CreateContentDto {
   @IsString()
   @MaxLength(500_000)
   public bodyMarkdown?: string;
+
+  @ApiPropertyOptional({ type: () => ContentCoverAssetDto, nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ContentCoverAssetDto)
+  public cover?: ContentCoverAssetDto | null;
 }
 
 export class SaveContentDraftDto {
@@ -54,6 +92,12 @@ export class SaveContentDraftDto {
   @IsString()
   @MaxLength(500_000)
   public bodyMarkdown!: string;
+
+  @ApiPropertyOptional({ type: () => ContentCoverAssetDto, nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ContentCoverAssetDto)
+  public cover?: ContentCoverAssetDto | null;
 }
 
 export class PreviewContentDto {
@@ -73,6 +117,12 @@ export class PreviewContentDto {
   @IsString()
   @MaxLength(500_000)
   public bodyMarkdown!: string;
+
+  @ApiPropertyOptional({ type: () => ContentCoverAssetDto, nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ContentCoverAssetDto)
+  public cover?: ContentCoverAssetDto | null;
 }
 
 export class CreateContentRevisionDto {

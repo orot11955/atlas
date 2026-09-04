@@ -116,6 +116,7 @@ export class ContentController {
       title: body.title ?? '',
       summary: body.summary,
       bodyMarkdown: body.bodyMarkdown ?? '',
+      cover: body.cover ?? undefined,
     });
 
     return { data: toContentData(content) };
@@ -147,7 +148,13 @@ export class ContentController {
     @Body() body: SaveContentDraftDto,
   ): Promise<{ data: ReturnType<typeof toContentData> }> {
     const workspace = requireAdminWorkspace(request);
-    const content = await this.contentService.saveDraft(workspace.id, contentId, body);
+    const content = await this.contentService.saveDraft(workspace.id, contentId, {
+      draftVersion: body.draftVersion,
+      title: body.title,
+      summary: body.summary,
+      bodyMarkdown: body.bodyMarkdown,
+      cover: body.cover ?? undefined,
+    });
 
     return { data: toContentData(content) };
   }
@@ -166,6 +173,7 @@ export class ContentController {
         title: body.title ?? '',
         summary: body.summary,
         bodyMarkdown: body.bodyMarkdown,
+        cover: body.cover ?? undefined,
       }),
     };
   }
@@ -281,6 +289,7 @@ function toContentData(content: Readonly<ContentRecord>) {
       title: content.draft.title,
       summary: content.draft.summary ?? null,
       bodyMarkdown: content.draft.bodyMarkdown,
+      cover: content.draft.cover ?? null,
       draftVersion: content.draft.draftVersion,
       updatedByAdminAccountId: content.draft.updatedByAdminAccountId,
       updatedAt: content.draft.updatedAt.toISOString(),
@@ -298,6 +307,7 @@ function toRevisionData(revision: Readonly<ContentRevisionRecord>) {
     summary: revision.summary ?? null,
     bodyMarkdown: revision.bodyMarkdown,
     bodyHtml: revision.bodyHtml,
+    cover: revision.cover ?? null,
     sourceDraftVersion: revision.sourceDraftVersion,
     note: revision.note ?? null,
     createdByAdminAccountId: revision.createdByAdminAccountId,

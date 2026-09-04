@@ -26,6 +26,7 @@ const MAX_CONTENT_ASSET_REFERENCES = 100;
 const MAX_PUBLICATION_ASSET_MANIFEST_BYTES = 1_048_576;
 
 export const AssetUsageKind = {
+  COVER: 'cover',
   INLINE: 'inline',
 } as const;
 
@@ -43,6 +44,7 @@ export interface ContentAssetTargetRecord {
   id: string;
   kind: AssetKindType;
   status: AssetStatusType;
+  archivedAt?: Date;
 }
 
 export interface AssetUsageRecord extends ContentAssetReference {
@@ -54,6 +56,7 @@ export interface AssetUsageRecord extends ContentAssetReference {
 
 export interface ContentAssetPublicationSourceRecord {
   usage: AssetUsageRecord;
+  asset?: ContentAssetTargetRecord;
   variants: readonly AssetVariantRecord[];
 }
 
@@ -106,13 +109,21 @@ export function assertContentAssetReferencesReady(
 
   const unavailableAssetIds = referencedIds.filter((assetId) => {
     const target = targetsById.get(assetId);
-    return target?.kind !== AssetKind.IMAGE || target.status !== AssetStatus.READY;
+    return (
+      target?.kind !== AssetKind.IMAGE ||
+      target.status !== AssetStatus.READY ||
+      target.archivedAt !== undefined
+    );
   });
 
   if (unavailableAssetIds.length > 0) {
-    throw validationError('bodyMarkdown', 'Content references Assets that are not READY images.', {
-      assetIds: unavailableAssetIds,
-    });
+    throw validationError(
+      'bodyMarkdown',
+      'Content references Assets that are not available READY images.',
+      {
+        assetIds: unavailableAssetIds,
+      },
+    );
   }
 }
 
@@ -127,14 +138,34 @@ export function createContentPublicationAssetManifest(
     );
   }
 
-  const sortedSources = [...sources].sort(
-    (left, right) => left.usage.ordinal - right.usage.ordinal,
+  assertContentAssetReferencesReady(
+    sources.map((source) => source.usage),
+    sources.flatMap((source) => (source.asset ? [source.asset] : [])),
   );
-  const manifest = sortedSources.map((source, index) => {
-    if (source.usage.ordinal !== index + 1) {
-      throw publicationAssetStateError('Content Asset usage ordinals are not contiguous.');
-    }
 
+  for (const source of sources) {
+    if (!source.asset || source.asset.id !== source.usage.assetId) {
+      throw publicationAssetStateError('Content Asset source does not match its Usage.');
+    }
+  }
+
+  const coverSources = sources.filter((source) => source.usage.kind === AssetUsageKind.COVER);
+  const inlineSources = sources
+    .filter((source) => source.usage.kind === AssetUsageKind.INLINE)
+    .sort((left, right) => left.usage.ordinal - right.usage.ordinal);
+
+  if (coverSources.length > 1 || coverSources.some((source) => source.usage.ordinal !== 0)) {
+    throw publicationAssetStateError('Content can contain at most one ordinal-zero Cover Asset.');
+  }
+
+  for (const [index, source] of inlineSources.entries()) {
+    if (source.usage.ordinal !== index + 1) {
+      throw publicationAssetStateError('Content inline Asset usage ordinals are not contiguous.');
+    }
+  }
+
+  const sortedSources = [...coverSources, ...inlineSources];
+  const manifest = sortedSources.map((source) => {
     const variantsByKey = new Map<AssetVariantKeyType, AssetVariantRecord>();
 
     for (const variant of source.variants) {
@@ -209,9 +240,10 @@ export function renderContentPublicationBodyHtml(
   manifest: readonly Readonly<ContentPublicationAssetSnapshot>[],
 ): string {
   const references = scanContentAssetReferences(bodyMarkdown);
-  const manifestByOrdinal = new Map(manifest.map((entry) => [entry.ordinal, entry]));
+  const inlineManifest = manifest.filter((entry) => entry.kind === AssetUsageKind.INLINE);
+  const manifestByOrdinal = new Map(inlineManifest.map((entry) => [entry.ordinal, entry]));
 
-  if (references.length !== manifest.length) {
+  if (references.length !== inlineManifest.length) {
     throw publicationAssetStateError(
       'Content Publication Asset Manifest does not match the READY Revision.',
     );

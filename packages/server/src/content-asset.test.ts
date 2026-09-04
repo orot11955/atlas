@@ -90,6 +90,19 @@ test('READY Content accepts only Workspace-scoped READY image Assets', () => {
       },
     ]),
   );
+
+  assert.throws(
+    () =>
+      assertContentAssetReferencesReady(references.slice(0, 1), [
+        {
+          id: readyAssetId,
+          kind: AssetKind.IMAGE,
+          status: AssetStatus.READY,
+          archivedAt: new Date(1),
+        },
+      ]),
+    DomainError,
+  );
 });
 
 test('Publication Asset Manifest snapshots all public variants and renders immutable picture HTML', () => {
@@ -111,6 +124,7 @@ test('Publication Asset Manifest snapshots all public variants and renders immut
           caption: 'Public & immutable',
           createdAt: new Date(1),
         },
+        asset: { id: assetId, kind: AssetKind.IMAGE, status: AssetStatus.READY },
         variants: ASSET_IMAGE_VARIANT_SPECS.map((spec, index) => ({
           id: createUuidV7(40 + index),
           workspaceId,
@@ -167,6 +181,7 @@ test('Publication Asset Manifest rejects incomplete Variant sets', () => {
               altText: '',
               createdAt: new Date(1),
             },
+            asset: { id: assetId, kind: AssetKind.IMAGE, status: AssetStatus.READY },
             variants: [],
           },
         ],
@@ -174,4 +189,74 @@ test('Publication Asset Manifest rejects incomplete Variant sets', () => {
       ),
     DomainError,
   );
+});
+
+test('Publication Asset Manifest keeps Cover metadata without injecting it into body HTML', () => {
+  const workspaceId = createUuidV7(70);
+  const revisionId = createUuidV7(71);
+  const coverAssetId = createUuidV7(72);
+  const inlineAssetId = createUuidV7(73);
+  const variants = (assetId: string) =>
+    ASSET_IMAGE_VARIANT_SPECS.map((spec, index) => ({
+      id: createUuidV7(80 + index),
+      workspaceId,
+      assetId,
+      key: spec.key,
+      format: spec.format,
+      contentType: assetVariantContentType(spec.format),
+      width: Math.min(spec.maximumWidth, 1_200),
+      height: Math.min(spec.maximumWidth, 1_200),
+      byteSize: 1_024,
+      sha256: 'c'.repeat(64),
+      objectKey: `assets/${assetId}/${spec.key}.${spec.format}`,
+      etag: `${assetId}-${spec.key}`,
+      createdAt: new Date(1),
+    }));
+  const manifest = createContentPublicationAssetManifest(
+    [
+      {
+        usage: {
+          id: createUuidV7(74),
+          workspaceId,
+          assetId: coverAssetId,
+          revisionId,
+          ordinal: 0,
+          kind: AssetUsageKind.COVER,
+          altText: 'Cover image',
+          caption: 'Cover caption',
+          createdAt: new Date(1),
+        },
+        asset: { id: coverAssetId, kind: AssetKind.IMAGE, status: AssetStatus.READY },
+        variants: variants(coverAssetId),
+      },
+      {
+        usage: {
+          id: createUuidV7(75),
+          workspaceId,
+          assetId: inlineAssetId,
+          revisionId,
+          ordinal: 1,
+          kind: AssetUsageKind.INLINE,
+          altText: 'Inline image',
+          createdAt: new Date(1),
+        },
+        asset: { id: inlineAssetId, kind: AssetKind.IMAGE, status: AssetStatus.READY },
+        variants: variants(inlineAssetId),
+      },
+    ],
+    (objectKey) => `https://assets.atlas.test/${objectKey}`,
+  );
+
+  assert.equal(manifest[0]?.kind, AssetUsageKind.COVER);
+  assert.equal(manifest[0]?.ordinal, 0);
+  assert.equal(manifest[1]?.kind, AssetUsageKind.INLINE);
+
+  const html = renderContentPublicationBodyHtml(
+    `![Inline image](asset://${inlineAssetId})`,
+    manifest,
+  );
+
+  assert.equal((html.match(/<picture/gu) ?? []).length, 1);
+  assert.match(html, new RegExp(inlineAssetId, 'u'));
+  assert.doesNotMatch(html, new RegExp(coverAssetId, 'u'));
 });

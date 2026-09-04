@@ -18,8 +18,28 @@ export interface Asset {
   uploadedAt: string | null;
   processedAt: string | null;
   failedAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AssetUsage {
+  id: string;
+  contentId: string;
+  revisionId: string;
+  revisionNumber: number;
+  contentTitle: string;
+  kind: 'inline' | 'cover';
+  ordinal: number;
+  altText: string;
+  caption: string | null;
+  activePublicationCount: number;
+  createdAt: string;
+}
+
+export interface AssetUsageResult {
+  asset: Asset;
+  items: readonly AssetUsage[];
 }
 
 export type AssetVariantKey = 'webp-320' | 'webp-768' | 'webp-1280' | 'avif-1920';
