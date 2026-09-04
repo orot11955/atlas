@@ -43,6 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 scripts/phase9-schedule-snapshot-bootstrap-once.py
           python3 scripts/phase9-schedule-snapshot-once.py
           pnpm exec prettier --write .
           git diff --check
@@ -61,8 +62,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -f scripts/phase9-schedule-snapshot-bootstrap-once.py
           rm -f scripts/phase9-schedule-snapshot-once.py
           rm -f .github/workflows/apply-phase9-schedule-snapshot-once.yml
+          test ! -e scripts/phase9-schedule-snapshot-bootstrap-once.py
           test ! -e scripts/phase9-schedule-snapshot-once.py
           test ! -e .github/workflows/apply-phase9-schedule-snapshot-once.yml
 
