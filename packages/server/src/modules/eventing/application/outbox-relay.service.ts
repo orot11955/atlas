@@ -251,6 +251,7 @@ export class OutboxConsumerService<TTransaction> {
         event.workspaceId,
         event.siteId,
         event.eventType,
+        event.createdAt,
       );
       const deliveries = [];
       for (const endpoint of endpoints) {

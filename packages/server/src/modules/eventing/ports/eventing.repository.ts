@@ -195,6 +195,7 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     workspaceId: string,
     siteId: string,
     eventType: WebhookEventType,
+    occurredAt: Date,
   ): Promise<readonly WebhookEndpointRecord[]>;
   insertWebhookDeliveryIfAbsent(
     input: InsertWebhookDeliveryInput,

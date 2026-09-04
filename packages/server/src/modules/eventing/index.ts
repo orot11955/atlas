@@ -9,9 +9,13 @@ export * from './infrastructure/crypto/node-webhook-secret-generator';
 export * from './infrastructure/http/node-webhook-sender';
 export * from './infrastructure/persistence/eventing.entities';
 export {
-  SafeTypeOrmEventingRepository as TypeOrmEventingRepository,
+  SafeTypeOrmEventingRepository,
   unwrapTypeOrmMutationRows,
 } from './infrastructure/persistence/safe-typeorm-eventing.repository';
+export {
+  SubscriptionAwareTypeOrmEventingRepository,
+  SubscriptionAwareTypeOrmEventingRepository as TypeOrmEventingRepository,
+} from './infrastructure/persistence/subscription-aware-typeorm-eventing.repository';
 export {
   TypeOrmEventingRepository as BaseTypeOrmEventingRepository,
 } from './infrastructure/persistence/typeorm-eventing.repository';
