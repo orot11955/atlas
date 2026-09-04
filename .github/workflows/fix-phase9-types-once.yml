@@ -1,0 +1,205 @@
+name: Fix Phase 9 Types Once
+
+on:
+  push:
+    branches:
+      - feat/outbox-webhook-scheduling
+    paths:
+      - .github/workflows/fix-phase9-types-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atlas-fix-phase9-types-once
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/outbox-webhook-scheduling
+          fetch-depth: 0
+
+      - name: Complete Phase 9 type contracts
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          port_path = Path('packages/server/src/modules/content/ports/content-publication.repository.ts')
+          port = port_path.read_text(encoding='utf-8')
+          port_marker = """  findPublishableContentForUpdate(
+              workspaceId: string,
+              contentId: string,
+              transaction: TTransaction,
+            ): Promise<PublishableContentRecord | undefined>;
+            findActivePublication(
+          """
+          port_replacement = """  findPublishableContentForUpdate(
+              workspaceId: string,
+              contentId: string,
+              transaction: TTransaction,
+            ): Promise<PublishableContentRecord | undefined>;
+            findPublishableRevisionForUpdate(
+              workspaceId: string,
+              contentId: string,
+              revisionId: string,
+              transaction: TTransaction,
+            ): Promise<PublishableContentRecord | undefined>;
+            findActivePublication(
+          """
+          if port.count(port_marker) != 1:
+              raise SystemExit('Unexpected ContentPublicationRepositoryPort marker count')
+          port_path.write_text(port.replace(port_marker, port_replacement), encoding='utf-8')
+
+          adapter_path = Path(
+              'packages/server/src/modules/content/infrastructure/persistence/'
+              'typeorm-content-publication.repository.ts'
+          )
+          adapter = adapter_path.read_text(encoding='utf-8')
+          adapter_marker = '  public async findActivePublication(\n'
+          adapter_method = """  public async findPublishableRevisionForUpdate(
+              workspaceId: string,
+              contentId: string,
+              revisionId: string,
+              transaction: EntityManager,
+            ): Promise<PublishableContentRecord | undefined> {
+              const content = await transaction
+                .getRepository(ContentEntity)
+                .createQueryBuilder('content')
+                .setLock('pessimistic_write')
+                .where('content.id = :contentId', { contentId })
+                .andWhere('content.workspace_id = :workspaceId', { workspaceId })
+                .getOne();
+
+              if (!content) {
+                return undefined;
+              }
+
+              const revision = await transaction.getRepository(ContentRevisionEntity).findOne({
+                where: {
+                  id: revisionId,
+                  workspaceId,
+                  contentId,
+                  kind: ContentRevisionKind.READY,
+                },
+              });
+
+              return {
+                id: content.id,
+                workspaceId: content.workspaceId,
+                type: content.type,
+                status: content.status,
+                readyRevisionNumber: content.readyRevisionNumber ?? undefined,
+                ...(revision
+                  ? {
+                      revision: {
+                        id: revision.id,
+                        contentId: revision.contentId,
+                        workspaceId: revision.workspaceId,
+                        revisionNumber: revision.revisionNumber,
+                        kind: revision.kind,
+                        title: revision.title,
+                        summary: revision.summary ?? undefined,
+                        bodyMarkdown: revision.bodyMarkdown,
+                        bodyHtml: revision.bodyHtml,
+                        sourceDraftVersion: revision.sourceDraftVersion,
+                        note: revision.note ?? undefined,
+                        createdByAdminAccountId: revision.createdByAdminAccountId,
+                        createdAt: new Date(revision.createdAt),
+                      },
+                    }
+                  : {}),
+              };
+            }
+
+          """
+          if adapter.count(adapter_marker) != 1:
+              raise SystemExit('Unexpected TypeOrmContentPublicationRepository marker count')
+          adapter_path.write_text(
+              adapter.replace(adapter_marker, adapter_method + adapter_marker),
+              encoding='utf-8',
+          )
+
+          sender_path = Path(
+              'packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts'
+          )
+          sender = sender_path.read_text(encoding='utf-8')
+          sender_old = """    if (family !== 0) {
+              if (!this.options.allowPrivateNetwork && isPrivateHostname(hostname)) {
+                throw new Error('Webhook URL resolved to a private network host.');
+              }
+
+              return { address: hostname, family };
+            }
+          """
+          sender_new = """    if (family === 4 || family === 6) {
+              if (!this.options.allowPrivateNetwork && isPrivateHostname(hostname)) {
+                throw new Error('Webhook URL resolved to a private network host.');
+              }
+
+              return { address: hostname, family };
+            }
+          """
+          if sender.count(sender_old) != 1:
+              raise SystemExit('Unexpected NodeWebhookSender family marker count')
+          sender_path.write_text(sender.replace(sender_old, sender_new), encoding='utf-8')
+
+          eventing_repository_path = Path(
+              'packages/server/src/modules/eventing/infrastructure/persistence/'
+              'typeorm-eventing.repository.ts'
+          )
+          eventing_repository = eventing_repository_path.read_text(encoding='utf-8')
+          payload_old = '      payloadJson: { ...input.payload, data: { ...input.payload.data } },\n'
+          payload_new = (
+              '      payloadJson: { ...input.payload, data: { ...input.payload.data } } as never,\n'
+          )
+          if eventing_repository.count(payload_old) != 1:
+              raise SystemExit('Unexpected Outbox payload marker count')
+          eventing_repository_path.write_text(
+              eventing_repository.replace(payload_old, payload_new),
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install, format and verify Server build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write \
+            packages/server/src/modules/content/ports/content-publication.repository.ts \
+            packages/server/src/modules/content/infrastructure/persistence/typeorm-content-publication.repository.ts \
+            packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts
+          pnpm --filter @atlas/server build
+          git diff --check
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            packages/server/src/modules/content/ports/content-publication.repository.ts \
+            packages/server/src/modules/content/infrastructure/persistence/typeorm-content-publication.repository.ts \
+            packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts
+          git commit -m 'fix: complete Phase 9 publication and persistence contracts'
+          git push origin HEAD:feat/outbox-webhook-scheduling
