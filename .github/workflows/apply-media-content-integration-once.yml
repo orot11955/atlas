@@ -1,0 +1,79 @@
+name: Apply Media Content Integration Once
+
+on:
+  push:
+    branches:
+      - feat/media-content-integration
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atlas-apply-media-content-integration-once
+  cancel-in-progress: false
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PATCH_URL: https://filebin.net/atlas-phase8-content-20260904-a9c3/atlas-phase8-content.patch
+      PATCH_SHA_URL: https://filebin.net/atlas-phase8-content-20260904-a9c3/atlas-phase8-content.patch.sha256
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-content-integration
+          fetch-depth: 0
+
+      - name: Download and verify patch
+        run: |
+          curl --fail --show-error --silent --location "$PATCH_URL" --output atlas-phase8-content.patch
+          curl --fail --show-error --silent --location "$PATCH_SHA_URL" --output atlas-phase8-content.patch.sha256
+          sha256sum --check atlas-phase8-content.patch.sha256
+
+      - name: Apply verified patch
+        run: |
+          if git apply --check atlas-phase8-content.patch; then
+            git apply --index atlas-phase8-content.patch
+          elif git apply --reverse --check atlas-phase8-content.patch; then
+            echo 'Verified patch is already applied.'
+          else
+            git apply --3way --index atlas-phase8-content.patch
+          fi
+          rm -f atlas-phase8-content.patch atlas-phase8-content.patch.sha256
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify repository
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Remove one-time workflow and commit
+        run: |
+          rm -f .github/workflows/apply-media-content-integration-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: integrate Media Assets with Content publication'
+          git push origin HEAD:feat/media-content-integration
