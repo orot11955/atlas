@@ -59,6 +59,40 @@ const mediaProcessingSchema = z.object({
   ASSET_PROCESSING_STALE_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
 });
 
+const eventingSecuritySchema = z.object({
+  WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64: z.string().refine(isBase64Encoded32ByteKey, {
+    message: 'WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64 must encode exactly 32 bytes.',
+  }),
+  WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/u)
+    .default('v1'),
+  WEBHOOK_ALLOW_HTTP: environmentBoolean.default(false),
+  WEBHOOK_ALLOW_PRIVATE_NETWORK: environmentBoolean.default(false),
+  WEBHOOK_DELIVERY_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(10_000),
+  WEBHOOK_ENDPOINT_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(100).default(5),
+});
+
+const eventingWorkerSchema = z.object({
+  OUTBOX_RELAY_POLL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+  OUTBOX_RELAY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(50),
+  OUTBOX_CLAIM_TIMEOUT_SECONDS: z.coerce.number().int().min(30).max(86_400).default(300),
+  OUTBOX_RELAY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(10),
+  EVENTING_QUEUE_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
+  WEBHOOK_DELIVERY_POLL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+  WEBHOOK_DELIVERY_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+  WEBHOOK_DELIVERY_CLAIM_TIMEOUT_SECONDS: z.coerce.number().int().min(30).max(86_400).default(300),
+  WEBHOOK_RESPONSE_MAX_BYTES: z.coerce.number().int().min(128).max(65_536).default(4_096),
+  PUBLICATION_SCHEDULE_POLL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+  PUBLICATION_SCHEDULE_BATCH_SIZE: z.coerce.number().int().min(1).max(200).default(25),
+  PUBLICATION_SCHEDULE_CLAIM_TIMEOUT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(30)
+    .max(86_400)
+    .default(300),
+});
+
 const adminAuthenticationSchema = z.object({
   TRUST_PROXY: z.string().default('loopback, linklocal, uniquelocal'),
   AUTH_LOGIN_IP_LIMIT: z.coerce.number().int().min(1).max(10_000).default(30),
@@ -111,6 +145,7 @@ export const apiEnvironmentSchema = runtimeSchema.extend({
   ...adminAuthenticationSchema.shape,
   ...apiClientSchema.shape,
   ...mediaQueueSchema.shape,
+  ...eventingSecuritySchema.shape,
   ...storageSchema.shape,
 });
 
@@ -120,6 +155,8 @@ export const workerEnvironmentSchema = runtimeSchema.extend({
   SYSTEM_QUEUE_NAME: z.string().min(1).default('atlas-system'),
   ...mediaQueueSchema.shape,
   ...mediaProcessingSchema.shape,
+  ...eventingSecuritySchema.shape,
+  ...eventingWorkerSchema.shape,
   ...storageSchema.shape,
 });
 

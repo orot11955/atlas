@@ -12,6 +12,7 @@ const activeItems = [
   { href: '/admin/resources', label: '자료실', exact: false },
   { href: '/admin/members', label: '회원', exact: false },
   { href: '/admin/contents', label: '콘텐츠', exact: false },
+  { href: '/admin/webhooks', label: 'Webhook', exact: false },
   { href: '/admin/security/sessions', label: '활성 Session', exact: false },
 ] as const;
 

@@ -14,7 +14,7 @@ import {
   freezeContentPublicationAssetManifest,
   renderContentPublicationBodyHtml,
 } from '../domain/content-asset';
-import type { ContentType } from '../domain/content';
+import { ContentRevisionKind, ContentStatus, type ContentType } from '../domain/content';
 import {
   ContentPublicationStatus,
   ContentSiteVisibility,
@@ -39,6 +39,8 @@ import type {
   ContentPublicationRepositoryPort,
   DeliveryContentCursor,
 } from '../ports/content-publication.repository';
+import { EventType } from '../../eventing/domain/eventing';
+import type { OutboxRecorderPort } from '../../eventing/ports/outbox-recorder.port';
 import type { PublicAssetUrlBuilderPort } from '../ports/public-asset-url-builder.port';
 
 export interface CreateContentSiteInput {
@@ -83,6 +85,7 @@ export class ContentPublicationService<TTransaction> {
     private readonly assetRepository: ContentAssetRepositoryPort<TTransaction>,
     private readonly publicAssetUrlBuilder: PublicAssetUrlBuilderPort,
     private readonly clock: Clock = systemClock,
+    private readonly outboxService?: OutboxRecorderPort<TTransaction>,
   ) {}
 
   public async listContentSites(
@@ -252,10 +255,36 @@ export class ContentPublicationService<TTransaction> {
     }
   }
 
-  public async publish(
+  public publish(
     workspaceId: string,
     contentId: string,
     contentSiteId: string,
+  ): Promise<Readonly<ContentPublicationMutationResult>> {
+    return this.publishWithRevision(workspaceId, contentId, contentSiteId);
+  }
+
+  public publishRevision(
+    workspaceId: string,
+    contentId: string,
+    contentSiteId: string,
+    revisionId: string,
+  ): Promise<Readonly<ContentPublicationMutationResult>> {
+    if (!isUuidV7(revisionId)) {
+      throw new DomainError({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'Scheduled Publication revision ID must be a UUIDv7.',
+        details: { field: 'revisionId' },
+      });
+    }
+
+    return this.publishWithRevision(workspaceId, contentId, contentSiteId, revisionId);
+  }
+
+  private async publishWithRevision(
+    workspaceId: string,
+    contentId: string,
+    contentSiteId: string,
+    revisionId?: string,
   ): Promise<Readonly<ContentPublicationMutationResult>> {
     const actorId = requireAdminActorId();
     const publishedAt = this.clock.now();
@@ -274,7 +303,14 @@ export class ContentPublicationService<TTransaction> {
         }
 
         const [content, site] = await Promise.all([
-          this.repository.findPublishableContentForUpdate(workspaceId, contentId, transaction),
+          revisionId
+            ? this.repository.findPublishableRevisionForUpdate(
+                workspaceId,
+                contentId,
+                revisionId,
+                transaction,
+              )
+            : this.repository.findPublishableContentForUpdate(workspaceId, contentId, transaction),
           this.repository.findSiteTarget(workspaceId, contentSite.siteId, transaction),
         ]);
 
@@ -285,7 +321,9 @@ export class ContentPublicationService<TTransaction> {
           throw siteNotFoundError();
         }
 
-        const revision = assertContentPublishable(content);
+        const revision = revisionId
+          ? assertScheduledRevisionPublishable(content, revisionId)
+          : assertContentPublishable(content);
         assertSitePublishable(site.status);
         const assetSources = await this.assetRepository.listRevisionPublicationSources(
           workspaceId,
@@ -365,6 +403,29 @@ export class ContentPublicationService<TTransaction> {
               replacedPublicationId: active?.id,
               slug: snapshot.slug,
               visibility: snapshot.visibility,
+              scheduled: revisionId !== undefined,
+            },
+          },
+          transaction,
+        );
+        await this.outboxService?.record(
+          {
+            workspaceId,
+            siteId: contentSite.siteId,
+            aggregateType: 'content-publication',
+            aggregateId: publication.id,
+            eventType: EventType.CONTENT_PUBLISHED,
+            data: {
+              publicationId: publication.id,
+              contentId,
+              contentSiteId,
+              revisionId: revision.id,
+              revisionNumber: revision.revisionNumber,
+              replacedPublicationId: active?.id ?? null,
+              slug: snapshot.slug,
+              visibility: snapshot.visibility,
+              etag,
+              scheduled: revisionId !== undefined,
             },
           },
           transaction,
@@ -432,6 +493,25 @@ export class ContentPublicationService<TTransaction> {
             siteId: contentSite.siteId,
             revisionId: active.revisionId,
             revisionNumber: active.revisionNumber,
+          },
+        },
+        transaction,
+      );
+      await this.outboxService?.record(
+        {
+          workspaceId,
+          siteId: contentSite.siteId,
+          aggregateType: 'content-publication',
+          aggregateId: active.id,
+          eventType: EventType.CONTENT_UNPUBLISHED,
+          data: {
+            publicationId: active.id,
+            contentId,
+            contentSiteId,
+            revisionId: active.revisionId,
+            revisionNumber: active.revisionNumber,
+            slug: active.slug,
+            etag: active.etag,
           },
         },
         transaction,
@@ -561,6 +641,28 @@ export class ContentPublicationService<TTransaction> {
           },
           transaction,
         );
+        await this.outboxService?.record(
+          {
+            workspaceId,
+            siteId: contentSite.siteId,
+            aggregateType: 'content-publication',
+            aggregateId: restored.id,
+            eventType: EventType.CONTENT_PUBLISHED,
+            data: {
+              publicationId: restored.id,
+              contentId,
+              contentSiteId,
+              sourcePublicationId,
+              revisionId: source.revisionId,
+              revisionNumber: source.revisionNumber,
+              replacedPublicationId: active?.id ?? null,
+              slug: source.slug,
+              visibility: source.visibility,
+              etag: source.etag,
+            },
+          },
+          transaction,
+        );
 
         return Object.freeze({ publication: freezePublication(restored), replayed: false });
       });
@@ -657,6 +759,33 @@ function normalizeContentSiteInput(input: {
     seo: normalizeContentSiteSeo(input.seo),
     visibility: normalizeContentSiteVisibility(input.visibility ?? ContentSiteVisibility.PUBLIC),
   };
+}
+
+function assertScheduledRevisionPublishable(
+  content: import('../domain/content-publication').PublishableContentRecord,
+  expectedRevisionId: string,
+) {
+  if (content.status === ContentStatus.ARCHIVED) {
+    throw new DomainError({
+      code: ErrorCode.ACTION_NOT_ALLOWED,
+      message: 'Archived Content cannot be published.',
+    });
+  }
+
+  const revision = content.revision;
+
+  if (
+    !revision ||
+    revision.id !== expectedRevisionId ||
+    revision.kind !== ContentRevisionKind.READY
+  ) {
+    throw new DomainError({
+      code: ErrorCode.INVALID_STATE_TRANSITION,
+      message: 'The scheduled READY Revision is no longer available for publication.',
+    });
+  }
+
+  return revision;
 }
 
 function requireAdminActorId(): string {
