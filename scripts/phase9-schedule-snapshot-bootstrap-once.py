@@ -34,6 +34,19 @@ if tail_start < 0 or tail_end < 0:
 
 tail_end += len(tail_end_marker)
 replacement_tail = r"""
+replace_once(
+    eventing_test,
+    "    contentSiteId: createUuidV7(204),\n    action: 'publish' as const,",
+    "    contentSiteId: createUuidV7(204),\n    revisionId: createUuidV7(206),\n    revisionNumber: 1,\n    action: 'publish' as const,",
+    "duplicate schedule fixture target",
+)
+replace_once(
+    eventing_test,
+    "    contentSiteId: createUuidV7(404),\n    action: PublicationScheduleAction.PUBLISH,",
+    "    contentSiteId: createUuidV7(404),\n    revisionId: createUuidV7(406),\n    revisionNumber: 1,\n    action: PublicationScheduleAction.PUBLISH,",
+    "retry schedule fixture target",
+)
+
 workflow_path = ".github/workflows/eventing-data-gate.yml"
 
 
