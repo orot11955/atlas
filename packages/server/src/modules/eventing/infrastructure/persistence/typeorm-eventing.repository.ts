@@ -169,7 +169,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       aggregateId: input.aggregateId,
       eventType: input.eventType,
       schemaVersion: input.schemaVersion,
-      payloadJson: { ...input.payload, data: { ...input.payload.data } },
+      payloadJson: { ...input.payload, data: { ...input.payload.data } } as never,
       status: input.status,
       availableAt: input.availableAt,
       claimedAt: input.claimedAt ?? null,

@@ -312,6 +312,16 @@ class FakeContentPublicationRepository implements ContentPublicationRepositoryPo
     };
   }
 
+  public async findPublishableRevisionForUpdate(
+    _workspaceId: string,
+    _contentId: string,
+    revisionId: string,
+  ): Promise<PublishableContentRecord | undefined> {
+    const publishable = await this.findPublishableContentForUpdate();
+
+    return publishable?.revision?.id === revisionId ? publishable : undefined;
+  }
+
   public async findActivePublication(): Promise<ContentPublicationRecord | undefined> {
     return this.publications.find(
       (publication) => publication.status === ContentPublicationStatus.ACTIVE,

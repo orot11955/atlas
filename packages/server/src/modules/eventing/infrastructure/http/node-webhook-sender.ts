@@ -45,7 +45,7 @@ export class NodeWebhookSender implements WebhookSenderPort {
     const hostname = hostnameValue.replace(/^\[|\]$/gu, '');
     const family = isIP(hostname);
 
-    if (family !== 0) {
+    if (family === 4 || family === 6) {
       if (!this.options.allowPrivateNetwork && isPrivateHostname(hostname)) {
         throw new Error('Webhook URL resolved to a private network host.');
       }

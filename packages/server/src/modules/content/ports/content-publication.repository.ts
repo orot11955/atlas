@@ -108,6 +108,12 @@ export interface ContentPublicationRepositoryPort<TTransaction = unknown> {
     contentId: string,
     transaction: TTransaction,
   ): Promise<PublishableContentRecord | undefined>;
+  findPublishableRevisionForUpdate(
+    workspaceId: string,
+    contentId: string,
+    revisionId: string,
+    transaction: TTransaction,
+  ): Promise<PublishableContentRecord | undefined>;
   findActivePublication(
     workspaceId: string,
     contentSiteId: string,
