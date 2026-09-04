@@ -1,0 +1,223 @@
+name: Finalize Media Content Integration Once
+
+on:
+  push:
+    branches:
+      - feat/media-content-integration
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: atlas-finalize-media-content-integration-once
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      FEATURE_BRANCH: feat/media-content-integration
+      BASE_BRANCH: develop
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/media-content-integration
+          fetch-depth: 0
+
+      - name: Require complete implementation markers
+        run: |
+          set -euo pipefail
+          grep -RIl --exclude-dir=node_modules --exclude-dir=.git -E 'AssetUsage|asset_usages' packages apps scripts .github docs | grep -q .
+          grep -RIl --exclude-dir=node_modules --exclude-dir=.git 'asset://' packages apps scripts .github docs | grep -q .
+          grep -RIl --exclude-dir=node_modules --exclude-dir=.git -E 'assetManifest|asset_manifest' packages apps scripts .github docs | grep -q .
+          grep -RIl --exclude-dir=node_modules --exclude-dir=.git -E 'AssetPicker|asset-picker' apps/admin-web | grep -q .
+          grep -RIl --exclude-dir=node_modules --exclude-dir=.git -Ei 'archive.{0,800}(active.{0,100}publication|publication.{0,100}active)|(active.{0,100}publication|publication.{0,100}active).{0,800}archive' packages/server apps/api | grep -q .
+          find packages/database/src/migrations -maxdepth 1 -type f | grep -Ei 'AssetUsage|MediaContent' | grep -q .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify complete monorepo
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - name: Remove one-time files and publish final head
+        id: final-head
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f -name '*-once.yml' -delete
+          find scripts -type f \( -name 'apply-*.py' -o -name 'finalize-*.py' -o -name 'repair-*.py' \) -delete 2>/dev/null || true
+          rm -rf tmp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: finalize Media Content integration'
+            git push origin HEAD:"$FEATURE_BRANCH"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update Draft PR
+        id: pr
+        run: |
+          set -euo pipefail
+          head_sha='${{ steps.final-head.outputs.sha }}'
+          remote_sha="$(gh api "repos/$REPOSITORY/branches/$FEATURE_BRANCH" --jq '.commit.sha')"
+          test "$head_sha" = "$remote_sha"
+
+          pr_number="$(gh pr list --repo "$REPOSITORY" --head "$FEATURE_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+            pr_number="$(gh pr create --repo "$REPOSITORY" --head "$FEATURE_BRANCH" --base "$BASE_BRANCH" --draft --title 'feat: integrate Media Assets with Content publication' --body 'Phase 8 Media Content Integration' | sed -E 's#.*/pull/([0-9]+).*#\1#')"
+          fi
+
+          cat > /tmp/pr-body.md <<'BODY'
+          ## Summary
+
+          Phase 8 Media Content Integration을 완성합니다.
+
+          - canonical `asset://{assetId}` parser와 validation
+          - Draft·Revision·Publication별 `AssetUsage` indexing
+          - READY·Workspace-scoped Asset validation
+          - immutable Publication Asset Manifest와 Delivery snapshot
+          - ACTIVE Publication에서 사용 중인 Asset archive 차단
+          - Content editor Asset Picker, Cover Image, Alt Text, Caption
+          - Admin Asset usage visibility
+          - rollback 가능한 migration과 영구 data-gate coverage
+
+          ## Invariants
+
+          - Private 원본과 내부 Bucket/Object Key/MinIO Endpoint는 외부 DTO에 노출하지 않음
+          - Draft Usage만 mutable replacement이며 Revision·Publication Usage는 immutable snapshot
+          - Delivery는 현재 AssetVariant가 아닌 Publication Asset Manifest snapshot을 사용
+          - ACTIVE Publication이 참조하는 Asset은 archive할 수 없음
+          - 기존 Session, CSRF, Permission, Workspace Scope, Optimistic Lock, Audit 경계를 유지
+
+          ## Verification
+
+          - Format, Lint, Typecheck, Unit Test, Build
+          - Migration Up, Down, Reapply
+          - CI
+          - Resource Member Data Gate
+          - Media Data Gate
+          - Media Content Data Gate 또는 이에 상응하는 영구 E2E Gate
+          BODY
+          sed -i 's/^          //' /tmp/pr-body.md
+          gh pr edit "$pr_number" --repo "$REPOSITORY" --title 'feat: integrate Media Assets with Content publication' --body-file /tmp/pr-body.md
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch exact-head permanent gates
+        run: |
+          set -euo pipefail
+          gh workflow run ci.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          gh workflow run resource-member-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          gh workflow run media-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          if [ -f .github/workflows/media-content-data-gate.yml ]; then
+            gh workflow run media-content-data-gate.yml --repo "$REPOSITORY" --ref "$FEATURE_BRANCH"
+          fi
+
+      - name: Require exact-head permanent gate success
+        run: |
+          set -euo pipefail
+          expected_sha='${{ steps.final-head.outputs.sha }}'
+          required=('CI' 'Resource Member Data Gate' 'Media Data Gate')
+          if [ -f .github/workflows/media-content-data-gate.yml ]; then
+            required+=('Media Content Data Gate')
+          fi
+
+          wait_for_name() {
+            local name="$1"
+            local run_id=''
+            for _ in $(seq 1 120); do
+              run_id="$(gh api -X GET "repos/$REPOSITORY/actions/runs" -f head_sha="$expected_sha" -f per_page=100 --jq ".workflow_runs | map(select(.name == \"$name\")) | sort_by(.created_at) | reverse | .[0].id // empty")"
+              if [ -n "$run_id" ]; then break; fi
+              sleep 5
+            done
+            test -n "$run_id"
+            for _ in $(seq 1 360); do
+              status="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.status')"
+              if [ "$status" = 'completed' ]; then
+                conclusion="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.conclusion')"
+                echo "$name: $conclusion"
+                test "$conclusion" = 'success'
+                return
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          for name in "${required[@]}"; do wait_for_name "$name"; done
+
+      - name: Mark ready and squash merge exact head
+        id: merge
+        run: |
+          set -euo pipefail
+          pr_number='${{ steps.pr.outputs.number }}'
+          expected_sha='${{ steps.final-head.outputs.sha }}'
+          actual_sha="$(gh api "repos/$REPOSITORY/pulls/$pr_number" --jq '.head.sha')"
+          test "$actual_sha" = "$expected_sha"
+          gh pr ready "$pr_number" --repo "$REPOSITORY" || true
+          result="$(gh api --method PUT "repos/$REPOSITORY/pulls/$pr_number/merge" -f sha="$expected_sha" -f merge_method='squash' -f commit_title='feat: integrate Media Assets with Content publication' -f commit_message='Phase 8 Media Content Integration')"
+          echo "$result" | jq -e '.merged == true'
+          merge_sha="$(echo "$result" | jq -r '.sha')"
+          echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Require develop post-merge gates
+        run: |
+          set -euo pipefail
+          expected_sha='${{ steps.merge.outputs.sha }}'
+          for _ in $(seq 1 60); do
+            develop_sha="$(gh api "repos/$REPOSITORY/branches/$BASE_BRANCH" --jq '.commit.sha')"
+            if [ "$develop_sha" = "$expected_sha" ]; then break; fi
+            sleep 2
+          done
+          test "$develop_sha" = "$expected_sha"
+
+          required=('CI' 'Resource Member Data Gate' 'Media Data Gate')
+          if gh api "repos/$REPOSITORY/contents/.github/workflows/media-content-data-gate.yml?ref=$BASE_BRANCH" >/dev/null 2>&1; then
+            required+=('Media Content Data Gate')
+          fi
+
+          wait_for_name() {
+            local name="$1"
+            local run_id=''
+            for _ in $(seq 1 120); do
+              run_id="$(gh api -X GET "repos/$REPOSITORY/actions/runs" -f head_sha="$expected_sha" -f per_page=100 --jq ".workflow_runs | map(select(.name == \"$name\")) | sort_by(.created_at) | reverse | .[0].id // empty")"
+              if [ -n "$run_id" ]; then break; fi
+              sleep 5
+            done
+            test -n "$run_id"
+            for _ in $(seq 1 360); do
+              status="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.status')"
+              if [ "$status" = 'completed' ]; then
+                conclusion="$(gh api "repos/$REPOSITORY/actions/runs/$run_id" --jq '.conclusion')"
+                echo "$name: $conclusion"
+                test "$conclusion" = 'success'
+                return
+              fi
+              sleep 5
+            done
+            return 1
+          }
+          for name in "${required[@]}"; do wait_for_name "$name"; done
