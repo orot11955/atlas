@@ -67,7 +67,7 @@ jobs:
             5536179186
             5536191049
             5536205428
-            5536312794
+            0
             5536216655
             5536228410
             5536243097
@@ -81,10 +81,45 @@ jobs:
             expected_hash=${expected_hashes[$index]}
             expected_size=${expected_sizes[$index]}
 
-            id=${comment_ids[$index]}
-            candidate="/tmp/phase9-chunk-$marker-$id"
-            gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
-            python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
+            if [[ "$marker" == '09' ]]; then
+              candidate="/tmp/phase9-chunk-$marker"
+              : > "$candidate"
+              m09_ids=(5536334144 5536338154 5536341478 5536344503 5536346377 5536350413 5536353927 5536355975)
+              m09_hashes=(
+                df8c0f672452a091ca999e886e830ad46e0d720b553d1011407039da8432fcac
+                b4628d76b77f93f98e38225a3d04ae5092e5c280ef604a42368bcf932c19cb39
+                118c445077b288eca6a0048e7f3cb2292b630fa84c060fc96197d29d582216fa
+                5872b603127161d1c14f73dca9c347bb5265c9ea8167bae3fa98387bbeed0746
+                8659071f3fda4f379cc967eebc54eebff61a7844dcc6ea01f4be01683d5be375
+                51734d7c7138ae1a01833c9710c18ee49b733233d0ce156934bd0d30bbd66c22
+                d8a95e7093205f465cf82b88f9227f71a702afdcae5e38f31aeab4ea1cf1656d
+                7e688b23bcf63dbd9933cb94179e8e20ca45bb9f857e3869bb807bf761793c06
+              )
+              for part_index in $(seq 0 7); do
+                part=$(printf '%02d' "$part_index")
+                id=${m09_ids[$part_index]}
+                part_file="/tmp/phase9-marker09-part-$part"
+                gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+                python3 - "/tmp/phase9-comment-$id.json" "$part" "$part_file" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          body = json.load(open(sys.argv[1], encoding='utf-8'))['body']
+          prefix = f'PHASE9_PAYLOAD_09_{sys.argv[2]}\n'
+          if not body.startswith(prefix):
+              raise SystemExit(f'Unexpected marker 09 part: {body[:40]!r}')
+          pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
+          PY
+                test "$(wc -c < "$part_file" | tr -d ' ')" = '800'
+                test "$(sha256sum "$part_file" | awk '{print $1}')" = "${m09_hashes[$part_index]}"
+                cat "$part_file" >> "$candidate"
+              done
+            else
+              id=${comment_ids[$index]}
+              candidate="/tmp/phase9-chunk-$marker-$id"
+              gh api "repos/$REPOSITORY/issues/comments/$id" > "/tmp/phase9-comment-$id.json"
+              python3 - "/tmp/phase9-comment-$id.json" "$marker" "$candidate" <<'PY'
           import json
           import pathlib
           import sys
@@ -95,6 +130,7 @@ jobs:
               raise SystemExit(f'Unexpected payload marker: {body[:32]!r}')
           pathlib.Path(sys.argv[3]).write_text(body[len(prefix):], encoding='utf-8')
           PY
+            fi
 
             actual_size=$(wc -c < "$candidate" | tr -d ' ')
             actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
