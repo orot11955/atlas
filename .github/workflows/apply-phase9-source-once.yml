@@ -134,7 +134,6 @@ jobs:
 
             actual_size=$(wc -c < "$candidate" | tr -d ' ')
             actual_hash=$(sha256sum "$candidate" | awk '{print $1}')
-            echo "marker=$marker size=$actual_size hash=$actual_hash"
             test "$actual_size" = "$expected_size"
             test "$actual_hash" = "$expected_hash"
             cat "$candidate" >> /tmp/phase9-source.b64
@@ -151,7 +150,6 @@ jobs:
           set -euo pipefail
           tar -xjf /tmp/phase9-source.tar.bz2 -C "$GITHUB_WORKSPACE"
           rm -rf tmp
-          rm -f .github/workflows/apply-phase9-source-once.yml
           rm -f scripts/apply-phase9-once.py
 
       - name: Setup Node.js
@@ -172,6 +170,8 @@ jobs:
           pnpm format
           pnpm format:check
           git diff --check
+          git restore --source=HEAD --worktree -- .github/workflows
+          git clean -fd -- .github/workflows
 
       - name: Commit product source
         shell: bash
