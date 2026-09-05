@@ -116,7 +116,8 @@ function ContentEditorSession({ contentId }: Readonly<{ contentId: string }>) {
   }, [dirty, saving]);
 
   async function reload() {
-    if (dirty && !window.confirm('현재 입력을 버리고 서버의 최신 Draft를 불러오시겠습니까?')) return;
+    if (dirty && !window.confirm('현재 입력을 버리고 서버의 최신 Draft를 불러오시겠습니까?'))
+      return;
     setWorking('load');
     setError(undefined);
     try {
@@ -236,7 +237,8 @@ function ContentEditorSession({ contentId }: Readonly<{ contentId: string }>) {
 
   async function restore(revision: ContentRevision) {
     if (!content) return;
-    if (dirty && !window.confirm('현재 입력을 버리고 선택한 Revision으로 복구하시겠습니까?')) return;
+    if (dirty && !window.confirm('현재 입력을 버리고 선택한 Revision으로 복구하시겠습니까?'))
+      return;
     setWorking(`restore-${revision.id}`);
     setError(undefined);
 
