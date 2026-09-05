@@ -122,7 +122,17 @@ async function makeContext(workspace = randomUUID()) {
        body_html, visibility, etag, published_at, created_by_admin_account_id, created_at)
      VALUES ($1, $2, $3, $4, 'post', $5, $6, 'Fixture', $7, 1, 'active', 'fixture',
        'Fixture', '<p>body</p>', 'public', $8, now(), $9, now())`,
-    [publication, workspace, contentSite, content, site, `site-${site}`, revision, 'a'.repeat(64), admin],
+    [
+      publication,
+      workspace,
+      contentSite,
+      content,
+      site,
+      `site-${site}`,
+      revision,
+      'a'.repeat(64),
+      admin,
+    ],
   );
   return { workspace, site, content, contentSite, revision, publication };
 }
@@ -209,31 +219,43 @@ try {
       assert.equal(rows.length, 1);
     });
   }
-  await scenario('upgrade preserves existing data and leaves absent targets NULL', async () => {
-    await migration.up(runner);
-    const after = await runner.query('SELECT * FROM publication_schedules ORDER BY id');
-    assert.deepEqual(
-      after.map(({ target_publication_id: target, ...row }) => {
-        assert.equal(target, null);
-        return row;
-      }),
-      before,
-    );
-  }, false);
+  await scenario(
+    'upgrade preserves existing data and leaves absent targets NULL',
+    async () => {
+      await migration.up(runner);
+      const after = await runner.query('SELECT * FROM publication_schedules ORDER BY id');
+      assert.deepEqual(
+        after.map(({ target_publication_id: target, ...row }) => {
+          assert.equal(target, null);
+          return row;
+        }),
+        before,
+      );
+    },
+    false,
+  );
 
-  await scenario('Entity columns match the expanded table and nullable target can be read', async () => {
-    const columns = await runner.query(
-      `SELECT column_name FROM information_schema.columns
+  await scenario(
+    'Entity columns match the expanded table and nullable target can be read',
+    async () => {
+      const columns = await runner.query(
+        `SELECT column_name FROM information_schema.columns
        WHERE table_schema = $1 AND table_name = 'publication_schedules'`,
-      [schema],
-    );
-    assert.deepEqual(
-      ds.getMetadata(PublicationScheduleEntity).columns.map((column) => column.databaseName).sort(),
-      columns.map((column) => column.column_name).sort(),
-    );
-    const row = await runner.manager.getRepository(PublicationScheduleEntity).findOneByOrFail({ id: legacyId });
-    assert.equal(row.targetPublicationId, null);
-  });
+        [schema],
+      );
+      assert.deepEqual(
+        ds
+          .getMetadata(PublicationScheduleEntity)
+          .columns.map((column) => column.databaseName)
+          .sort(),
+        columns.map((column) => column.column_name).sort(),
+      );
+      const row = await runner.manager
+        .getRepository(PublicationScheduleEntity)
+        .findOneByOrFail({ id: legacyId });
+      assert.equal(row.targetPublicationId, null);
+    },
+  );
 
   for (const [name, overrides, code] of [
     ['ID without number', { revision_id: a.revision }, '23514'],
@@ -246,9 +268,21 @@ try {
     ['foreign content/site', { content_site_id: sibling.contentSite }, '23503'],
     ['foreign site', { site_id: sibling.site }, '23503'],
     ['publication on publish', { target_publication_id: a.publication }, '23514'],
-    ['revision on withdraw', { action: 'withdraw', revision_id: a.revision, revision_number: 1 }, '23514'],
-    ['foreign publication scope', { action: 'withdraw', target_publication_id: sibling.publication }, '23503'],
-    ['foreign publication workspace', { action: 'withdraw', target_publication_id: b.publication }, '23503'],
+    [
+      'revision on withdraw',
+      { action: 'withdraw', revision_id: a.revision, revision_number: 1 },
+      '23514',
+    ],
+    [
+      'foreign publication scope',
+      { action: 'withdraw', target_publication_id: sibling.publication },
+      '23503',
+    ],
+    [
+      'foreign publication workspace',
+      { action: 'withdraw', target_publication_id: b.publication },
+      '23503',
+    ],
   ]) {
     await scenario(`new insert rejects ${name}`, () =>
       rejectsSql(() => insertSchedule(a, overrides), code),
@@ -257,31 +291,48 @@ try {
   await scenario('same-owner revision target is accepted and cannot be cleared', async () => {
     const id = await insertSchedule(a, { revision_id: a.revision, revision_number: 1 });
     await rejectsSql(
-      () => runner.query(
-        'UPDATE publication_schedules SET revision_id = NULL, revision_number = NULL WHERE id = $1',
-        [id],
-      ),
+      () =>
+        runner.query(
+          'UPDATE publication_schedules SET revision_id = NULL, revision_number = NULL WHERE id = $1',
+          [id],
+        ),
       '23514',
       /targets are immutable/u,
     );
   });
   await scenario('publication target is accepted; lossless rollback is enforced', async () => {
-    const id = await insertSchedule(a, { action: 'withdraw', target_publication_id: a.publication });
+    const id = await insertSchedule(a, {
+      action: 'withdraw',
+      target_publication_id: a.publication,
+    });
     await rejectsSql(() => migration.down(runner), '23514', /rollback refused/u);
     assert.equal(await hasTargetColumn(), true);
-    const [row] = await runner.query('SELECT target_publication_id FROM publication_schedules WHERE id = $1', [id]);
+    const [row] = await runner.query(
+      'SELECT target_publication_id FROM publication_schedules WHERE id = $1',
+      [id],
+    );
     assert.equal(row.target_publication_id, a.publication);
-    const entity = await runner.manager.getRepository(PublicationScheduleEntity).findOneByOrFail({ id });
+    const entity = await runner.manager
+      .getRepository(PublicationScheduleEntity)
+      .findOneByOrFail({ id });
     assert.equal(entity.targetPublicationId, a.publication);
     await rejectsSql(
-      () => runner.query('UPDATE publication_schedules SET target_publication_id = NULL WHERE id = $1', [id]),
+      () =>
+        runner.query(
+          'UPDATE publication_schedules SET target_publication_id = NULL WHERE id = $1',
+          [id],
+        ),
       '23514',
       /targets are immutable/u,
     );
   });
   await scenario('legacy NULL targets cannot be silently backfilled', () =>
     rejectsSql(
-      () => runner.query('UPDATE publication_schedules SET revision_id = $2, revision_number = 1 WHERE id = $1', [legacyId, a.revision]),
+      () =>
+        runner.query(
+          'UPDATE publication_schedules SET revision_id = $2, revision_number = 1 WHERE id = $1',
+          [legacyId, a.revision],
+        ),
       '23514',
       /targets are immutable/u,
     ),
@@ -292,18 +343,34 @@ try {
          updated_at = now(), version = version + 1 WHERE id = $1`,
       [legacyId],
     );
-    const [row] = await runner.query('SELECT status, version FROM publication_schedules WHERE id = $1', [legacyId]);
+    const [row] = await runner.query(
+      'SELECT status, version FROM publication_schedules WHERE id = $1',
+      [legacyId],
+    );
     assert.equal(row.status, 'cancelled');
     assert.equal(row.version, 2);
   });
-  await scenario('empty-target rollback preserves historical rows and reapplies', async () => {
-    await migration.down(runner);
-    assert.equal(await hasTargetColumn(), false);
-    assert.deepEqual(await runner.query('SELECT * FROM publication_schedules ORDER BY id'), before);
-    await migration.up(runner);
-    assert.equal(await hasTargetColumn(), true);
-  }, false);
-  console.log(JSON.stringify({ result: 'success', scenarios: passed, baselineMigrations: baselineFiles.length }));
+  await scenario(
+    'empty-target rollback preserves historical rows and reapplies',
+    async () => {
+      await migration.down(runner);
+      assert.equal(await hasTargetColumn(), false);
+      assert.deepEqual(
+        await runner.query('SELECT * FROM publication_schedules ORDER BY id'),
+        before,
+      );
+      await migration.up(runner);
+      assert.equal(await hasTargetColumn(), true);
+    },
+    false,
+  );
+  console.log(
+    JSON.stringify({
+      result: 'success',
+      scenarios: passed,
+      baselineMigrations: baselineFiles.length,
+    }),
+  );
 } finally {
   if (runner.isTransactionActive) await runner.rollbackTransaction();
   if (ownsSchema) await runner.query(`DROP SCHEMA "${schema}" CASCADE`);
