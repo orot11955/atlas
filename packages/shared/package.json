@@ -12,7 +12,7 @@
     "dev": "tsc -p tsconfig.json --watch",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test"
+    "test": "node ../../scripts/testing/run-tests.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.2"

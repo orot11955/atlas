@@ -8,7 +8,7 @@
     "start": "next start --hostname 0.0.0.0 --port 3000",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/*.test.ts"
+    "test": "node ../../scripts/testing/run-tests.mjs"
   },
   "dependencies": {
     "next": "^16.3.3",

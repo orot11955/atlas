@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/*.test.ts"
+    "test": "node ../../scripts/testing/run-tests.mjs"
   },
   "dependencies": {
     "@atlas/config": "workspace:*",
