@@ -12,7 +12,7 @@
     "dev": "tsc -p tsconfig.json --watch",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test",
+    "test": "node ../../scripts/testing/run-tests.mjs",
     "admin:bootstrap-owner": "ts-node --project tsconfig.json src/admin-owner-bootstrap-cli.ts",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",

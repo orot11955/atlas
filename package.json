@@ -18,7 +18,7 @@
     "build:server": "pnpm --filter @atlas/server build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "pnpm test:discovery && turbo run test",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -39,7 +39,8 @@
     "backup:restore-test": "bash scripts/backup/postgres-restore-test.sh",
     "backup:minio": "bash scripts/backup/minio-backup.sh",
     "backup:prune": "bash scripts/backup/prune-backups.sh",
-    "backup:all": "bash scripts/backup/run-data-backup.sh"
+    "backup:all": "bash scripts/backup/run-data-backup.sh",
+    "test:discovery": "node --test scripts/testing/discovery.test.mjs && node scripts/testing/run-tests.mjs --inventory"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",

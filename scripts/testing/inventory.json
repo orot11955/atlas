@@ -1,0 +1,11 @@
+{
+  "apps/admin-web": 6,
+  "apps/api": 0,
+  "apps/worker": 1,
+  "packages/config": 0,
+  "packages/contracts": 0,
+  "packages/database": 0,
+  "packages/object-storage": 0,
+  "packages/server": 20,
+  "packages/shared": 0
+}
