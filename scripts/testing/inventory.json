@@ -1,5 +1,5 @@
 {
-  "apps/admin-web": 6,
+  "apps/admin-web": 8,
   "apps/api": 0,
   "apps/worker": 1,
   "packages/config": 0,

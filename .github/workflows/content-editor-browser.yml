@@ -1,0 +1,88 @@
+name: Content Editor Browser Regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-editor-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  content-editor-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable repository pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify editor formatting with readable diffs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            apps/admin-web/src/features/content/content-editor.tsx \
+            apps/admin-web/src/features/content/draft-save-coordinator.ts \
+            apps/admin-web/src/features/content/draft-save-error.ts; do
+            pnpm exec prettier "$file" | diff -u "$file" -
+          done
+
+      - name: Verify test discovery and unit regressions
+        run: |
+          pnpm test:discovery
+          pnpm --filter @atlas/admin-web test
+
+      - name: Install isolated browser test tooling
+        run: |
+          python3 -m venv "$RUNNER_TEMP/atlas-browser-venv"
+          "$RUNNER_TEMP/atlas-browser-venv/bin/pip" install -r scripts/testing/browser/requirements.txt
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" -m playwright install --with-deps chromium
+
+      - name: Verify fixture contracts
+        run: python3 -m unittest discover -s scripts/testing/browser -p test_fixture.py -v
+
+      - name: Build and test the real Next.js UI against loopback API fixtures
+        run: |
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" scripts/testing/browser/editor_browser.py
+
+      - name: Publish test summary
+        if: always()
+        run: |
+          if test -f tmp/r01-browser/result.json; then
+            cat tmp/r01-browser/result.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Browser test preparation did not complete; no passing result is available.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Retain failure traces and logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-editor-browser-failure-${{ github.sha }}
+          path: tmp/r01-browser/
+          if-no-files-found: ignore
+          retention-days: 7

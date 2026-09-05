@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { AtlasApiError } from '../../lib/api';
 import {
@@ -16,78 +16,134 @@ import {
 } from './content-api';
 import { ContentAssetPicker } from './content-asset-picker';
 import { ContentCoverAssetPicker } from './content-cover-asset-picker';
-import type { Content, ContentCoverAsset, ContentRevision } from './content-types';
+import type { ContentRevision } from './content-types';
+import {
+  DraftOperationCancelled,
+  DraftSaveCoordinator,
+  type EditableDraft,
+} from './draft-save-coordinator';
 import { ContentPublicationManager } from './content-publication-manager';
+import { isDraftValidationError } from './draft-save-error';
 import styles from './content.module.css';
 
 export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
-  const [content, setContent] = useState<Content>();
+  // A route change creates a separate queue: old responses cannot update the next editor.
+  return <ContentEditorSession key={contentId} contentId={contentId} />;
+}
+
+function ContentEditorSession({ contentId }: Readonly<{ contentId: string }>) {
+  const [coordinator] = useState(
+    () =>
+      new DraftSaveCoordinator({
+        load: () => loadContent(contentId),
+        save: (input) => saveContentDraft(contentId, input),
+        revision: (kind, input) =>
+          kind === 'ready'
+            ? createReadyRevision(contentId, input)
+            : createCheckpoint(contentId, input),
+        restore: (revisionId, version) => restoreContentRevision(contentId, revisionId, version),
+        archive: (version) => archiveContent(contentId, version),
+        isValidationError: isDraftValidationError,
+      }),
+  );
+  const snapshot = useSyncExternalStore(
+    coordinator.subscribe,
+    coordinator.getSnapshot,
+    coordinator.getSnapshot,
+  );
+  const { content, draft, dirty, saving, locked } = snapshot;
+  const { title, summary, bodyMarkdown, cover } = draft;
+  const blocked = snapshot.error !== undefined;
   const [revisions, setRevisions] = useState<readonly ContentRevision[]>([]);
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [bodyMarkdown, setBodyMarkdown] = useState('');
-  const [cover, setCover] = useState<ContentCoverAsset | null>(null);
   const [note, setNote] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewWarnings, setPreviewWarnings] = useState<readonly string[]>([]);
-  const [dirty, setDirty] = useState(false);
   const [working, setWorking] = useState<string>();
   const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
-  const initialised = useRef(false);
-  const saveSequence = useRef(0);
+  const [requestError, setError] = useState<string>();
+  const error = blocked
+    ? `${readError(snapshot.error)}${
+        !content
+          ? ''
+          : snapshot.needsReload
+            ? ' 자동 저장을 중지했습니다. 현재 입력을 복사한 뒤 최신 Draft를 다시 불러오세요.'
+            : ' 입력값을 수정한 뒤 다시 시도하세요. 현재 입력은 보존되어 있습니다.'
+      }`
+    : requestError;
   const bodyTextarea = useRef<HTMLTextAreaElement>(null);
+  const mounted = useRef(false);
 
   useEffect(() => {
-    void reload();
-  }, [contentId]);
+    let active = true;
+    mounted.current = true;
+    coordinator.activate();
+    setWorking('load');
+    void Promise.all([coordinator.reload(), loadContentRevisions(contentId)])
+      .then(([, nextRevisions]) => {
+        if (active) setRevisions(nextRevisions);
+      })
+      .catch((caught) => {
+        if (active && !(caught instanceof DraftOperationCancelled)) setError(readError(caught));
+      })
+      .finally(() => {
+        if (active) setWorking(undefined);
+      });
+    return () => {
+      active = false;
+      mounted.current = false;
+      coordinator.deactivate();
+    };
+  }, [contentId, coordinator]);
 
   useEffect(() => {
-    if (!initialised.current || !dirty || !content || content.status === 'archived') {
+    if (!dirty || saving || locked || blocked || !content || content.status === 'archived') {
       return;
     }
-
-    const sequence = ++saveSequence.current;
     const timer = window.setTimeout(() => {
-      void saveDraft('autosave', sequence);
+      void saveDraft('autosave');
     }, 1_200);
-
     return () => window.clearTimeout(timer);
-  }, [title, summary, bodyMarkdown, cover, dirty, content]);
+  }, [draft, dirty, saving, locked, blocked, content, coordinator]);
+
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [dirty, saving]);
 
   async function reload() {
+    if (dirty && !window.confirm('현재 입력을 버리고 서버의 최신 Draft를 불러오시겠습니까?'))
+      return;
     setWorking('load');
     setError(undefined);
-
     try {
-      const [nextContent, nextRevisions] = await Promise.all([
-        loadContent(contentId),
+      const [, nextRevisions] = await Promise.all([
+        coordinator.reload(),
         loadContentRevisions(contentId),
       ]);
-      applyContent(nextContent);
+      if (!mounted.current) return;
       setRevisions(nextRevisions);
+      setPreviewHtml('');
+      setPreviewWarnings([]);
       setMessage(undefined);
     } catch (caught) {
-      setError(readError(caught));
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      setWorking(undefined);
+      if (mounted.current) setWorking(undefined);
     }
   }
 
-  function applyContent(next: Content) {
-    setContent(next);
-    setTitle(next.draft.title);
-    setSummary(next.draft.summary ?? '');
-    setBodyMarkdown(next.draft.bodyMarkdown);
-    setCover(next.draft.cover);
-    setDirty(false);
-    initialised.current = true;
-  }
-
-  function markDirty(action: () => void) {
-    action();
-    setDirty(true);
-    setMessage(undefined);
+  function edit(patch: Partial<EditableDraft>) {
+    if (coordinator.edit(patch)) {
+      setMessage(undefined);
+      setError(undefined);
+    }
   }
 
   function insertAssetMarkdown(markdown: string) {
@@ -102,7 +158,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     const next = `${before}${insertion}${after}`;
     const cursor = start + prefix.length + markdown.length;
 
-    markDirty(() => setBodyMarkdown(next));
+    edit({ bodyMarkdown: next });
     setMessage('Asset Reference를 Markdown에 삽입했습니다.');
     window.requestAnimationFrame(() => {
       bodyTextarea.current?.focus();
@@ -110,34 +166,20 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     });
   }
 
-  async function saveDraft(mode: 'autosave' | 'manual', sequence = ++saveSequence.current) {
-    if (!content || content.status === 'archived') return;
+  async function saveDraft(mode: 'autosave' | 'manual') {
     if (mode === 'manual') setWorking('save');
     setError(undefined);
-
     try {
-      const next = await saveContentDraft(content.id, {
-        draftVersion: content.draft.draftVersion,
-        title,
-        summary: summary.trim() || undefined,
-        bodyMarkdown,
-        cover,
-      });
-
-      if (sequence === saveSequence.current || mode === 'manual') {
-        setContent(next);
-        setDirty(false);
+      await coordinator.save();
+      if (mounted.current && !coordinator.getSnapshot().dirty) {
         setMessage(mode === 'manual' ? 'Draft를 저장했습니다.' : '자동 저장됨');
       }
     } catch (caught) {
-      const text = readError(caught);
-      setError(
-        caught instanceof AtlasApiError && caught.status === 409
-          ? `${text} 최신 Draft를 다시 불러온 뒤 변경 내용을 확인하세요.`
-          : text,
-      );
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      if (mode === 'manual') setWorking(undefined);
+      if (mounted.current && mode === 'manual') setWorking(undefined);
     }
   }
 
@@ -147,18 +189,22 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     setError(undefined);
 
     try {
+      const previewDraft = coordinator.getSnapshot().draft;
       const result = await previewContentById(content.id, {
         title,
         summary: summary.trim() || undefined,
         bodyMarkdown,
         cover,
       });
+      if (!mounted.current || coordinator.getSnapshot().draft !== previewDraft) return;
       setPreviewHtml(result.html);
       setPreviewWarnings(result.warnings);
     } catch (caught) {
-      setError(readError(caught));
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      setWorking(undefined);
+      if (mounted.current) setWorking(undefined);
     }
   }
 
@@ -169,63 +215,45 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     setMessage(undefined);
 
     try {
-      let current = content;
-      if (dirty) {
-        current = await saveContentDraft(content.id, {
-          draftVersion: content.draft.draftVersion,
-          title,
-          summary: summary.trim() || undefined,
-          bodyMarkdown,
-          cover,
-        });
-        setContent(current);
-        setDirty(false);
-      }
-
-      const next =
-        kind === 'ready'
-          ? await createReadyRevision(current.id, {
-              contentVersion: current.version,
-              draftVersion: current.draft.draftVersion,
-              note: note.trim() || undefined,
-            })
-          : await createCheckpoint(current.id, {
-              contentVersion: current.version,
-              draftVersion: current.draft.draftVersion,
-              note: note.trim() || undefined,
-            });
-      setContent(next);
+      const next = await coordinator.createRevision(kind, note);
+      if (!mounted.current) return;
       setNote('');
-      setRevisions(await loadContentRevisions(content.id));
+      const nextRevisions = await loadContentRevisions(content.id);
+      if (!mounted.current) return;
+      setRevisions(nextRevisions);
       setMessage(
         kind === 'ready'
           ? `READY Revision ${next.readyRevisionNumber}을 생성했습니다.`
           : `Checkpoint Revision ${next.currentRevisionNumber}을 생성했습니다.`,
       );
     } catch (caught) {
-      setError(readError(caught));
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      setWorking(undefined);
+      if (mounted.current) setWorking(undefined);
     }
   }
 
   async function restore(revision: ContentRevision) {
     if (!content) return;
+    if (dirty && !window.confirm('현재 입력을 버리고 선택한 Revision으로 복구하시겠습니까?'))
+      return;
     setWorking(`restore-${revision.id}`);
     setError(undefined);
 
     try {
-      const next = await restoreContentRevision(
-        content.id,
-        revision.id,
-        content.draft.draftVersion,
-      );
-      applyContent(next);
+      await coordinator.restore(revision.id);
+      if (!mounted.current) return;
+      setPreviewHtml('');
+      setPreviewWarnings([]);
       setMessage(`Revision ${revision.revisionNumber}을 Draft로 복구했습니다.`);
     } catch (caught) {
-      setError(readError(caught));
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      setWorking(undefined);
+      if (mounted.current) setWorking(undefined);
     }
   }
 
@@ -235,13 +263,15 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
     setError(undefined);
 
     try {
-      const next = await archiveContent(content.id, content.version);
-      setContent(next);
+      await coordinator.archive();
+      if (!mounted.current) return;
       setMessage('콘텐츠를 Archive했습니다.');
     } catch (caught) {
-      setError(readError(caught));
+      if (mounted.current && !(caught instanceof DraftOperationCancelled)) {
+        setError(readError(caught));
+      }
     } finally {
-      setWorking(undefined);
+      if (mounted.current) setWorking(undefined);
     }
   }
 
@@ -250,7 +280,14 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
   }
 
   if (!content) {
-    return <div className={styles.empty}>{error}</div>;
+    return (
+      <div className={styles.empty}>
+        {error}
+        <button type="button" disabled={locked} onClick={reload}>
+          다시 불러오기
+        </button>
+      </div>
+    );
   }
 
   const archived = content.status === 'archived';
@@ -281,7 +318,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           </div>
           <div>
             <dt>Draft Version</dt>
-            <dd>{content.draft.draftVersion}</dd>
+            <dd data-testid="content-draft-version">{content.draft.draftVersion}</dd>
           </div>
           <div>
             <dt>Latest Revision</dt>
@@ -293,7 +330,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           </div>
           <div>
             <dt>저장 상태</dt>
-            <dd>{dirty ? '변경 사항 있음' : (message ?? '저장됨')}</dd>
+            <dd>{saving ? '저장 중…' : dirty ? '변경 사항 있음' : (message ?? '저장됨')}</dd>
           </div>
         </dl>
       </section>
@@ -304,7 +341,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             <h2>Markdown Draft</h2>
             <button
               className={styles.secondary}
-              disabled={working !== undefined || archived}
+              disabled={working !== undefined || archived || locked || blocked}
               type="button"
               onClick={() => saveDraft('manual')}
             >
@@ -315,19 +352,19 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             <label className={`${styles.field} ${styles.full}`}>
               <span>제목</span>
               <input
-                disabled={archived}
+                disabled={archived || locked || working === 'load'}
                 maxLength={200}
                 value={title}
-                onChange={(event) => markDirty(() => setTitle(event.target.value))}
+                onChange={(event) => edit({ title: event.target.value })}
               />
             </label>
             <label className={`${styles.field} ${styles.full}`}>
               <span>요약</span>
               <textarea
-                disabled={archived}
+                disabled={archived || locked || working === 'load'}
                 maxLength={500}
                 value={summary}
-                onChange={(event) => markDirty(() => setSummary(event.target.value))}
+                onChange={(event) => edit({ summary: event.target.value })}
               />
             </label>
 
@@ -335,9 +372,9 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
               <div className={styles.fieldHeading}>
                 <span>Cover Image</span>
                 <ContentCoverAssetPicker
-                  disabled={working !== undefined || archived}
+                  disabled={working !== undefined || archived || locked || blocked}
                   value={cover}
-                  onChange={(nextCover) => markDirty(() => setCover(nextCover))}
+                  onChange={(nextCover) => edit({ cover: nextCover })}
                 />
               </div>
               <p className={styles.muted}>
@@ -348,17 +385,17 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
               <div className={styles.fieldHeading}>
                 <label htmlFor="content-body-markdown">본문</label>
                 <ContentAssetPicker
-                  disabled={working !== undefined || archived}
+                  disabled={working !== undefined || archived || locked || blocked}
                   onInsert={insertAssetMarkdown}
                 />
               </div>
               <textarea
                 ref={bodyTextarea}
-                disabled={archived}
+                disabled={archived || locked || working === 'load'}
                 id="content-body-markdown"
                 maxLength={500_000}
                 value={bodyMarkdown}
-                onChange={(event) => markDirty(() => setBodyMarkdown(event.target.value))}
+                onChange={(event) => edit({ bodyMarkdown: event.target.value })}
               />
             </div>
           </div>
@@ -369,7 +406,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             <h2>Server Preview</h2>
             <button
               className={styles.secondary}
-              disabled={working !== undefined}
+              disabled={working !== undefined || locked || blocked}
               type="button"
               onClick={preview}
             >
@@ -399,12 +436,17 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
           </div>
           <label className={styles.field}>
             <span>Revision Note</span>
-            <input maxLength={300} value={note} onChange={(event) => setNote(event.target.value)} />
+            <input
+              disabled={locked || working !== undefined}
+              maxLength={300}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
           </label>
           <div className={styles.actions}>
             <button
               className={styles.secondary}
-              disabled={working !== undefined}
+              disabled={working !== undefined || locked || blocked}
               type="button"
               onClick={() => checkpoint('checkpoint')}
             >
@@ -412,7 +454,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             </button>
             <button
               className={styles.button}
-              disabled={working !== undefined}
+              disabled={working !== undefined || locked || blocked}
               type="button"
               onClick={() => checkpoint('ready')}
             >
@@ -420,7 +462,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
             </button>
             <button
               className={styles.danger}
-              disabled={working !== undefined}
+              disabled={working !== undefined || locked || blocked}
               type="button"
               onClick={archive}
             >
@@ -454,7 +496,7 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
               {!archived ? (
                 <button
                   className={styles.secondary}
-                  disabled={working !== undefined}
+                  disabled={working !== undefined || locked || blocked}
                   type="button"
                   onClick={() => restore(revision)}
                 >
@@ -471,10 +513,26 @@ export function ContentEditor({ contentId }: Readonly<{ contentId: string }>) {
       <div aria-live="polite">
         {message ? <p className={styles.success}>{message}</p> : null}
         {error ? <p className={styles.error}>{error}</p> : null}
-        {error?.includes('다시 불러온') ? (
-          <button className={styles.secondary} type="button" onClick={reload}>
-            최신 Draft 다시 불러오기
-          </button>
+        {blocked ? (
+          <div>
+            <details>
+              <summary>현재 입력 확인·복사</summary>
+              <textarea
+                aria-label="보존된 Draft 입력"
+                readOnly
+                value={JSON.stringify(draft, null, 2)}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </details>
+            <button
+              className={styles.secondary}
+              disabled={locked || saving}
+              type="button"
+              onClick={reload}
+            >
+              현재 입력 버리고 최신 Draft 불러오기
+            </button>
+          </div>
         ) : null}
       </div>
     </div>
