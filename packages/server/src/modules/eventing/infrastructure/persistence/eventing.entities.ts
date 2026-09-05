@@ -115,7 +115,7 @@ export class WebhookEndpointEntity {
   @Column({ name: 'site_id', type: 'uuid' })
   public siteId!: string;
 
-  @Column({ type: 'varchar', length: 120 })
+  @Column({ name: 'name', type: 'varchar', length: 120 })
   public name!: string;
 
   @Column({ type: 'varchar', length: 2048 })
@@ -254,6 +254,9 @@ export class PublicationScheduleEntity {
 
   @Column({ name: 'revision_number', type: 'integer', nullable: true })
   public revisionNumber!: number | null;
+
+  @Column({ name: 'target_publication_id', type: 'uuid', nullable: true })
+  public targetPublicationId!: string | null;
 
   @Column({ type: 'varchar', length: 16 })
   public action!: PublicationScheduleAction;
