@@ -40,6 +40,17 @@ jobs:
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify editor formatting with readable diffs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            apps/admin-web/src/features/content/content-editor.tsx \
+            apps/admin-web/src/features/content/draft-save-coordinator.ts \
+            apps/admin-web/src/features/content/draft-save-error.ts; do
+            pnpm exec prettier "$file" | diff -u "$file" -
+          done
+
       - name: Verify test discovery and unit regressions
         run: |
           pnpm test:discovery
