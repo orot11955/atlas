@@ -45,9 +45,7 @@ function inspectWorkspace(workspace, minimum) {
 export function runTestFiles(files, cwd) {
   if (files.length === 0) return 0;
   const needsTsx = files.some((file) => /\.(?:[cm]?ts|[jt]sx)$/u.test(file));
-  const runtime = needsTsx
-    ? [createRequire(join(cwd, 'package.json')).resolve('tsx/cli')]
-    : [];
+  const runtime = needsTsx ? [createRequire(join(cwd, 'package.json')).resolve('tsx/cli')] : [];
   // Explicit paths avoid shell glob differences and never fall back to implicit discovery.
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
