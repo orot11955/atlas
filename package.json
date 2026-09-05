@@ -40,7 +40,9 @@
     "backup:minio": "bash scripts/backup/minio-backup.sh",
     "backup:prune": "bash scripts/backup/prune-backups.sh",
     "backup:all": "bash scripts/backup/run-data-backup.sh",
-    "test:discovery": "node --test scripts/testing/discovery.test.mjs && node scripts/testing/run-tests.mjs --inventory"
+    "test:discovery": "node --test scripts/testing/discovery.test.mjs && node scripts/testing/run-tests.mjs --inventory",
+    "test:editor:fixture": "python3 -m unittest discover -s scripts/testing/browser -p test_fixture.py -v",
+    "test:editor:browser": "python3 scripts/testing/browser/editor_browser.py"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
