@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -74,7 +74,13 @@ test('the runner executes a nested file and propagates its failure', (t) => {
 
 test('nested test files are passed to Node exactly once', (t) => {
   const root = fixture(t, {
-    'nested/exactly-once.test.mjs': 'import test from "node:test"; test("runs-once", () => {});',
+    'nested/exactly-once.test.mjs': `
+      import test from 'node:test';
+      import { appendFileSync } from 'node:fs';
+      test('runs-once', () => {
+        appendFileSync(new URL('../executions.txt', import.meta.url), 'executed\\n');
+      });
+    `,
   });
   const child = spawnSync(
     process.execPath,
@@ -87,7 +93,6 @@ test('nested test files are passed to Node exactly once', (t) => {
     ],
     { encoding: 'utf8' },
   );
-  assert.equal(child.status, 0);
-  assert.equal((child.stdout.match(/ok 1 - runs-once/gu) ?? []).length, 1);
-  assert.match(child.stdout, /# tests 1/u);
+  assert.equal(child.status, 0, child.stdout + child.stderr);
+  assert.equal(readFileSync(join(root, 'executions.txt'), 'utf8'), 'executed\n');
 });
