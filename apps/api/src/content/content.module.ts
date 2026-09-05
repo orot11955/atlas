@@ -23,11 +23,15 @@ import {
   type ContentAssetRepositoryPort,
   type ContentPublicationRepositoryPort,
   type ContentRepositoryPort,
+  type OutboxRecorderPort,
+  systemClock,
   type TransactionRunner,
 } from '@atlas/server';
 
 import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
+import { EventingPersistenceModule } from '../eventing/eventing-persistence.module';
+import { OUTBOX_SERVICE } from '../eventing/eventing.tokens';
 import { MinioModule } from '../infrastructure/minio/minio.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
@@ -55,6 +59,7 @@ import {
       ContentPublicationEntity,
     ]),
     PlatformModule,
+    EventingPersistenceModule,
     MinioModule,
     AdminSessionModule,
     AdminWorkspaceSiteModule,
@@ -94,6 +99,7 @@ import {
         AUDIT_SERVICE,
         CONTENT_ASSET_REPOSITORY,
         OBJECT_STORAGE,
+        OUTBOX_SERVICE,
       ],
       useFactory: (
         transactionRunner: TransactionRunner<EntityManager>,
@@ -101,6 +107,7 @@ import {
         auditService: AuditService<EntityManager>,
         assetRepository: ContentAssetRepositoryPort<EntityManager>,
         objectStorage: ObjectStoragePort,
+        outboxService: OutboxRecorderPort<EntityManager>,
       ) =>
         new ContentPublicationService(
           transactionRunner,
@@ -108,6 +115,8 @@ import {
           auditService,
           assetRepository,
           objectStorage,
+          systemClock,
+          outboxService,
         ),
     },
     {

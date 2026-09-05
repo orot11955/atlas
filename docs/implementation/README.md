@@ -22,14 +22,14 @@ Atlas 구현은 아래 문서를 기준으로 진행한다.
 → 기존 플랫폼 설계 초안
 ```
 
-현재 `Phase 1. Server Boundary & Platform Kernel Lite` 구현을 완료했으며 다음 작업은 `Phase 2. Admin Identity & Shell`이다.
+현재 `Phase 9. Outbox, Webhook & Scheduling`까지 완료했으며 다음 작업은 `Phase 10. Content Operations`이다.
 
 ```text
-AdminAccount, Role, Permission
-→ OWNER Bootstrap CLI
-→ Password Login
-→ TOTP MFA
-→ Admin Session과 CSRF
-→ Permission Guard
-→ Login UI와 Admin Shell
+Taxonomy와 Category/Tag
+→ Slug History와 Redirect/410
+→ Navigation과 Home Curation
+→ RSS, JSON Feed와 Sitemap
+→ PostgreSQL Full Text Search
+→ OpenGraph와 JSON-LD
+→ Revision Diff와 Internal Link Autocomplete
 ```

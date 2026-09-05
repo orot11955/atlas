@@ -228,6 +228,61 @@ export class TypeOrmContentPublicationRepository implements ContentPublicationRe
     };
   }
 
+  public async findPublishableRevisionForUpdate(
+    workspaceId: string,
+    contentId: string,
+    revisionId: string,
+    transaction: EntityManager,
+  ): Promise<PublishableContentRecord | undefined> {
+    const content = await transaction
+      .getRepository(ContentEntity)
+      .createQueryBuilder('content')
+      .setLock('pessimistic_write')
+      .where('content.id = :contentId', { contentId })
+      .andWhere('content.workspace_id = :workspaceId', { workspaceId })
+      .getOne();
+
+    if (!content) {
+      return undefined;
+    }
+
+    const revision = await transaction.getRepository(ContentRevisionEntity).findOne({
+      where: {
+        id: revisionId,
+        workspaceId,
+        contentId,
+        kind: ContentRevisionKind.READY,
+      },
+    });
+
+    return {
+      id: content.id,
+      workspaceId: content.workspaceId,
+      type: content.type,
+      status: content.status,
+      readyRevisionNumber: content.readyRevisionNumber ?? undefined,
+      ...(revision
+        ? {
+            revision: {
+              id: revision.id,
+              contentId: revision.contentId,
+              workspaceId: revision.workspaceId,
+              revisionNumber: revision.revisionNumber,
+              kind: revision.kind,
+              title: revision.title,
+              summary: revision.summary ?? undefined,
+              bodyMarkdown: revision.bodyMarkdown,
+              bodyHtml: revision.bodyHtml,
+              sourceDraftVersion: revision.sourceDraftVersion,
+              note: revision.note ?? undefined,
+              createdByAdminAccountId: revision.createdByAdminAccountId,
+              createdAt: new Date(revision.createdAt),
+            },
+          }
+        : {}),
+    };
+  }
+
   public async findActivePublication(
     workspaceId: string,
     contentSiteId: string,

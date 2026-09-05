@@ -9,12 +9,25 @@ import {
   ApplicationError,
   AtlasLogLevel,
   ErrorCode,
+  OUTBOX_CONSUME_JOB_NAME,
+  PUBLICATION_SCHEDULE_JOB_NAME,
+  WEBHOOK_DELIVERY_JOB_NAME,
   type AtlasLogger,
+  type OutboxConsumerService,
+  type PublicationScheduleProcessor,
+  type WebhookDeliveryService,
   createUuidV7,
   isApplicationError,
+  isUuidV7,
   requestContext,
   systemClock,
 } from '@atlas/server';
+
+import {
+  WORKER_OUTBOX_CONSUMER_SERVICE,
+  WORKER_PUBLICATION_SCHEDULE_PROCESSOR,
+  WORKER_WEBHOOK_DELIVERY_SERVICE,
+} from '../eventing/eventing.tokens';
 
 @Injectable()
 export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
@@ -23,6 +36,12 @@ export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
 
   public constructor(
     private readonly config: ConfigService<WorkerEnvironment, true>,
+    @Inject(WORKER_OUTBOX_CONSUMER_SERVICE)
+    private readonly outboxConsumer: OutboxConsumerService<unknown>,
+    @Inject(WORKER_WEBHOOK_DELIVERY_SERVICE)
+    private readonly webhookDelivery: WebhookDeliveryService<unknown>,
+    @Inject(WORKER_PUBLICATION_SCHEDULE_PROCESSOR)
+    private readonly publicationSchedule: PublicationScheduleProcessor<unknown>,
     @Inject(ATLAS_LOGGER) private readonly logger: AtlasLogger,
   ) {}
 
@@ -32,7 +51,7 @@ export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
 
     this.worker = new Worker(queueName, async (job: Job) => this.processJob(queueName, job), {
       connection: parseRedisUrl(this.config.get('REDIS_URL', { infer: true })),
-      concurrency: 2,
+      concurrency: this.config.get('EVENTING_QUEUE_CONCURRENCY', { infer: true }),
     });
 
     this.worker.on('ready', () => {
@@ -102,18 +121,7 @@ export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
         );
 
         try {
-          if (job.name !== 'heartbeat') {
-            throw new ApplicationError({
-              code: ErrorCode.ACTION_NOT_ALLOWED,
-              message: `Unsupported system job: ${job.name}`,
-            });
-          }
-
-          const result = {
-            requestId,
-            receivedAt: systemClock.now().toISOString(),
-            payload: job.data,
-          };
+          const result = await this.routeJob(job, requestId);
 
           this.logger.write(
             AtlasLogLevel.DEBUG,
@@ -145,6 +153,34 @@ export class SystemQueueWorker implements OnModuleInit, OnApplicationShutdown {
       },
     );
   }
+
+  private async routeJob(job: Job, requestId: string): Promise<unknown> {
+    switch (job.name) {
+      case 'heartbeat':
+        return {
+          requestId,
+          receivedAt: systemClock.now().toISOString(),
+          payload: job.data,
+        };
+      case OUTBOX_CONSUME_JOB_NAME:
+        return this.outboxConsumer.consume(readUuidJobField(job, 'eventId'));
+      case WEBHOOK_DELIVERY_JOB_NAME:
+        return this.webhookDelivery.deliver(
+          readUuidJobField(job, 'deliveryId'),
+          readPositiveIntegerJobField(job, 'attemptNumber'),
+        );
+      case PUBLICATION_SCHEDULE_JOB_NAME:
+        return this.publicationSchedule.process(
+          readUuidJobField(job, 'scheduleId'),
+          readPositiveIntegerJobField(job, 'attemptNumber'),
+        );
+      default:
+        throw new ApplicationError({
+          code: ErrorCode.ACTION_NOT_ALLOWED,
+          message: `Unsupported system job: ${job.name}`,
+        });
+    }
+  }
 }
 
 function getCorrelationId(job: Job, fallback: string): string {
@@ -155,4 +191,42 @@ function getCorrelationId(job: Job, fallback: string): string {
   const correlationId = (job.data as Record<string, unknown>).correlationId;
 
   return typeof correlationId === 'string' && correlationId.length > 0 ? correlationId : fallback;
+}
+
+export function readUuidJobField(job: Pick<Job, 'data' | 'name'>, field: string): string {
+  const value = readJobField(job, field);
+
+  if (typeof value !== 'string' || !isUuidV7(value)) {
+    throw invalidJobData(job.name, field);
+  }
+
+  return value;
+}
+
+export function readPositiveIntegerJobField(
+  job: Pick<Job, 'data' | 'name'>,
+  field: string,
+): number {
+  const value = readJobField(job, field);
+
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw invalidJobData(job.name, field);
+  }
+
+  return value;
+}
+
+function readJobField(job: Pick<Job, 'data' | 'name'>, field: string): unknown {
+  if (typeof job.data !== 'object' || job.data === null) {
+    throw invalidJobData(job.name, field);
+  }
+
+  return (job.data as Record<string, unknown>)[field];
+}
+
+function invalidJobData(jobName: string, field: string): ApplicationError {
+  return new ApplicationError({
+    code: ErrorCode.VALIDATION_FAILED,
+    message: `System job ${jobName} has invalid ${field}.`,
+  });
 }

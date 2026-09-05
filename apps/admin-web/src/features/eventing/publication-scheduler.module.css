@@ -1,0 +1,139 @@
+.scheduler {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.toggle,
+.primary,
+.secondary {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toggle {
+  justify-self: start;
+}
+
+.primary {
+  border-color: transparent;
+  color: #15110e;
+  background: var(--accent);
+}
+
+.toggle:disabled,
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel {
+  display: grid;
+  gap: 15px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.header,
+.form,
+.list article,
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header p,
+.list p,
+.muted {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.form {
+  align-items: end;
+}
+
+.form label {
+  flex: 1;
+  display: grid;
+  gap: 7px;
+}
+
+.form label > span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.form input,
+.form select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: var(--panel-strong);
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.list article {
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-strong);
+}
+
+.meta span {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.meta span[data-status='completed'] {
+  color: #67d391;
+}
+
+.meta span[data-status='failed'],
+.meta span[data-status='cancelled'] {
+  color: #ff8c86;
+}
+
+.success {
+  color: #67d391;
+}
+
+.error,
+.errorText {
+  color: #ff8c86 !important;
+}
+
+@media (max-width: 900px) {
+  .header,
+  .form,
+  .list article,
+  .meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

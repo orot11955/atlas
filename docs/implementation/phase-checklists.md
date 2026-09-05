@@ -770,62 +770,62 @@ Draft
 
 ### Entity
 
-- [ ] `outbox_events`
-- [ ] `event_consumptions`
-- [ ] `webhook_endpoints`
-- [ ] `webhook_deliveries`
-- [ ] `publication_schedules`
+- [x] `outbox_events`
+- [x] `event_consumptions`
+- [x] `webhook_endpoints`
+- [x] `webhook_deliveries`
+- [x] `publication_schedules`
 
 ### Outbox Relay
 
-- [ ] `FOR UPDATE SKIP LOCKED`
-- [ ] Claim Timeout
-- [ ] Stale Claim Recovery
-- [ ] BullMQ `jobId = eventId`
-- [ ] `dispatched_at`
-- [ ] Retry Backoff
-- [ ] Dead State
-- [ ] Manual Retry
+- [x] `FOR UPDATE SKIP LOCKED`
+- [x] Claim Timeout
+- [x] Stale Claim Recovery
+- [x] BullMQ `jobId = eventId`
+- [x] `dispatched_at`
+- [x] Retry Backoff
+- [x] Dead State
+- [x] Manual Retry
 
 ### Consumer
 
-- [ ] Consumer Key
-- [ ] Event Receipt Unique
-- [ ] Running·Success·Failed
-- [ ] Idempotent External Call
-- [ ] Result Summary
+- [x] Consumer Key
+- [x] Event Receipt Unique
+- [x] Running·Success·Failed
+- [x] Idempotent External Call
+- [x] Result Summary
 
 ### Webhook
 
-- [ ] HMAC SHA-256
-- [ ] Timestamp
-- [ ] Event ID
-- [ ] Site별 Event
-- [ ] Timeout
-- [ ] Response Size 제한
-- [ ] Retry
-- [ ] Disable Policy
-- [ ] Manual Redelivery
+- [x] HMAC SHA-256
+- [x] Timestamp
+- [x] Event ID
+- [x] Site별 Event
+- [x] Timeout
+- [x] Response Size 제한
+- [x] Retry
+- [x] Disable Policy
+- [x] Manual Redelivery
 
 ### Scheduler
 
-- [ ] PublicationSchedule CRUD
-- [ ] Site Timezone Input
-- [ ] UTC Storage
-- [ ] Due Scanner
-- [ ] Conditional Claim
-- [ ] 실행 직전 재검증
-- [ ] Cancel
-- [ ] Failed Retry
+- [x] PublicationSchedule CRUD
+- [x] Site Timezone Input
+- [x] UTC Storage
+- [x] Due Scanner
+- [x] Conditional Claim
+- [x] 실행 직전 재검증
+- [x] Cancel
+- [x] Failed Retry
 
 ### Test
 
-- [ ] Relay Crash
-- [ ] 중복 Job
-- [ ] Consumer 중복 방지
-- [ ] Webhook Signature
-- [ ] Webhook Retry
-- [ ] 예약 중복 실행 방지
+- [x] Relay Crash
+- [x] 중복 Job
+- [x] Consumer 중복 방지
+- [x] Webhook Signature
+- [x] Webhook Retry
+- [x] 예약 중복 실행 방지
 
 ---
 
