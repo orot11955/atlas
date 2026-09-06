@@ -93,6 +93,7 @@ function fixture(options: { claimed?: boolean; changed?: boolean; failure?: Erro
       assert.equal(transactions.size, 0, 'command execution must not hold a schedule transaction');
       commands += 1;
       if (options.failure) throw options.failure;
+      return { replayed: false };
     },
     async withdraw() {
       throw new Error('unexpected withdraw');
@@ -172,9 +173,8 @@ for (const terminal of [false, true]) {
 // Driver contract checks complement the real PostgreSQL race gate. Unknown affected
 // counts must abort the transaction rather than being treated as a stale no-op.
 test('schedule persistence rejects unknown or impossible affected-row counts', async () => {
-  const { TypeOrmEventingRepository } = await import(
-    './modules/eventing/infrastructure/persistence/typeorm-eventing.repository'
-  );
+  const { TypeOrmEventingRepository } =
+    await import('./modules/eventing/infrastructure/persistence/typeorm-eventing.repository');
   const repository = new TypeOrmEventingRepository(undefined as never);
   const owner = {
     scheduleId: createUuidV7(10),

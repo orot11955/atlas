@@ -88,10 +88,9 @@ function ownerOf(record) {
 
 async function snapshot(id) {
   const [row] = await runner.query('SELECT * FROM publication_schedules WHERE id = $1', [id]);
-  const logs = await runner.query(
-    'SELECT * FROM audit_logs WHERE target_id = $1 ORDER BY id',
-    [id],
-  );
+  const logs = await runner.query('SELECT * FROM audit_logs WHERE target_id = $1 ORDER BY id', [
+    id,
+  ]);
   return { row, logs };
 }
 
@@ -282,7 +281,9 @@ try {
       [admin],
     );
   });
-  console.log(`Applied ${files.length} real migrations; independent worker sessions ${pidA}/${pidB}`);
+  console.log(
+    `Applied ${files.length} real migrations; independent worker sessions ${pidA}/${pidB}`,
+  );
 
   await scenario('claim, completion, failure and recovery reject autocommit usage', async () => {
     const s = await makeSchedule();
@@ -341,8 +342,16 @@ try {
       assert.equal(await rejectLate(b, { ...owner, ...wrong }, true), false);
       assert.deepEqual(await snapshot(s.id), before);
     }
-    for (const invalid of [undefined, {}, { ...owner, attemptNumber: 0 }, { ...owner, version: NaN }]) {
-      await assert.rejects(() => complete(b, invalid), /complete Publication schedule attempt owner/u);
+    for (const invalid of [
+      undefined,
+      {},
+      { ...owner, attemptNumber: 0 },
+      { ...owner, version: NaN },
+    ]) {
+      await assert.rejects(
+        () => complete(b, invalid),
+        /complete Publication schedule attempt owner/u,
+      );
     }
     assert.deepEqual(await snapshot(s.id), before);
     assert.equal(await complete(a, owner), true);
@@ -374,7 +383,13 @@ try {
     const current = (await snapshot(s.id)).row;
     assert.equal(
       await transaction(b, (manager) =>
-        repository.cancelPublicationSchedule(s.workspace, s.id, current.version, recoveredAt, manager),
+        repository.cancelPublicationSchedule(
+          s.workspace,
+          s.id,
+          current.version,
+          recoveredAt,
+          manager,
+        ),
       ),
       true,
     );
@@ -385,89 +400,117 @@ try {
     assert.deepEqual(await snapshot(s.id), cancelled);
   });
 
-  await scenario('manual retry keeps attempt numbers monotonic and invalidates old ownership', async () => {
-    const s = await makeSchedule();
-    const owner = ownerOf(await claim(a, s.id));
-    assert.equal(await rejectLate(a, owner, true), true);
-    const failed = (await snapshot(s.id)).row;
-    assert.equal(
-      await transaction(b, (manager) =>
-        repository.retryPublicationSchedule(s.workspace, s.id, failed.version, recoveredAt, manager),
-      ),
-      true,
-    );
-    assert.equal((await snapshot(s.id)).row.attempt_count, 1);
-    const next = await claim(b, s.id, 2, recoveredAt);
-    assert.equal(await complete(b, ownerOf(next)), true);
-    const completed = await snapshot(s.id);
-    assert.equal(await rejectLate(a, owner, true), false);
-    assert.deepEqual(await snapshot(s.id), completed);
-  });
+  await scenario(
+    'manual retry keeps attempt numbers monotonic and invalidates old ownership',
+    async () => {
+      const s = await makeSchedule();
+      const owner = ownerOf(await claim(a, s.id));
+      assert.equal(await rejectLate(a, owner, true), true);
+      const failed = (await snapshot(s.id)).row;
+      assert.equal(
+        await transaction(b, (manager) =>
+          repository.retryPublicationSchedule(
+            s.workspace,
+            s.id,
+            failed.version,
+            recoveredAt,
+            manager,
+          ),
+        ),
+        true,
+      );
+      assert.equal((await snapshot(s.id)).row.attempt_count, 1);
+      const next = await claim(b, s.id, 2, recoveredAt);
+      assert.equal(await complete(b, ownerOf(next)), true);
+      const completed = await snapshot(s.id);
+      assert.equal(await rejectLate(a, owner, true), false);
+      assert.deepEqual(await snapshot(s.id), completed);
+    },
+  );
 
-  await scenario('recovery waiting behind completion rechecks status and changes zero rows', async () => {
-    const s = await makeSchedule();
-    const owner = ownerOf(await claim(a, s.id));
-    await a.startTransaction();
-    assert.equal(await repository.completePublicationSchedule(owner, recoveredAt, a.manager), true);
-    const recovery = recover(b);
-    void recovery.catch(() => undefined);
-    await waitForDatabaseBlock(pidB, pidA);
-    await a.commitTransaction();
-    assert.equal(await bounded(recovery), 0);
-    assert.equal((await snapshot(s.id)).row.status, 'completed');
-  });
+  await scenario(
+    'recovery waiting behind completion rechecks status and changes zero rows',
+    async () => {
+      const s = await makeSchedule();
+      const owner = ownerOf(await claim(a, s.id));
+      await a.startTransaction();
+      assert.equal(
+        await repository.completePublicationSchedule(owner, recoveredAt, a.manager),
+        true,
+      );
+      const recovery = recover(b);
+      void recovery.catch(() => undefined);
+      await waitForDatabaseBlock(pidB, pidA);
+      await a.commitTransaction();
+      assert.equal(await bounded(recovery), 0);
+      assert.equal((await snapshot(s.id)).row.status, 'completed');
+    },
+  );
 
-  await scenario('completion waiting behind recovery rechecks owner and changes zero rows', async () => {
-    const s = await makeSchedule();
-    const owner = ownerOf(await claim(a, s.id));
-    await a.startTransaction();
-    assert.equal(
-      await repository.recoverStalePublicationSchedules(staleBefore, recoveredAt, a.manager),
-      1,
-    );
-    const completion = complete(b, owner);
-    void completion.catch(() => undefined);
-    await waitForDatabaseBlock(pidB, pidA);
-    await a.commitTransaction();
-    assert.equal(await bounded(completion), false);
-    const next = await claim(b, s.id, 2, recoveredAt);
-    assert.equal(await complete(b, ownerOf(next)), true);
-  });
+  await scenario(
+    'completion waiting behind recovery rechecks owner and changes zero rows',
+    async () => {
+      const s = await makeSchedule();
+      const owner = ownerOf(await claim(a, s.id));
+      await a.startTransaction();
+      assert.equal(
+        await repository.recoverStalePublicationSchedules(staleBefore, recoveredAt, a.manager),
+        1,
+      );
+      const completion = complete(b, owner);
+      void completion.catch(() => undefined);
+      await waitForDatabaseBlock(pidB, pidA);
+      await a.commitTransaction();
+      assert.equal(await bounded(completion), false);
+      const next = await claim(b, s.id, 2, recoveredAt);
+      assert.equal(await complete(b, ownerOf(next)), true);
+    },
+  );
 
   for (const action of ['publish', 'withdraw']) {
     for (const outcome of ['success', 'retryable-failure', 'terminal-failure']) {
-      await scenario(`late ${action} ${outcome} preserves the new owner's entire row and Audit`, async () => {
-        const s = await makeSchedule(action);
-        const entered = deferred();
-        const release = deferred();
-        const old = processor(a, async () => {
-          assert.equal(a.isTransactionActive, false);
-          entered.resolve();
-          return release.promise;
-        });
-        // Observe rejection immediately so a delayed failing job cannot become unhandled.
-        const oldResult = old.process(s.id, 1).then(
-          () => ({ ok: true }),
-          (error) => ({ error }),
-        );
-        await bounded(entered.promise);
-        assert.equal(await recover(b), 1);
-        await processor(b, async () => {
-          assert.equal(b.isTransactionActive, false);
-        }, audit, recoveredAt).process(s.id, 2);
-        const completed = await snapshot(s.id);
-        assert.equal(completed.row.status, 'completed');
-        assert.equal(completed.row.attempt_count, 2);
-        assert.equal(completed.logs.length, 1);
-        assert.equal(completed.logs[0].metadata.attemptNumber, 2);
-        if (outcome === 'success') release.resolve();
-        else if (outcome === 'terminal-failure') {
-          release.reject(new DomainError({ code: ErrorCode.NOT_FOUND, message: 'old target gone' }));
-        } else release.reject(new Error('old transient failure'));
-        const result = await bounded(oldResult);
-        assert.equal(Boolean(result.ok), outcome === 'success');
-        assert.deepEqual(await snapshot(s.id), completed);
-      });
+      await scenario(
+        `late ${action} ${outcome} preserves the new owner's entire row and Audit`,
+        async () => {
+          const s = await makeSchedule(action);
+          const entered = deferred();
+          const release = deferred();
+          const old = processor(a, async () => {
+            assert.equal(a.isTransactionActive, false);
+            entered.resolve();
+            return release.promise;
+          });
+          // Observe rejection immediately so a delayed failing job cannot become unhandled.
+          const oldResult = old.process(s.id, 1).then(
+            () => ({ ok: true }),
+            (error) => ({ error }),
+          );
+          await bounded(entered.promise);
+          assert.equal(await recover(b), 1);
+          await processor(
+            b,
+            async () => {
+              assert.equal(b.isTransactionActive, false);
+            },
+            audit,
+            recoveredAt,
+          ).process(s.id, 2);
+          const completed = await snapshot(s.id);
+          assert.equal(completed.row.status, 'completed');
+          assert.equal(completed.row.attempt_count, 2);
+          assert.equal(completed.logs.length, 1);
+          assert.equal(completed.logs[0].metadata.attemptNumber, 2);
+          if (outcome === 'success') release.resolve();
+          else if (outcome === 'terminal-failure') {
+            release.reject(
+              new DomainError({ code: ErrorCode.NOT_FOUND, message: 'old target gone' }),
+            );
+          } else release.reject(new Error('old transient failure'));
+          const result = await bounded(oldResult);
+          assert.equal(Boolean(result.ok), outcome === 'success');
+          assert.deepEqual(await snapshot(s.id), completed);
+        },
+      );
     }
   }
 
@@ -507,12 +550,15 @@ try {
 
   await scenario('Audit failure rolls back both the transition and inserted Audit', async () => {
     const s = await makeSchedule();
-    const failingAudit = new AuditService({
-      async insert(record, manager) {
-        await auditRepository.insert(record, manager);
-        throw new Error('injected Audit persistence failure');
+    const failingAudit = new AuditService(
+      {
+        async insert(record, manager) {
+          await auditRepository.insert(record, manager);
+          throw new Error('injected Audit persistence failure');
+        },
       },
-    }, clock);
+      clock,
+    );
     await assert.rejects(
       () => processor(a, async () => {}, failingAudit).process(s.id, 1),
       /injected Audit persistence failure/u,
@@ -521,9 +567,15 @@ try {
     assert.equal(rolledBack.row.status, 'processing');
     assert.equal(rolledBack.row.version, 2);
     assert.equal(rolledBack.logs.length, 0);
-    assert.equal(await complete(a, {
-      scheduleId: s.id, workspaceId: s.workspace, attemptNumber: 1, version: 2,
-    }), true);
+    assert.equal(
+      await complete(a, {
+        scheduleId: s.id,
+        workspaceId: s.workspace,
+        attemptNumber: 1,
+        version: 2,
+      }),
+      true,
+    );
   });
 
   console.log(JSON.stringify({ result: 'success', scenarios: passed, migrations: files.length }));
