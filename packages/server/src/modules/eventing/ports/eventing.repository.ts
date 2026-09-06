@@ -102,6 +102,16 @@ export interface CreatePublicationScheduleRecordInput {
   createdAt: Date;
 }
 
+/** Values captured from the committed start-attempt record, never from a later reload.
+ * Recovery and every lifecycle change invalidate the version; retries never reset attemptCount.
+ */
+export interface PublicationScheduleAttemptOwner {
+  scheduleId: string;
+  workspaceId: string;
+  attemptNumber: number;
+  version: number;
+}
+
 export interface EventingRepositoryPort<TTransaction = unknown> {
   insertOutboxEvent(input: InsertOutboxEventInput, transaction: TTransaction): Promise<void>;
   listOutboxEvents(
@@ -266,11 +276,12 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     workspaceId: string,
     query: Readonly<{ contentId?: string; contentSiteId?: string; limit: number }>,
   ): Promise<readonly PublicationScheduleRecord[]>;
+  /** Atomically invalidates stale owners and returns the number of recovered rows. */
   recoverStalePublicationSchedules(
     staleBefore: Date,
     recoveredAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<number>;
   listDuePublicationSchedules(
     now: Date,
     limit: number,
@@ -300,17 +311,19 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     startedAt: Date,
     transaction: TTransaction,
   ): Promise<PublicationScheduleRecord | undefined>;
+  /** False means stale ownership; callers must not write a completion Audit. */
   completePublicationSchedule(
-    scheduleId: string,
+    owner: Readonly<PublicationScheduleAttemptOwner>,
     completedAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<boolean>;
+  /** False means stale ownership; callers must not write a failure/retry Audit. */
   reschedulePublicationSchedule(
-    scheduleId: string,
+    owner: Readonly<PublicationScheduleAttemptOwner>,
     nextAttemptAt: Date,
     errorMessage: string,
     terminal: boolean,
     updatedAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<boolean>;
 }

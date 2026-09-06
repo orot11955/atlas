@@ -29,6 +29,7 @@ import type {
   EventingRepositoryPort,
   InsertOutboxEventInput,
   InsertWebhookDeliveryInput,
+  PublicationScheduleAttemptOwner,
   RotateWebhookSecretRecordInput,
   SetWebhookEndpointStatusRecordInput,
   UpdateWebhookEndpointRecordInput,
@@ -1158,20 +1159,26 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     staleBefore: Date,
     recoveredAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.query(
-      `
-        UPDATE "publication_schedules"
-        SET
-          "status" = 'pending',
-          "next_attempt_at" = $2,
-          "last_error" = 'Recovered stale processing attempt.',
-          "version" = "version" + 1,
-          "updated_at" = $2
-        WHERE "status" = 'processing' AND "updated_at" < $1
-      `,
-      [staleBefore, recoveredAt],
-    );
+  ): Promise<number> {
+    requireScheduleTransaction(transaction);
+    // A single conditional UPDATE serializes with finalization. PostgreSQL rechecks
+    // its predicate after waiting for a competing writer; a completed row stays terminal.
+    const result = await transaction
+      .getRepository(PublicationScheduleEntity)
+      .createQueryBuilder()
+      .update(PublicationScheduleEntity)
+      .set({
+        status: PublicationScheduleStatus.PENDING,
+        nextAttemptAt: recoveredAt,
+        lastError: 'Recovered stale processing attempt.',
+        version: () => 'version + 1',
+        updatedAt: recoveredAt,
+      })
+      .where("status = 'processing'")
+      .andWhere('updated_at < :staleBefore', { staleBefore })
+      .execute();
+
+    return scheduleAffectedRows(result.affected);
   }
 
   public async listDuePublicationSchedules(
@@ -1269,6 +1276,10 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     startedAt: Date,
     transaction: EntityManager,
   ): Promise<PublicationScheduleRecord | undefined> {
+    requireScheduleTransaction(transaction);
+    if (!Number.isSafeInteger(attemptNumber) || attemptNumber < 1) {
+      throw new Error('Publication schedule attempt number must be a positive safe integer.');
+    }
     const entity = await transaction
       .getRepository(PublicationScheduleEntity)
       .createQueryBuilder('schedule')
@@ -1295,41 +1306,63 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
   }
 
   public async completePublicationSchedule(
-    scheduleId: string,
+    owner: Readonly<PublicationScheduleAttemptOwner>,
     completedAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.getRepository(PublicationScheduleEntity).update(
-      { id: scheduleId, status: PublicationScheduleStatus.PROCESSING },
-      {
+  ): Promise<boolean> {
+    requireScheduleTransaction(transaction);
+    assertScheduleOwner(owner);
+    const result = await transaction
+      .getRepository(PublicationScheduleEntity)
+      .createQueryBuilder()
+      .update(PublicationScheduleEntity)
+      .set({
         status: PublicationScheduleStatus.COMPLETED,
         completedAt,
         lastError: null,
         version: () => 'version + 1',
         updatedAt: completedAt,
-      },
-    );
+      })
+      .where('id = :scheduleId', owner)
+      .andWhere('workspace_id = :workspaceId', owner)
+      .andWhere("status = 'processing'")
+      .andWhere('attempt_count = :attemptNumber', owner)
+      .andWhere('version = :version', owner)
+      .execute();
+
+    return scheduleAffectedRows(result.affected, 1) === 1;
   }
 
   public async reschedulePublicationSchedule(
-    scheduleId: string,
+    owner: Readonly<PublicationScheduleAttemptOwner>,
     nextAttemptAt: Date,
     errorMessage: string,
     terminal: boolean,
     updatedAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.getRepository(PublicationScheduleEntity).update(
-      { id: scheduleId },
-      {
+  ): Promise<boolean> {
+    requireScheduleTransaction(transaction);
+    assertScheduleOwner(owner);
+    const result = await transaction
+      .getRepository(PublicationScheduleEntity)
+      .createQueryBuilder()
+      .update(PublicationScheduleEntity)
+      .set({
         status: terminal ? PublicationScheduleStatus.FAILED : PublicationScheduleStatus.PENDING,
         nextAttemptAt,
         lastError: errorMessage,
         completedAt: terminal ? updatedAt : null,
         version: () => 'version + 1',
         updatedAt,
-      },
-    );
+      })
+      .where('id = :scheduleId', owner)
+      .andWhere('workspace_id = :workspaceId', owner)
+      .andWhere("status = 'processing'")
+      .andWhere('attempt_count = :attemptNumber', owner)
+      .andWhere('version = :version', owner)
+      .execute();
+
+    return scheduleAffectedRows(result.affected, 1) === 1;
   }
 }
 
@@ -1513,4 +1546,40 @@ function nullableString(value: unknown): string | null {
 
 function numberOrUndefined(value: unknown): number | undefined {
   return value === null || value === undefined ? undefined : Number(value);
+}
+
+// These guards belong to the schedule persistence boundary, not to HTTP DTO validation.
+function requireScheduleTransaction(transaction: EntityManager): void {
+  if (!transaction.queryRunner?.isTransactionActive) {
+    throw new Error('Publication schedule attempt changes require an active transaction.');
+  }
+}
+
+function assertScheduleOwner(owner: Readonly<PublicationScheduleAttemptOwner>): void {
+  if (
+    !owner ||
+    typeof owner.scheduleId !== 'string' ||
+    owner.scheduleId.length === 0 ||
+    typeof owner.workspaceId !== 'string' ||
+    owner.workspaceId.length === 0 ||
+    !Number.isSafeInteger(owner.attemptNumber) ||
+    owner.attemptNumber < 1 ||
+    !Number.isSafeInteger(owner.version) ||
+    owner.version < 1
+  ) {
+    throw new Error('A complete Publication schedule attempt owner is required.');
+  }
+}
+
+function scheduleAffectedRows(affected: number | null | undefined, maximum?: number): number {
+  if (
+    affected === null ||
+    affected === undefined ||
+    !Number.isSafeInteger(affected) ||
+    affected < 0 ||
+    (maximum !== undefined && affected > maximum)
+  ) {
+    throw new Error('Unexpected affected-row count for Publication schedule attempt update.');
+  }
+  return affected;
 }

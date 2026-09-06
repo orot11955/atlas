@@ -362,11 +362,17 @@ export class PublicationScheduleProcessor<TTransaction> {
 
           const completedAt = this.clock.now();
           await this.transactionRunner.run(async (transaction) => {
-            await this.repository.completePublicationSchedule(
-              schedule.id,
+            const completed = await this.repository.completePublicationSchedule(
+              {
+                scheduleId: schedule.id,
+                workspaceId: schedule.workspaceId,
+                attemptNumber: schedule.attemptCount,
+                version: schedule.version,
+              },
               completedAt,
               transaction,
             );
+            if (!completed) return;
             await this.auditService.record(
               {
                 action: 'content.publication-schedule-completed',
@@ -405,14 +411,20 @@ export class PublicationScheduleProcessor<TTransaction> {
     const errorMessage = truncateOperationalMessage(error);
 
     await this.transactionRunner.run(async (transaction) => {
-      await this.repository.reschedulePublicationSchedule(
-        schedule.id,
+      const rescheduled = await this.repository.reschedulePublicationSchedule(
+        {
+          scheduleId: schedule.id,
+          workspaceId: schedule.workspaceId,
+          attemptNumber: schedule.attemptCount,
+          version: schedule.version,
+        },
         retry ?? failedAt,
         errorMessage,
         terminal,
         failedAt,
         transaction,
       );
+      if (!rescheduled) return;
 
       await this.auditService.record(
         {
