@@ -13,6 +13,14 @@ import type {
   WebhookEventType,
 } from '../domain/eventing';
 
+import type {
+  EventConsumptionOwner,
+  FinishWebhookExecutionInput,
+  OutboxAttemptOwner,
+  WebhookAttemptOwner,
+} from './eventing-attempt-owner';
+export * from './eventing-attempt-owner';
+
 export type InsertOutboxEventInput = OutboxEventRecord;
 
 export interface CreateWebhookEndpointRecordInput {
@@ -66,26 +74,6 @@ export interface InsertWebhookDeliveryInput {
   createdAt: Date;
 }
 
-export interface CompleteWebhookAttemptInput {
-  attemptId: string;
-  deliveryId: string;
-  status: 'succeeded' | 'failed';
-  responseStatus?: number;
-  responseBodyExcerpt?: string;
-  errorMessage?: string;
-  completedAt: Date;
-}
-
-export interface CompleteWebhookDeliveryInput {
-  status: WebhookDeliveryStatus;
-  responseStatus?: number;
-  responseBodyExcerpt?: string;
-  errorMessage?: string;
-  nextRetryAt?: Date;
-  completedAt?: Date;
-  updatedAt: Date;
-}
-
 export interface CreatePublicationScheduleRecordInput {
   id: string;
   workspaceId: string;
@@ -129,18 +117,18 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     transaction: TTransaction,
   ): Promise<readonly OutboxEventRecord[]>;
   markOutboxEventDispatched(
-    eventId: string,
+    owner: Readonly<OutboxAttemptOwner>,
     dispatchedAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<boolean>;
   rescheduleOutboxEvent(
-    eventId: string,
+    owner: Readonly<OutboxAttemptOwner>,
     availableAt: Date,
     errorMessage: string,
     terminal: boolean,
     updatedAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<boolean>;
   retryDeadOutboxEvent(
     workspaceId: string,
     eventId: string,
@@ -154,8 +142,12 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     staleBefore: Date,
     transaction: TTransaction,
   ): Promise<EventConsumptionRecord | undefined>;
+  lockEventConsumption(
+    owner: Readonly<EventConsumptionOwner>,
+    transaction: TTransaction,
+  ): Promise<boolean>;
   completeEventConsumption(
-    consumptionId: string,
+    owner: Readonly<EventConsumptionOwner>,
     status: 'succeeded' | 'failed',
     input: Readonly<{
       processedAt: Date;
@@ -163,7 +155,7 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
       errorMessage?: string;
     }>,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<boolean>;
 
   findSite(
     workspaceId: string,
@@ -206,6 +198,7 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     siteId: string,
     eventType: WebhookEventType,
     occurredAt: Date,
+    transaction?: TTransaction,
   ): Promise<readonly WebhookEndpointRecord[]>;
   insertWebhookDeliveryIfAbsent(
     input: InsertWebhookDeliveryInput,
@@ -223,7 +216,7 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     staleBefore: Date,
     recoveredAt: Date,
     transaction: TTransaction,
-  ): Promise<void>;
+  ): Promise<number>;
   listDueWebhookDeliveries(now: Date, limit: number): Promise<readonly WebhookDeliveryRecord[]>;
   findWebhookDeliveryForUpdate(
     workspaceId: string,
@@ -241,26 +234,11 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     attempt: Readonly<{ id: string; attemptNumber: number; requestedAt: Date }>,
     transaction: TTransaction,
   ): Promise<WebhookDeliveryExecution | undefined>;
-  completeWebhookDeliveryAttempt(
-    input: CompleteWebhookAttemptInput,
+  finishWebhookDeliveryExecution(
+    owner: Readonly<WebhookAttemptOwner>,
+    input: Readonly<FinishWebhookExecutionInput>,
     transaction: TTransaction,
-  ): Promise<void>;
-  completeWebhookDelivery(
-    deliveryId: string,
-    input: CompleteWebhookDeliveryInput,
-    transaction: TTransaction,
-  ): Promise<void>;
-  resetWebhookEndpointFailures(
-    endpointId: string,
-    updatedAt: Date,
-    transaction: TTransaction,
-  ): Promise<void>;
-  incrementWebhookEndpointFailures(
-    endpointId: string,
-    threshold: number,
-    updatedAt: Date,
-    transaction: TTransaction,
-  ): Promise<{ failureCount: number; disabled: boolean }>;
+  ): Promise<boolean>;
 
   findContentSiteScheduleTarget(
     workspaceId: string,

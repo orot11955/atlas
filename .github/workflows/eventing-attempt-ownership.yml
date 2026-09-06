@@ -1,0 +1,94 @@
+name: Eventing Attempt Ownership Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, feat/outbox-webhook-scheduling]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-eventing-attempt-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eventing-attempt-ownership:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_EVENTING_ATTEMPT_TESTS: '1'
+      ATLAS_EVENTING_ATTEMPT_TEST_DATABASE_URL: postgresql://atlas:atlas-attempt-test@127.0.0.1:5432/atlas_eventing_attempt_test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_eventing_attempt_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-attempt-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_eventing_attempt_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Checkout workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build actual packages
+        run: pnpm build:packages
+      - name: Verify server unit regressions
+        run: pnpm --filter @atlas/server test
+      - name: Verify independent PostgreSQL workers and transactional effects
+        run: node scripts/ci/eventing-attempt-e2e.mjs
+      - name: Report formatting without rewriting source
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/eventing-ownership"
+          patch="$RUNNER_TEMP/eventing-ownership/format.patch"
+          : > "$patch"
+          status=0
+          for file in \
+            docs/implementation/r04b-eventing-attempt-ownership.md \
+            packages/server/src/eventing-attempt-contract.test.ts \
+            packages/server/src/eventing.test.ts \
+            packages/server/src/modules/eventing/application/outbox-relay.service.ts \
+            packages/server/src/modules/eventing/application/webhook-delivery.service.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/eventing-attempt.persistence.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/safe-typeorm-eventing.repository.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/subscription-aware-typeorm-eventing.repository.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/typeorm-eventing.repository.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/typeorm-mutation-result.ts \
+            packages/server/src/modules/eventing/ports/eventing-attempt-owner.ts \
+            packages/server/src/modules/eventing/ports/eventing.repository.ts \
+            scripts/ci/eventing-attempt-e2e.mjs \
+            .github/workflows/eventing-attempt-ownership.yml; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/eventing-ownership/formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/eventing-ownership/formatted" >> "$patch" || status=1
+            else
+              status=1
+            fi
+          done
+          cat "$patch"
+          exit "$status"
+      - name: Retain formatting diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventing-ownership-format-${{ github.run_id }}
+          path: ${{ runner.temp }}/eventing-ownership/format.patch
+          if-no-files-found: ignore
+          retention-days: 7

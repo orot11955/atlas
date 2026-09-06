@@ -29,6 +29,8 @@ import {
   verifyWebhookSignature,
   type AuditService,
   type EventingRepositoryPort,
+  type FinishWebhookExecutionInput,
+  type WebhookAttemptOwner,
   type OutboxEventRecord,
   type PublicationCommandPort,
   type PublicationScheduleRecord,
@@ -370,7 +372,8 @@ test('OutboxConsumerService applies a duplicate Event effect only once', async (
         updatedAt: now,
       });
     },
-    completeEventConsumption: () => Promise.resolve(),
+    lockEventConsumption: () => Promise.resolve(true),
+    completeEventConsumption: () => Promise.resolve(true),
   } as unknown as EventingRepositoryPort<symbol>;
   const queue = {
     enqueueOutboxEvent: () => Promise.resolve(),
@@ -461,33 +464,19 @@ test('PublicationScheduleProcessor conditionally claims a duplicate Schedule onl
 test('Webhook delivery failure persists a due retry without pre-enqueuing a conflicting job', async () => {
   const clock = new FixedClock('2026-09-04T00:00:00.000Z');
   const execution = createWebhookExecution(clock);
-  let completedDelivery:
-    | Readonly<{
-        status: WebhookDeliveryStatus;
-        nextRetryAt?: Date;
-        completedAt?: Date;
-        updatedAt: Date;
-      }>
-    | undefined;
-  let endpointFailureIncrements = 0;
+  let completedDelivery: Readonly<FinishWebhookExecutionInput> | undefined;
   const repository = {
     startWebhookDeliveryAttempt: () => Promise.resolve(execution),
-    completeWebhookDeliveryAttempt: () => Promise.resolve(),
-    completeWebhookDelivery: (
-      _deliveryId: string,
-      input: Readonly<{
-        status: WebhookDeliveryStatus;
-        nextRetryAt?: Date;
-        completedAt?: Date;
-        updatedAt: Date;
-      }>,
+    finishWebhookDeliveryExecution: (
+      owner: Readonly<WebhookAttemptOwner>,
+      input: Readonly<FinishWebhookExecutionInput>,
     ) => {
+      assert.equal(owner.attemptId, execution.attempt.id);
+      assert.equal(owner.attemptNumber, 1);
+      assert.equal(owner.workspaceId, execution.delivery.workspaceId);
+      assert.equal(owner.endpointVersion, execution.endpoint.version);
       completedDelivery = input;
-      return Promise.resolve();
-    },
-    incrementWebhookEndpointFailures: () => {
-      endpointFailureIncrements += 1;
-      return Promise.resolve({ failureCount: 1, disabled: false });
+      return Promise.resolve(true);
     },
   } as unknown as EventingRepositoryPort<symbol>;
   const service = new WebhookDeliveryService(
@@ -507,8 +496,8 @@ test('Webhook delivery failure persists a due retry without pre-enqueuing a conf
 
   assert.equal(completedDelivery?.status, WebhookDeliveryStatus.RETRY_SCHEDULED);
   assert.equal(completedDelivery?.nextRetryAt?.toISOString(), '2026-09-04T00:01:00.000Z');
-  assert.equal(completedDelivery?.completedAt, undefined);
-  assert.equal(endpointFailureIncrements, 0);
+  assert.equal(completedDelivery?.finishedAt.toISOString(), '2026-09-04T00:00:00.000Z');
+  assert.equal(completedDelivery?.endpointFailureThreshold, 3);
 });
 
 test('Publication schedule retry is persisted for relay recovery without a duplicate delayed job', async () => {

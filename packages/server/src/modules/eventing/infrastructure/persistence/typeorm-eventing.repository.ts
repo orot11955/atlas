@@ -22,8 +22,10 @@ import {
   type WebhookEventType,
 } from '../../domain/eventing';
 import type {
-  CompleteWebhookAttemptInput,
-  CompleteWebhookDeliveryInput,
+  EventConsumptionOwner,
+  FinishWebhookExecutionInput,
+  OutboxAttemptOwner,
+  WebhookAttemptOwner,
   CreatePublicationScheduleRecordInput,
   CreateWebhookEndpointRecordInput,
   EventingRepositoryPort,
@@ -41,6 +43,16 @@ import {
   WebhookDeliveryEntity,
   WebhookEndpointEntity,
 } from './eventing.entities';
+
+import {
+  finishConsumption,
+  finishOutboxAttempt,
+  finishWebhookExecution,
+  lockConsumption,
+  recoverWebhookExecutions,
+  requireEventingTransaction,
+} from './eventing-attempt.persistence';
+import { unwrapTypeOrmMutationRows } from './typeorm-mutation-result';
 
 interface OutboxEventRow {
   id: string;
@@ -178,7 +190,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       attemptCount: input.attemptCount,
       lastError: input.lastError ?? null,
       createdAt: input.createdAt,
-      updatedAt: input.updatedAt,
+      updatedAt: input.createdAt,
     });
   }
 
@@ -220,7 +232,8 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     limit: number,
     transaction: EntityManager,
   ): Promise<readonly OutboxEventRecord[]> {
-    const rows = await transaction.query<OutboxEventRow[]>(
+    requireEventingTransaction(transaction);
+    const result = await transaction.query(
       `
         WITH candidates AS (
           SELECT "id"
@@ -247,56 +260,29 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       `,
       [now, staleBefore, limit],
     );
+    const rows = unwrapTypeOrmMutationRows<OutboxEventRow>(result);
     return rows.map(toOutboxEventRecord);
   }
 
   public async markOutboxEventDispatched(
-    eventId: string,
+    owner: Readonly<OutboxAttemptOwner>,
     dispatchedAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.query(
-      `
-        UPDATE "outbox_events"
-        SET
-          "status" = 'dispatched',
-          "claimed_at" = NULL,
-          "dispatched_at" = $2,
-          "last_error" = NULL,
-          "updated_at" = $2
-        WHERE "id" = $1 AND "status" = 'processing'
-      `,
-      [eventId, dispatchedAt],
-    );
+  ): Promise<boolean> {
+    return finishOutboxAttempt(owner, { status: 'dispatched', at: dispatchedAt }, transaction);
   }
 
   public async rescheduleOutboxEvent(
-    eventId: string,
+    owner: Readonly<OutboxAttemptOwner>,
     availableAt: Date,
     errorMessage: string,
     terminal: boolean,
     updatedAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    const result = await transaction.query<{ id: string }[]>(
-      `
-        UPDATE "outbox_events"
-        SET
-          "status" = $2,
-          "available_at" = $3,
-          "claimed_at" = NULL,
-          "dispatched_at" = NULL,
-          "last_error" = $4,
-          "updated_at" = $5
-        WHERE "id" = $1 AND "status" = 'processing'
-        RETURNING "id"
-      `,
-      [eventId, terminal ? 'dead' : 'pending', availableAt, errorMessage, updatedAt],
-    );
-
-    if (result.length !== 1) {
-      throw new Error('Outbox Event was not in processing state while rescheduling.');
-    }
+  ): Promise<boolean> {
+    return finishOutboxAttempt(owner, {
+      status: terminal ? 'dead' : 'pending', at: updatedAt, availableAt, error: errorMessage,
+    }, transaction);
   }
 
   public async retryDeadOutboxEvent(
@@ -305,7 +291,8 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     availableAt: Date,
     transaction: EntityManager,
   ): Promise<boolean> {
-    const result = await transaction.query<{ id: string }[]>(
+    requireEventingTransaction(transaction);
+    const result = await transaction.query(
       `
         UPDATE "outbox_events"
         SET
@@ -320,7 +307,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       `,
       [workspaceId, eventId, availableAt],
     );
-    return result.length === 1;
+    return unwrapTypeOrmMutationRows<{ id: string }>(result).length === 1;
   }
 
   public async claimEventConsumption(
@@ -330,8 +317,9 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     staleBefore: Date,
     transaction: EntityManager,
   ): Promise<EventConsumptionRecord | undefined> {
+    requireEventingTransaction(transaction);
     const id = createUuidV7(claimedAt.getTime());
-    const rows = await transaction.query<EventConsumptionRow[]>(
+    const result = await transaction.query(
       `
         INSERT INTO "event_consumptions" (
           "id", "consumer_key", "event_id", "status", "attempt_count",
@@ -353,11 +341,19 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       `,
       [id, consumerKey, eventId, claimedAt, staleBefore],
     );
+    const rows = unwrapTypeOrmMutationRows<EventConsumptionRow>(result);
     return rows[0] ? toEventConsumptionRecord(rows[0]) : undefined;
   }
 
+  public async lockEventConsumption(
+    owner: Readonly<EventConsumptionOwner>,
+    transaction: EntityManager,
+  ): Promise<boolean> {
+    return lockConsumption(owner, transaction);
+  }
+
   public async completeEventConsumption(
-    consumptionId: string,
+    owner: Readonly<EventConsumptionOwner>,
     status: 'succeeded' | 'failed',
     input: Readonly<{
       processedAt: Date;
@@ -365,26 +361,8 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       errorMessage?: string;
     }>,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.query(
-      `
-        UPDATE "event_consumptions"
-        SET
-          "status" = $2,
-          "processed_at" = $3,
-          "result_json" = $4,
-          "last_error" = $5,
-          "updated_at" = $3
-        WHERE "id" = $1 AND "status" = 'processing'
-      `,
-      [
-        consumptionId,
-        status,
-        input.processedAt,
-        input.result ? { ...input.result } : null,
-        input.errorMessage ?? null,
-      ],
-    );
+  ): Promise<boolean> {
+    return finishConsumption(owner, status, input, transaction);
   }
 
   public async findSite(
@@ -538,8 +516,10 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     workspaceId: string,
     siteId: string,
     eventType: WebhookEventType,
+    _occurredAt?: Date,
+    transaction?: EntityManager,
   ): Promise<readonly WebhookEndpointRecord[]> {
-    const rows = await this.dataSource.query<WebhookEndpointRow[]>(
+    const rows = await (transaction ?? this.dataSource.manager).query<WebhookEndpointRow[]>(
       `
         SELECT endpoint.*
         FROM "webhook_endpoints" endpoint
@@ -559,6 +539,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     input: InsertWebhookDeliveryInput,
     transaction: EntityManager,
   ): Promise<WebhookDeliveryRecord> {
+    requireEventingTransaction(transaction);
     await transaction.query(
       `
         INSERT INTO "webhook_deliveries" (
@@ -668,41 +649,8 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     staleBefore: Date,
     recoveredAt: Date,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.query(
-      `
-        WITH stale AS (
-          SELECT delivery."id"
-          FROM "webhook_deliveries" delivery
-          WHERE delivery."status" = 'processing'
-            AND delivery."updated_at" < $1
-          FOR UPDATE SKIP LOCKED
-        )
-        UPDATE "webhook_delivery_attempts" attempt
-        SET
-          "status" = 'failed',
-          "error_message" = 'Recovered stale processing attempt.',
-          "completed_at" = $2
-        FROM stale
-        WHERE attempt."delivery_id" = stale."id"
-          AND attempt."status" = 'processing'
-      `,
-      [staleBefore, recoveredAt],
-    );
-    await transaction.query(
-      `
-        UPDATE "webhook_deliveries"
-        SET
-          "status" = 'retry_scheduled',
-          "next_retry_at" = $2,
-          "last_error" = 'Recovered stale processing attempt.',
-          "completed_at" = NULL,
-          "updated_at" = $2
-        WHERE "status" = 'processing'
-          AND "updated_at" < $1
-      `,
-      [staleBefore, recoveredAt],
-    );
+  ): Promise<number> {
+    return recoverWebhookExecutions(staleBefore, recoveredAt, transaction);
   }
 
   public async listDueWebhookDeliveries(
@@ -714,9 +662,9 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
         SELECT delivery.*, event."event_type"
         FROM "webhook_deliveries" delivery
         INNER JOIN "outbox_events" event ON event."id" = delivery."event_id"
-        WHERE delivery."status" = 'retry_scheduled'
-          AND delivery."next_retry_at" <= $1
-        ORDER BY delivery."next_retry_at" ASC, delivery."id" ASC
+        WHERE (delivery."status" = 'pending' AND delivery."created_at" <= $1)
+           OR (delivery."status" = 'retry_scheduled' AND delivery."next_retry_at" <= $1)
+        ORDER BY COALESCE(delivery."next_retry_at", delivery."created_at") ASC, delivery."id" ASC
         LIMIT $2
       `,
       [now, limit],
@@ -750,6 +698,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     updatedAt: Date,
     transaction: EntityManager,
   ): Promise<boolean> {
+    requireEventingTransaction(transaction);
     const result = await transaction
       .getRepository(WebhookDeliveryEntity)
       .createQueryBuilder()
@@ -774,6 +723,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     attempt: Readonly<{ id: string; attemptNumber: number; requestedAt: Date }>,
     transaction: EntityManager,
   ): Promise<WebhookDeliveryExecution | undefined> {
+    requireEventingTransaction(transaction);
     const rows = await transaction.query<
       (WebhookDeliveryRow & WebhookEndpointRow & OutboxEventRow)[]
     >(
@@ -828,7 +778,10 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     if (
       (currentStatus !== WebhookDeliveryStatus.PENDING &&
         currentStatus !== WebhookDeliveryStatus.RETRY_SCHEDULED) ||
-      attempt.attemptNumber !== currentAttemptCount + 1
+      attempt.attemptNumber !== currentAttemptCount + 1 ||
+      (currentStatus === WebhookDeliveryStatus.RETRY_SCHEDULED &&
+        row.delivery_next_retry_at &&
+        new Date(row.delivery_next_retry_at as Date).getTime() > attempt.requestedAt.getTime())
     ) {
       return undefined;
     }
@@ -922,92 +875,12 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     return { delivery, endpoint, event, attempt: attemptRecord };
   }
 
-  public async completeWebhookDeliveryAttempt(
-    input: CompleteWebhookAttemptInput,
+  public async finishWebhookDeliveryExecution(
+    owner: Readonly<WebhookAttemptOwner>,
+    input: Readonly<FinishWebhookExecutionInput>,
     transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.getRepository(WebhookDeliveryAttemptEntity).update(
-      { id: input.attemptId, deliveryId: input.deliveryId },
-      {
-        status:
-          input.status === 'succeeded'
-            ? WebhookDeliveryAttemptStatus.SUCCEEDED
-            : WebhookDeliveryAttemptStatus.FAILED,
-        responseStatus: input.responseStatus ?? null,
-        responseBodyExcerpt: input.responseBodyExcerpt ?? null,
-        errorMessage: input.errorMessage ?? null,
-        completedAt: input.completedAt,
-      },
-    );
-  }
-
-  public async completeWebhookDelivery(
-    deliveryId: string,
-    input: CompleteWebhookDeliveryInput,
-    transaction: EntityManager,
-  ): Promise<void> {
-    await transaction.getRepository(WebhookDeliveryEntity).update(
-      { id: deliveryId },
-      {
-        status: input.status,
-        nextRetryAt: input.nextRetryAt ?? null,
-        lastResponseStatus: input.responseStatus ?? null,
-        lastResponseExcerpt: input.responseBodyExcerpt ?? null,
-        lastError: input.errorMessage ?? null,
-        completedAt: input.completedAt ?? null,
-        updatedAt: input.updatedAt,
-      },
-    );
-  }
-
-  public async resetWebhookEndpointFailures(
-    endpointId: string,
-    updatedAt: Date,
-    transaction: EntityManager,
-  ): Promise<void> {
-    await transaction
-      .getRepository(WebhookEndpointEntity)
-      .update({ id: endpointId }, { consecutiveFailureCount: 0, updatedAt });
-  }
-
-  public async incrementWebhookEndpointFailures(
-    endpointId: string,
-    threshold: number,
-    updatedAt: Date,
-    transaction: EntityManager,
-  ): Promise<{ failureCount: number; disabled: boolean }> {
-    const rows = await transaction.query<
-      { consecutive_failure_count: number | string; status: WebhookEndpointStatus }[]
-    >(
-      `
-        UPDATE "webhook_endpoints"
-        SET
-          "consecutive_failure_count" = "consecutive_failure_count" + 1,
-          "status" = CASE
-            WHEN "consecutive_failure_count" + 1 >= $2 THEN 'disabled'
-            ELSE "status"
-          END,
-          "disabled_at" = CASE
-            WHEN "consecutive_failure_count" + 1 >= $2 THEN $3
-            ELSE "disabled_at"
-          END,
-          "version" = CASE
-            WHEN "consecutive_failure_count" + 1 >= $2 AND "status" <> 'disabled'
-              THEN "version" + 1
-            ELSE "version"
-          END,
-          "updated_at" = $3
-        WHERE "id" = $1
-        RETURNING "consecutive_failure_count", "status"
-      `,
-      [endpointId, threshold, updatedAt],
-    );
-    const row = rows[0];
-
-    return {
-      failureCount: Number(row?.consecutive_failure_count ?? 0),
-      disabled: row?.status === WebhookEndpointStatus.DISABLED,
-    };
+  ): Promise<boolean> {
+    return finishWebhookExecution(owner, input, transaction);
   }
 
   public async findContentSiteScheduleTarget(
@@ -1367,6 +1240,9 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
 }
 
 function toOutboxEventRecord(row: OutboxEventRow): OutboxEventRecord {
+  if (!row.payload_json || typeof row.payload_json !== 'object' || !row.payload_json.data) {
+    throw new Error('Outbox Event query returned an invalid payload_json value.');
+  }
   return {
     id: row.id,
     workspaceId: row.workspace_id,

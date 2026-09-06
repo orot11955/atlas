@@ -1,4 +1,4 @@
-import type { DataSource } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 
 import type { WebhookEndpointRecord, WebhookEventType } from '../../domain/eventing';
 import { SafeTypeOrmEventingRepository } from './safe-typeorm-eventing.repository';
@@ -13,11 +13,14 @@ export class SubscriptionAwareTypeOrmEventingRepository extends SafeTypeOrmEvent
     siteId: string,
     eventType: WebhookEventType,
     occurredAt?: Date,
+    transaction?: EntityManager,
   ): Promise<readonly WebhookEndpointRecord[]> {
     const endpoints = await super.listActiveWebhookEndpointsForEvent(
       workspaceId,
       siteId,
       eventType,
+      occurredAt,
+      transaction,
     );
 
     if (!occurredAt) {
