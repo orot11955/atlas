@@ -107,7 +107,12 @@ export class WebhookDeliveryService<TTransaction> {
     }
     // Persistence/Audit failure is not an HTTP failure. Propagate it instead of starting
     // a second completion that might overwrite the result of an ambiguous DB commit.
-    if (!response || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) {
+    if (
+      !response ||
+      !Number.isInteger(response.status) ||
+      response.status < 100 ||
+      response.status > 599
+    ) {
       await this.fail(execution, new WebhookTransportError('invalid-response'), undefined, false);
       return;
     }

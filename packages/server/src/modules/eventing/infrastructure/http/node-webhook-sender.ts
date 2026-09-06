@@ -63,10 +63,14 @@ export class NodeWebhookSender implements WebhookSenderPort {
       }
     };
     try {
-      return await Promise.race([
+      const response = await Promise.race([
         this.sendBeforeDeadline(request, controller.signal, assertLive),
         deadline,
       ]);
+      // A response callback may run before an overdue timer callback. Recheck the
+      // monotonic deadline at the public completion boundary, including body-limit exits.
+      assertLive();
+      return response;
     } catch (error) {
       if (controller.signal.aborted) throw new WebhookTransportError('deadline-exceeded');
       if (error instanceof WebhookTransportError) throw error;
@@ -222,9 +226,7 @@ function sendPinnedRequest(
           }
         });
       });
-      outgoing.on('error', () =>
-        finish(undefined, new WebhookTransportError('transport-failed')),
-      );
+      outgoing.on('error', () => finish(undefined, new WebhookTransportError('transport-failed')));
       outgoing.end(body);
     } catch {
       finish(undefined, new WebhookTransportError('transport-failed'));

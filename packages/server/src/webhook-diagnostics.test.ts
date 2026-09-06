@@ -24,9 +24,15 @@ test('Webhook error diagnostics are allow-listed rather than truncating secrets'
     assert.equal(safeWebhookErrorMessage(value), 'Webhook diagnostic: processing-failed.');
   }
   assert.equal(safeWebhookErrorMessage(undefined), undefined);
-  assert.equal(safeWebhookErrorMessage('Recovered stale processing attempt.'), 'Recovered stale processing attempt.');
+  assert.equal(
+    safeWebhookErrorMessage('Recovered stale processing attempt.'),
+    'Recovered stale processing attempt.',
+  );
   const timeout = new WebhookTransportError('deadline-exceeded');
   timeout.message = secret;
   assert.equal(safeWebhookErrorMessage(timeout), 'Webhook diagnostic: deadline-exceeded.');
-  assert.equal(safeWebhookErrorMessage(safeWebhookErrorMessage(timeout)), 'Webhook diagnostic: deadline-exceeded.');
+  assert.equal(
+    safeWebhookErrorMessage(safeWebhookErrorMessage(timeout)),
+    'Webhook diagnostic: deadline-exceeded.',
+  );
 });

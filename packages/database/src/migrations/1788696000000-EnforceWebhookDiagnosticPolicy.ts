@@ -12,7 +12,9 @@ const ERROR_MARKERS = [
   'endpoint-disabled',
   'http-non-success',
   'processing-failed',
-].map((code) => `'Webhook diagnostic: ${code}.'`).join(', ');
+]
+  .map((code) => `'Webhook diagnostic: ${code}.'`)
+  .join(', ');
 const SAFE_ERRORS = `${ERROR_MARKERS}, 'Recovered stale processing attempt.'`;
 
 export class EnforceWebhookDiagnosticPolicy1788696000000 implements MigrationInterface {
