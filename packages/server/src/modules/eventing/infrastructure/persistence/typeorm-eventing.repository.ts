@@ -190,7 +190,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       attemptCount: input.attemptCount,
       lastError: input.lastError ?? null,
       createdAt: input.createdAt,
-      updatedAt: input.createdAt,
+      updatedAt: input.updatedAt,
     });
   }
 
@@ -280,9 +280,16 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     updatedAt: Date,
     transaction: EntityManager,
   ): Promise<boolean> {
-    return finishOutboxAttempt(owner, {
-      status: terminal ? 'dead' : 'pending', at: updatedAt, availableAt, error: errorMessage,
-    }, transaction);
+    return finishOutboxAttempt(
+      owner,
+      {
+        status: terminal ? 'dead' : 'pending',
+        at: updatedAt,
+        availableAt,
+        error: errorMessage,
+      },
+      transaction,
+    );
   }
 
   public async retryDeadOutboxEvent(

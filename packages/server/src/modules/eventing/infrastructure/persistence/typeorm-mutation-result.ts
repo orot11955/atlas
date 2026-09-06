@@ -12,7 +12,10 @@ export function unwrapTypeOrmMutationRows<T>(result: unknown): readonly T[] {
     const record = result as Record<string, unknown>;
     rows = ['records', 'rows', 'raw'].map((key) => record[key]).find(Array.isArray);
   }
-  if (!Array.isArray(rows) || rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) {
+  if (
+    !Array.isArray(rows) ||
+    rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))
+  ) {
     throw new Error('TypeORM mutation query returned an unsupported result shape.');
   }
   return rows as readonly T[];
