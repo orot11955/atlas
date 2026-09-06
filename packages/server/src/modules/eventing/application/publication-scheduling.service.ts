@@ -1,3 +1,4 @@
+import { capturePublicationScheduleTarget, readPublicationScheduleTarget, type TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../domain/scheduled-publication';
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
 import {
   ActorType,
@@ -12,7 +13,6 @@ import {
 import {
   EventType,
   PUBLICATION_SCHEDULE_RETRY_DELAYS_MS,
-  PublicationScheduleAction,
   PublicationScheduleStatus,
   assertContentSiteSchedulable,
   formatLocalDateTime,
@@ -22,7 +22,6 @@ import {
   normalizeTimezone,
   retryAt,
   truncateOperationalMessage,
-  type PublicationScheduleRecord,
 } from '../domain/eventing';
 import type { EventingRepositoryPort } from '../ports/eventing.repository';
 import type { PublicationCommandPort } from '../ports/publication-command.port';
@@ -84,6 +83,7 @@ export class PublicationSchedulingService<TTransaction> {
         }
 
         assertContentSiteSchedulable(target, action);
+        const pinnedTarget = capturePublicationScheduleTarget(target, action);
         const timezone = normalizeTimezone(input.timezone ?? target.siteTimezone);
         const scheduledFor = normalizeScheduledFor(
           localDateTimeToUtc(input.scheduledLocalAt, timezone),
@@ -96,7 +96,7 @@ export class PublicationSchedulingService<TTransaction> {
           siteId: target.siteId,
           contentId,
           contentSiteId,
-          action,
+          ...pinnedTarget,
           scheduledFor,
           timezone,
           scheduledLocalAt,
@@ -135,7 +135,7 @@ export class PublicationSchedulingService<TTransaction> {
               contentId,
               contentSiteId,
               siteId: target.siteId,
-              action,
+              ...pinnedTarget,
               scheduledFor: scheduledFor.toISOString(),
               scheduledLocalAt,
               timezone,
@@ -247,6 +247,7 @@ export class PublicationSchedulingService<TTransaction> {
         });
       }
 
+      readPublicationScheduleTarget(current);
       const retried = await this.repository.retryPublicationSchedule(
         workspaceId,
         scheduleId,
@@ -346,19 +347,13 @@ export class PublicationScheduleProcessor<TTransaction> {
       },
       async () => {
         try {
-          if (schedule.action === PublicationScheduleAction.PUBLISH) {
-            await this.command.publish(
-              schedule.workspaceId,
-              schedule.contentId,
-              schedule.contentSiteId,
-            );
-          } else {
-            await this.command.withdraw(
-              schedule.workspaceId,
-              schedule.contentId,
-              schedule.contentSiteId,
-            );
-          }
+          const result = await this.command.executeScheduled({
+            scheduleId: schedule.id,
+            workspaceId: schedule.workspaceId,
+            attemptNumber: schedule.attemptCount,
+            version: schedule.version,
+          });
+          if (result.stale) return;
 
           const completedAt = this.clock.now();
           await this.transactionRunner.run(async (transaction) => {
@@ -515,6 +510,7 @@ function isRetryableScheduleError(error: unknown): boolean {
 
   const terminalCodes: readonly string[] = [
     ErrorCode.AUTH_REQUIRED,
+    ErrorCode.ACTION_NOT_ALLOWED,
     ErrorCode.FORBIDDEN,
     ErrorCode.INVALID_STATE_TRANSITION,
     ErrorCode.NOT_FOUND,

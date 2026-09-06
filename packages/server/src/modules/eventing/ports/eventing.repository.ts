@@ -1,9 +1,9 @@
+import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../domain/scheduled-publication';
 import type {
   ContentSiteScheduleTarget,
   EventConsumptionRecord,
   OutboxEventRecord,
   PublicationScheduleAction,
-  PublicationScheduleRecord,
   WebhookDeliveryExecution,
   WebhookDeliveryRecord,
   WebhookDeliveryStatus,
@@ -82,6 +82,7 @@ export interface CreatePublicationScheduleRecordInput {
   contentSiteId: string;
   revisionId?: string;
   revisionNumber?: number;
+  targetPublicationId?: string;
   action: PublicationScheduleAction;
   scheduledFor: Date;
   timezone: string;

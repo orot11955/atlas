@@ -123,8 +123,10 @@ function processor(connection, execute, auditService = audit, now = startedAt) {
     { run: (work) => transaction(connection, work) },
     repository,
     {
-      publish: execute,
-      withdraw: execute,
+      executeScheduled: async () => {
+        await execute();
+        return { replayed: false, stale: false };
+      },
     },
     auditService,
     new FixedClock(now),
@@ -214,6 +216,9 @@ async function makeSchedule(action = 'publish') {
         contentId: context.content,
         contentSiteId: context.contentSite,
         action,
+        revisionId: action === 'publish' ? context.revision : undefined,
+        revisionNumber: action === 'publish' ? 1 : undefined,
+        targetPublicationId: action === 'withdraw' ? context.publication : undefined,
         scheduledFor: startedAt,
         timezone: 'UTC',
         scheduledLocalAt: '2030-01-01T00:00:00',

@@ -1,3 +1,4 @@
+import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../../domain/scheduled-publication';
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { createUuidV7 } from '../../../../core';
@@ -13,7 +14,6 @@ import {
   type EventConsumptionRecord,
   type OutboxEventEnvelope,
   type OutboxEventRecord,
-  type PublicationScheduleRecord,
   type WebhookDeliveryAttemptRecord,
   type WebhookDeliveryExecution,
   type WebhookDeliveryRecord,
@@ -151,6 +151,7 @@ interface PublicationScheduleRow {
   content_site_id: string;
   revision_id: string | null;
   revision_number: number | string | null;
+  target_publication_id: string | null;
   action: 'publish' | 'withdraw';
   scheduled_for: Date | string;
   timezone: string;
@@ -896,6 +897,14 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     contentSiteId: string,
     transaction: EntityManager,
   ): Promise<ContentSiteScheduleTarget | undefined> {
+    requireEventingTransaction(transaction);
+    const assignments = await transaction.query(
+      'SELECT id FROM content_sites WHERE workspace_id = $1 AND content_id = $2 AND id = $3 FOR UPDATE',
+      [workspaceId, contentId, contentSiteId],
+    );
+    if (assignments.length === 0) return undefined;
+    await transaction.query('SELECT id FROM contents WHERE workspace_id = $1 AND id = $2 FOR UPDATE',
+      [workspaceId, contentId]);
     const rows = await transaction.query<
       {
         workspace_id: string;
@@ -976,6 +985,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       contentSiteId: input.contentSiteId,
       revisionId: input.revisionId ?? null,
       revisionNumber: input.revisionNumber ?? null,
+      targetPublicationId: input.targetPublicationId ?? null,
       action: input.action,
       scheduledFor: input.scheduledFor,
       timezone: input.timezone,
@@ -1377,6 +1387,7 @@ function toPublicationScheduleRecord(row: PublicationScheduleRow): PublicationSc
     contentTitle: row.content_title,
     contentSiteId: row.content_site_id,
     revisionId: row.revision_id ?? undefined,
+    targetPublicationId: row.target_publication_id ?? undefined,
     revisionNumber: row.revision_number === null ? undefined : Number(row.revision_number),
     action: row.action,
     scheduledFor: new Date(row.scheduled_for),
@@ -1405,6 +1416,7 @@ function toPublicationScheduleRecordFromEntity(
     contentId: entity.contentId,
     contentSiteId: entity.contentSiteId,
     revisionId: entity.revisionId ?? undefined,
+    targetPublicationId: entity.targetPublicationId ?? undefined,
     revisionNumber: entity.revisionNumber ?? undefined,
     action: entity.action,
     scheduledFor: new Date(entity.scheduledFor),

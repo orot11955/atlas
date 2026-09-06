@@ -24,3 +24,7 @@ export * from './ports/publication-command.port';
 export * from './ports/webhook-secret-cipher.port';
 export * from './ports/webhook-secret-generator.port';
 export * from './ports/webhook-sender.port';
+export * from './application/scheduled-publication-command.service';
+export * from './domain/scheduled-publication';
+export * from './infrastructure/persistence/typeorm-publication-schedule-effect.repository';
+export * from './ports/publication-schedule-effect.repository';

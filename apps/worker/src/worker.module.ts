@@ -20,6 +20,8 @@ import {
   OutboxRelayService,
   OutboxService,
   PublicationScheduleProcessor,
+  ScheduledPublicationCommandService,
+  TypeOrmPublicationScheduleEffectRepository,
   TypeOrmAssetProcessingRepository,
   TypeOrmAuditRepository,
   TypeOrmContentAssetRepository,
@@ -228,16 +230,26 @@ import { SystemQueueWorker } from './processors/system-queue.worker';
         database: WorkerDatabaseService,
         objectStorage: ObjectStoragePort,
         outboxService: OutboxRecorderPort<EntityManager>,
-      ): PublicationCommandPort =>
-        new ContentPublicationService(
+      ): PublicationCommandPort => {
+        const publications = new TypeOrmContentPublicationRepository(database.dataSource);
+        const audit = createAuditService(database);
+        const assets = new TypeOrmContentAssetRepository(database.dataSource);
+        return new ScheduledPublicationCommandService(
           new TypeOrmTransactionRunner(database.dataSource),
-          new TypeOrmContentPublicationRepository(database.dataSource),
-          createAuditService(database),
-          new TypeOrmContentAssetRepository(database.dataSource),
-          objectStorage,
-          systemClock,
-          outboxService,
-        ),
+          new TypeOrmEventingRepository(database.dataSource),
+          new TypeOrmPublicationScheduleEffectRepository(),
+          publications,
+          (transaction) => new ContentPublicationService(
+            { run: (work) => work(transaction) },
+            publications,
+            audit,
+            assets,
+            objectStorage,
+            systemClock,
+            outboxService,
+          ),
+        );
+      },
     },
     {
       provide: WORKER_PUBLICATION_SCHEDULE_PROCESSOR,

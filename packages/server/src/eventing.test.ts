@@ -439,11 +439,10 @@ test('PublicationScheduleProcessor conditionally claims a duplicate Schedule onl
     run: <TResult>(work: (transaction: symbol) => Promise<TResult>) => work(Symbol('transaction')),
   };
   const command = {
-    publish: () => {
+    executeScheduled: () => {
       publishCount += 1;
-      return Promise.resolve({ replayed: false });
+      return Promise.resolve({ replayed: false, stale: false });
     },
-    withdraw: () => Promise.resolve({ replayed: false }),
   };
   const auditService = { record: () => Promise.resolve({}) };
   const processor = new PublicationScheduleProcessor(
@@ -519,8 +518,7 @@ test('Publication schedule retry is persisted for relay recovery without a dupli
     },
   } as unknown as EventingRepositoryPort<symbol>;
   const command = {
-    publish: () => Promise.reject(new Error('temporary publication failure')),
-    withdraw: () => Promise.resolve(),
+    executeScheduled: () => Promise.reject(new Error('temporary publication failure')),
   } satisfies PublicationCommandPort;
   const processor = new PublicationScheduleProcessor(
     passthroughRunner<symbol>(),

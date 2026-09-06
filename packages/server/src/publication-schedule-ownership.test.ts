@@ -89,14 +89,11 @@ function fixture(options: { claimed?: boolean; changed?: boolean; failure?: Erro
     clock,
   );
   const command: PublicationCommandPort = {
-    async publish() {
+    async executeScheduled() {
       assert.equal(transactions.size, 0, 'command execution must not hold a schedule transaction');
       commands += 1;
       if (options.failure) throw options.failure;
-      return { replayed: false };
-    },
-    async withdraw() {
-      throw new Error('unexpected withdraw');
+      return { replayed: false, stale: false };
     },
   };
   const processor = new PublicationScheduleProcessor(

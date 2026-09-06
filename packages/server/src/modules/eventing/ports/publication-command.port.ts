@@ -1,8 +1,7 @@
+import type { PublicationScheduleAttemptOwner } from './eventing.repository';
+
+/** Scheduled execution must pin its target and durably deduplicate its business effect. */
 export interface PublicationCommandPort {
-  publish(
-    workspaceId: string,
-    contentId: string,
-    contentSiteId: string,
-  ): Promise<Readonly<{ replayed: boolean }>>;
-  withdraw(workspaceId: string, contentId: string, contentSiteId: string): Promise<unknown>;
+  executeScheduled(owner: Readonly<PublicationScheduleAttemptOwner>):
+    Promise<Readonly<{ replayed: boolean; stale: boolean }>>;
 }
