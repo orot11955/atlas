@@ -239,15 +239,16 @@ import { SystemQueueWorker } from './processors/system-queue.worker';
           new TypeOrmEventingRepository(database.dataSource),
           new TypeOrmPublicationScheduleEffectRepository(),
           publications,
-          (transaction) => new ContentPublicationService(
-            { run: (work) => work(transaction) },
-            publications,
-            audit,
-            assets,
-            objectStorage,
-            systemClock,
-            outboxService,
-          ),
+          (transaction) =>
+            new ContentPublicationService(
+              { run: (work) => work(transaction) },
+              publications,
+              audit,
+              assets,
+              objectStorage,
+              systemClock,
+              outboxService,
+            ),
         );
       },
     },

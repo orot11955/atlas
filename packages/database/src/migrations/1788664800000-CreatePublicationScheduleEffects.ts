@@ -108,12 +108,17 @@ export class CreatePublicationScheduleEffects1788664800000 implements MigrationI
     END; $$`);
     await queryRunner.query('DROP TABLE publication_schedule_effects');
     await queryRunner.query('DROP FUNCTION guard_publication_schedule_effect()');
-    await queryRunner.query('DROP TRIGGER trg_require_new_publication_schedule_target ON publication_schedules');
+    await queryRunner.query(
+      'DROP TRIGGER trg_require_new_publication_schedule_target ON publication_schedules',
+    );
     await queryRunner.query('DROP FUNCTION require_new_publication_schedule_target()');
-    await queryRunner.query('ALTER TABLE publication_schedules DROP CONSTRAINT uq_publication_schedule_effect_scope');
+    await queryRunner.query(
+      'ALTER TABLE publication_schedules DROP CONSTRAINT uq_publication_schedule_effect_scope',
+    );
   }
 
   private requireTransaction(queryRunner: QueryRunner): void {
-    if (!queryRunner.isTransactionActive) throw new Error('Schedule effects migration requires an active transaction.');
+    if (!queryRunner.isTransactionActive)
+      throw new Error('Schedule effects migration requires an active transaction.');
   }
 }

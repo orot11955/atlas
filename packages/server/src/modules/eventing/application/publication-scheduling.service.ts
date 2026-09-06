@@ -1,4 +1,8 @@
-import { capturePublicationScheduleTarget, readPublicationScheduleTarget, type TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../domain/scheduled-publication';
+import {
+  capturePublicationScheduleTarget,
+  readPublicationScheduleTarget,
+  type TargetedPublicationScheduleRecord as PublicationScheduleRecord,
+} from '../domain/scheduled-publication';
 import type { AuditService, Clock, TransactionRunner } from '../../../core';
 import {
   ActorType,

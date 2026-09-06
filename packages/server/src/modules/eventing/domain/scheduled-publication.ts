@@ -23,22 +23,33 @@ export function capturePublicationScheduleTarget(
 }
 
 export function readPublicationScheduleTarget(
-  record: Readonly<Pick<TargetedPublicationScheduleRecord,
-    'action' | 'revisionId' | 'revisionNumber' | 'targetPublicationId'>>,
+  record: Readonly<
+    Pick<
+      TargetedPublicationScheduleRecord,
+      'action' | 'revisionId' | 'revisionNumber' | 'targetPublicationId'
+    >
+  >,
 ): ScheduledPublicationTarget {
   if (
     record.action === 'publish' &&
-    typeof record.revisionId === 'string' && isUuidV7(record.revisionId) &&
-    Number.isSafeInteger(record.revisionNumber) && Number(record.revisionNumber) > 0 &&
+    typeof record.revisionId === 'string' &&
+    isUuidV7(record.revisionId) &&
+    Number.isSafeInteger(record.revisionNumber) &&
+    Number(record.revisionNumber) > 0 &&
     record.targetPublicationId == null
   ) {
-    return Object.freeze({ action: 'publish', revisionId: record.revisionId,
-      revisionNumber: Number(record.revisionNumber) });
+    return Object.freeze({
+      action: 'publish',
+      revisionId: record.revisionId,
+      revisionNumber: Number(record.revisionNumber),
+    });
   }
   if (
     record.action === 'withdraw' &&
-    typeof record.targetPublicationId === 'string' && isUuidV7(record.targetPublicationId) &&
-    record.revisionId == null && record.revisionNumber == null
+    typeof record.targetPublicationId === 'string' &&
+    isUuidV7(record.targetPublicationId) &&
+    record.revisionId == null &&
+    record.revisionNumber == null
   ) {
     return Object.freeze({ action: 'withdraw', targetPublicationId: record.targetPublicationId });
   }

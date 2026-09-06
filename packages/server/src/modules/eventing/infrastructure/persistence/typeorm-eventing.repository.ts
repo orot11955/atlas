@@ -903,8 +903,10 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
       [workspaceId, contentId, contentSiteId],
     );
     if (assignments.length === 0) return undefined;
-    await transaction.query('SELECT id FROM contents WHERE workspace_id = $1 AND id = $2 FOR UPDATE',
-      [workspaceId, contentId]);
+    await transaction.query(
+      'SELECT id FROM contents WHERE workspace_id = $1 AND id = $2 FOR UPDATE',
+      [workspaceId, contentId],
+    );
     const rows = await transaction.query<
       {
         workspace_id: string;
