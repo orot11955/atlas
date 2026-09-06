@@ -1,0 +1,89 @@
+name: Webhook Transport Safety Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, feat/outbox-webhook-scheduling]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-webhook-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webhook-transport-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_WEBHOOK_SAFETY_TESTS: '1'
+      ATLAS_WEBHOOK_SAFETY_DATABASE_URL: postgresql://atlas:atlas-webhook-test@127.0.0.1:5432/atlas_webhook_safety_test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_webhook_safety_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-webhook-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_webhook_safety_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Checkout workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build actual packages
+        run: pnpm build:packages
+      - name: Verify unit and real loopback transport regressions
+        run: pnpm --filter @atlas/server test
+      - name: Verify diagnostic migration, persistence and Audit boundaries
+        run: node scripts/ci/webhook-diagnostics-e2e.mjs
+      - name: Report formatting without rewriting source
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/webhook-safety"
+          patch="$RUNNER_TEMP/webhook-safety/format.patch"
+          : > "$patch"
+          status=0
+          for file in \
+            .github/workflows/webhook-transport-safety.yml \
+            docs/implementation/r05c-webhook-transport-safety.md \
+            packages/database/src/migrations/1788696000000-EnforceWebhookDiagnosticPolicy.ts \
+            packages/server/src/modules/eventing/domain/webhook-diagnostics.ts \
+            packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
+            packages/server/src/modules/eventing/application/webhook-delivery.service.ts \
+            packages/server/src/webhook-diagnostics.test.ts \
+            packages/server/src/webhook-transport.test.ts \
+            scripts/ci/webhook-diagnostics-e2e.mjs; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/webhook-safety/formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/webhook-safety/formatted" >> "$patch" || status=1
+            else
+              status=1
+            fi
+          done
+          cat "$patch"
+          exit "$status"
+      - name: Retain formatting diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webhook-safety-format-${{ github.run_id }}
+          path: ${{ runner.temp }}/webhook-safety/format.patch
+          if-no-files-found: ignore
+          retention-days: 7

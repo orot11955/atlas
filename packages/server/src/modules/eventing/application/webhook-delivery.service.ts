@@ -12,9 +12,13 @@ import {
   WebhookEndpointStatus,
   createWebhookSignature,
   retryAt,
-  truncateOperationalMessage,
   type WebhookDeliveryExecution,
 } from '../domain/eventing';
+import {
+  safeWebhookErrorMessage,
+  safeWebhookResponseExcerpt,
+  WebhookTransportError,
+} from '../domain/webhook-diagnostics';
 import type {
   EventingRepositoryPort,
   FinishWebhookExecutionInput,
@@ -69,7 +73,7 @@ export class WebhookDeliveryService<TTransaction> {
 
   private async send(execution: Readonly<WebhookDeliveryExecution>): Promise<void> {
     if (execution.endpoint.status !== WebhookEndpointStatus.ACTIVE) {
-      await this.fail(execution, new Error('Webhook endpoint is disabled.'), undefined, true);
+      await this.fail(execution, new WebhookTransportError('endpoint-disabled'), undefined, true);
       return;
     }
     let response: Awaited<ReturnType<WebhookSenderPort['send']>>;
@@ -103,13 +107,12 @@ export class WebhookDeliveryService<TTransaction> {
     }
     // Persistence/Audit failure is not an HTTP failure. Propagate it instead of starting
     // a second completion that might overwrite the result of an ambiguous DB commit.
+    if (!response || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) {
+      await this.fail(execution, new WebhookTransportError('invalid-response'), undefined, false);
+      return;
+    }
     if (response.status < 200 || response.status >= 300) {
-      await this.fail(
-        execution,
-        new Error(`Webhook endpoint responded with HTTP ${response.status}.`),
-        response,
-        false,
-      );
+      await this.fail(execution, new WebhookTransportError('http-non-success'), response, false);
       return;
     }
     await this.finish(execution, {
@@ -135,7 +138,7 @@ export class WebhookDeliveryService<TTransaction> {
       status: nextRetryAt ? 'retry_scheduled' : 'dead',
       responseStatus: response?.status,
       responseBodyExcerpt: response?.bodyExcerpt,
-      errorMessage: truncateOperationalMessage(error),
+      errorMessage: safeWebhookErrorMessage(error),
       nextRetryAt,
       finishedAt,
       endpointFailureThreshold: this.options.endpointFailureThreshold,
@@ -146,6 +149,12 @@ export class WebhookDeliveryService<TTransaction> {
     execution: Readonly<WebhookDeliveryExecution>,
     input: Readonly<FinishWebhookExecutionInput>,
   ): Promise<void> {
+    // Enforce the policy even for a different Sender adapter or an injected failure.
+    const diagnostics = {
+      ...input,
+      responseBodyExcerpt: safeWebhookResponseExcerpt(input.responseBodyExcerpt),
+      errorMessage: safeWebhookErrorMessage(input.errorMessage),
+    };
     const owner: Readonly<WebhookAttemptOwner> = Object.freeze({
       deliveryId: execution.delivery.id,
       workspaceId: execution.delivery.workspaceId,
@@ -157,7 +166,7 @@ export class WebhookDeliveryService<TTransaction> {
     await this.transactionRunner.run(async (transaction) => {
       const applied = await this.repository.finishWebhookDeliveryExecution(
         owner,
-        input,
+        diagnostics,
         transaction,
       );
       if (!applied) return;
