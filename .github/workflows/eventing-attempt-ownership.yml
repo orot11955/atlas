@@ -65,6 +65,11 @@ jobs:
             docs/implementation/r04b-eventing-attempt-ownership.md \
             packages/server/src/eventing-attempt-contract.test.ts \
             packages/server/src/eventing.test.ts \
+            packages/server/src/event-contract.test.ts \
+            packages/server/src/event-contract-consumer.test.ts \
+            packages/server/src/modules/eventing/domain/event-contract.ts \
+            packages/server/src/modules/eventing/application/outbox.service.ts \
+            docs/implementation/r05a-event-contracts.md \
             packages/server/src/modules/eventing/application/outbox-relay.service.ts \
             packages/server/src/modules/eventing/application/webhook-delivery.service.ts \
             packages/server/src/modules/eventing/infrastructure/persistence/eventing-attempt.persistence.ts \

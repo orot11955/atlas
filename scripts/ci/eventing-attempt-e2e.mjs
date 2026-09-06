@@ -19,6 +19,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const require = createRequire(resolve(root, 'packages/database/package.json'));
 const { DataSource } = require('typeorm');
 const {
+  createUuidV7,
   AuditLogEntity,
   AuditService,
   DomainError,
@@ -69,7 +70,7 @@ const [{ pid: pidB }] = await b.query('SELECT pg_backend_pid() AS pid');
 assert.notEqual(pidA, pidB, 'workers must have separate PostgreSQL sessions');
 const repository = new TypeOrmEventingRepository(ds);
 const clock = new FixedClock('2030-01-01T00:00:00Z');
-const admin = randomUUID();
+const admin = createUuidV7();
 const startedAt = clock.now();
 const staleBefore = new Date(startedAt.getTime() + 1);
 const recoveredAt = new Date(startedAt.getTime() + 600_000);
@@ -133,12 +134,12 @@ async function scenario(name, operation) {
   console.log(`ok ${passed} - ${name}`);
 }
 
-async function makeContext(workspace = randomUUID()) {
-  const site = randomUUID();
-  const content = randomUUID();
-  const contentSite = randomUUID();
-  const revision = randomUUID();
-  const publication = randomUUID();
+async function makeContext(workspace = createUuidV7()) {
+  const site = createUuidV7();
+  const content = createUuidV7();
+  const contentSite = createUuidV7();
+  const revision = createUuidV7();
+  const publication = createUuidV7();
   await runner.query(
     `INSERT INTO workspaces (id, key, name, timezone, locale, created_at, updated_at)
      VALUES ($1, $2, 'Schema fixture', 'UTC', 'en', now(), now()) ON CONFLICT (id) DO NOTHING`,
@@ -273,9 +274,9 @@ function webhook(
     new FixedClock(at),
   );
 }
-async function makeEvent(status = 'dispatched') {
+async function makeEvent(status = 'dispatched', transform = (record) => record) {
   const context = await transaction(runner, () => makeContext());
-  const eventId = randomUUID();
+  const eventId = createUuidV7();
   const envelope = {
     eventId,
     eventType: 'content.published',
@@ -284,11 +285,20 @@ async function makeEvent(status = 'dispatched') {
     siteId: context.site,
     aggregateId: context.publication,
     schemaVersion: 1,
-    data: {},
+    data: {
+      publicationId: context.publication,
+      contentId: context.content,
+      contentSiteId: context.contentSite,
+      revisionId: context.revision,
+      revisionNumber: 1,
+      slug: 'fixture',
+      etag: 'a'.repeat(64),
+      visibility: 'public',
+    },
   };
   await transaction(runner, (manager) =>
     repository.insertOutboxEvent(
-      {
+      transform({
         id: eventId,
         workspaceId: context.workspace,
         siteId: context.site,
@@ -303,14 +313,14 @@ async function makeEvent(status = 'dispatched') {
         attemptCount: status === 'pending' ? 0 : 1,
         createdAt: startedAt,
         updatedAt: startedAt,
-      },
+      }),
       manager,
     ),
   );
   return { ...context, eventId };
 }
 async function makeEndpoint(event) {
-  const endpointId = randomUUID();
+  const endpointId = createUuidV7();
   await transaction(runner, (manager) =>
     repository.insertWebhookEndpoint(
       {
@@ -336,7 +346,7 @@ async function makeEndpoint(event) {
 }
 async function makeDelivery(attemptCount = 0) {
   const context = await makeEndpoint(await makeEvent());
-  const deliveryId = randomUUID();
+  const deliveryId = createUuidV7();
   await transaction(runner, (manager) =>
     repository.insertWebhookDeliveryIfAbsent(
       {
@@ -399,7 +409,7 @@ async function claimWebhook(connection, deliveryId, attempt = 1, at = startedAt)
   return transaction(connection, (manager) =>
     repository.startWebhookDeliveryAttempt(
       deliveryId,
-      { id: randomUUID(), attemptNumber: attempt, requestedAt: at },
+      { id: createUuidV7(), attemptNumber: attempt, requestedAt: at },
       manager,
     ),
   );
@@ -500,8 +510,8 @@ try {
     const context = await makeEvent('pending');
     const owner = ownerOfEvent(await claimEvent(a));
     for (const wrong of [
-      { workspaceId: randomUUID() },
-      { eventId: randomUUID() },
+      { workspaceId: createUuidV7() },
+      { eventId: createUuidV7() },
       { attemptNumber: 2 },
     ]) {
       assert.equal(await finishEvent(b, { ...owner, ...wrong }), false);
@@ -716,10 +726,10 @@ try {
       const owner = ownerOfWebhook(await claimWebhook(a, context.deliveryId));
       const before = await snapshot(context);
       for (const wrong of [
-        { workspaceId: randomUUID() },
-        { deliveryId: randomUUID() },
-        { endpointId: randomUUID() },
-        { attemptId: randomUUID() },
+        { workspaceId: createUuidV7() },
+        { deliveryId: createUuidV7() },
+        { endpointId: createUuidV7() },
+        { attemptId: createUuidV7() },
         { attemptNumber: 2 },
       ]) {
         assert.equal(await finishWebhook(b, { ...owner, ...wrong }), false);
@@ -950,7 +960,7 @@ try {
       await assert.rejects(
         repository.startWebhookDeliveryAttempt(
           context.deliveryId,
-          { id: randomUUID(), attemptNumber: 1, requestedAt: startedAt },
+          { id: createUuidV7(), attemptNumber: 1, requestedAt: startedAt },
           a.manager,
         ),
         /active transaction/u,
@@ -961,6 +971,65 @@ try {
       );
     },
   );
+
+
+  const invalidContracts = [
+    ['unregistered type', (r) => { r.eventType = 'content.sensitive-marker'; r.payload.eventType = r.eventType; }],
+    ['future schema', (r) => { r.schemaVersion = 2; r.payload.schemaVersion = 2; }],
+    ['envelope schema mismatch', (r) => { r.payload.schemaVersion = 2; }],
+    ['envelope event ID mismatch', (r) => { r.payload.eventId = createUuidV7(); }],
+    ['Workspace mismatch', (r) => { r.payload.workspaceId = createUuidV7(); }],
+    ['Site mismatch', (r) => { r.payload.siteId = createUuidV7(); }],
+    ['aggregate mismatch', (r) => { r.payload.aggregateId = createUuidV7(); }],
+    ['invalid aggregate kind', (r) => { r.aggregateType = 'publication-schedule'; }],
+    ['different publication target', (r) => { r.payload.data.publicationId = createUuidV7(); }],
+    ['numeric-string revision', (r) => { r.payload.data.revisionNumber = '1'; }],
+    ['array visibility', (r) => { r.payload.data.visibility = ['public']; }],
+    ['missing payload identifier', (r) => { delete r.payload.data.contentId; }],
+    ['invalid occurrence date', (r) => { r.payload.occurredAt = '2030-02-30T00:00:00.000Z'; }],
+  ];
+  for (const [name, mutate] of invalidContracts) {
+    await scenario(`event contract rejection preserves effects: ${name}`, async () => {
+      const context = await makeEndpoint(await makeEvent('dispatched', (record) => { mutate(record); return record; }));
+      const before = await snapshot(context);
+      let notifications = 0;
+      const queue = { ...noQueue, enqueueWebhookDelivery: async () => { notifications += 1; } };
+      await assert.rejects(consumer(a, queue).consume(context.eventId), /Outbox Event contract rejected/u);
+      const after = await snapshot(context);
+      assert.deepEqual(after.event, before.event); // Consumer failure is not a delivery/Outbox status.
+      assert.deepEqual(after.deliveries, before.deliveries);
+      assert.deepEqual(after.attempts, before.attempts);
+      assert.deepEqual(after.endpoints, before.endpoints);
+      assert.equal(after.consumptions.length, 1);
+      assert.equal(after.consumptions[0].status, 'failed');
+      assert.equal(notifications, 0);
+      const failures = after.logs.filter((row) => row.action === 'outbox.event-consumption-failed');
+      assert.equal(failures.length, 1);
+      assert.equal(failures[0].error_code, 'VALIDATION_FAILED');
+      assert.equal(after.logs.some((row) => row.action === 'outbox.event-consumed'), false);
+      assert.doesNotMatch(JSON.stringify({ logs: after.logs, error: after.consumptions[0].last_error }), /sensitive-marker/u);
+    });
+  }
+  await scenario('a valid event with zero subscriptions explicitly succeeds after poison events', async () => {
+    const context = await makeEvent();
+    assert.deepEqual(await consumer(a).consume(context.eventId), { duplicate: false, effects: 0 });
+    assert.deepEqual(await consumer(b).consume(context.eventId), { duplicate: true, effects: 0 });
+    const after = await snapshot(context);
+    assert.equal(after.consumptions[0].status, 'succeeded');
+    assert.equal(after.logs.filter((row) => row.action === 'outbox.event-consumed').length, 1);
+  });
+  await scenario('validation failure and failure Audit roll back together if Audit insertion fails', async () => {
+    const context = await makeEvent('dispatched', (record) => { record.payload.data.revisionNumber = 0; return record; });
+    const failingAudit = new AuditService({ insert: async (record, tx) => {
+      await auditRepository.insert(record, tx); throw new Error('injected contract audit failure');
+    } }, clock);
+    await assert.rejects(consumer(a, noQueue, failingAudit).consume(context.eventId), /injected contract audit failure/u);
+    const after = await snapshot(context);
+    assert.equal(after.consumptions[0].status, 'processing');
+    assert.equal(after.logs.length, 0);
+    assert.equal(after.deliveries.length, 0);
+  });
+  assert.equal(passed, 36);
 
   console.log(JSON.stringify({ result: 'success', scenarios: passed, migrations: files.length }));
 } finally {

@@ -7,6 +7,7 @@ import {
   freezeOutboxEvent,
   type OutboxEventRecord,
 } from '../domain/eventing';
+import { assertEventData, resolveEventContract } from '../domain/event-contract';
 import type { EventingRepositoryPort } from '../ports/eventing.repository';
 import type { OutboxRecorderPort, RecordOutboxEventInput } from '../ports/outbox-recorder.port';
 
@@ -85,6 +86,8 @@ export class OutboxService<TTransaction> implements OutboxRecorderPort<TTransact
       updatedAt: occurredAt,
     };
 
+    // Reject invalid new events before persistence, inside the caller's domain transaction.
+    resolveEventContract(record);
     await this.repository.insertOutboxEvent(record, transaction);
     return freezeOutboxEvent(record);
   }
@@ -107,6 +110,7 @@ function normalizeEventData(
 
   try {
     serialized = JSON.stringify(value ?? {});
+    if (typeof serialized !== 'string') throw new Error('Not a serialized JSON value.');
   } catch {
     throw new DomainError({
       code: ErrorCode.VALIDATION_FAILED,
@@ -133,6 +137,7 @@ function normalizeEventData(
     });
   }
 
+  assertEventData(parsed as Record<string, unknown>);
   return deepFreezeJson(parsed) as Readonly<Record<string, unknown>>;
 }
 

@@ -193,7 +193,7 @@ test('OutboxService records an immutable request-scoped event envelope', async (
           aggregateType: 'content-publication',
           aggregateId: publicationId,
           eventType: EventType.CONTENT_PUBLISHED,
-          data: { publicationId },
+          data: publicationData(publicationId),
         },
         Symbol('transaction'),
       ),
@@ -226,7 +226,7 @@ test('OutboxService records an immutable request-scoped event envelope', async (
           aggregateType: 'content-publication',
           aggregateId: publicationId,
           eventType: EventType.CONTENT_PUBLISHED,
-          data: { nested: { values: [1, { stable: true }] } },
+          data: { ...publicationData(publicationId), nested: { values: [1, { stable: true }] } },
         },
         Symbol('transaction'),
       ),
@@ -295,12 +295,13 @@ test('OutboxConsumerService applies a duplicate Event effect only once', async (
   const endpointId = createUuidV7(103);
   const deliveryId = createUuidV7(104);
   const consumptionId = createUuidV7(105);
+  const aggregateId = createUuidV7(106);
   const event: OutboxEventRecord = {
     id: eventId,
     workspaceId,
     siteId,
     aggregateType: 'content-publication',
-    aggregateId: createUuidV7(106),
+    aggregateId,
     eventType: EventType.CONTENT_PUBLISHED,
     schemaVersion: 1,
     payload: {
@@ -309,9 +310,9 @@ test('OutboxConsumerService applies a duplicate Event effect only once', async (
       occurredAt: now.toISOString(),
       workspaceId,
       siteId,
-      aggregateId: createUuidV7(107),
+      aggregateId,
       schemaVersion: 1,
-      data: {},
+      data: publicationData(aggregateId),
     },
     status: OutboxEventStatus.PROCESSING,
     availableAt: now,
@@ -637,5 +638,18 @@ function createPublicationSchedule(clock: FixedClock): PublicationScheduleRecord
     requestedByAdminAccountId: createUuidV7(405),
     createdAt: clock.now(),
     updatedAt: clock.now(),
+  };
+}
+
+function publicationData(publicationId: string): Record<string, unknown> {
+  return {
+    publicationId,
+    contentId: createUuidV7(),
+    contentSiteId: createUuidV7(),
+    revisionId: createUuidV7(),
+    revisionNumber: 1,
+    slug: 'fixture',
+    etag: 'e'.repeat(64),
+    visibility: 'public',
   };
 }
