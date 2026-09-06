@@ -6,6 +6,8 @@ export interface EnqueueOutboxEventInput {
   eventId: string;
   availableAt: Date;
   correlationId?: string;
+  /** Persisted notification generation, not a business-attempt counter. */
+  notificationVersion?: number;
 }
 
 export interface EnqueueWebhookDeliveryInput {

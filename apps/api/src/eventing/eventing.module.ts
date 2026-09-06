@@ -19,6 +19,7 @@ import { AdminSessionModule } from '../admin-session/admin-session.module';
 import { AdminWorkspaceSiteModule } from '../admin-sites/admin-workspace-site.module';
 import { PlatformModule } from '../platform/platform.module';
 import { AUDIT_SERVICE, TRANSACTION_RUNNER } from '../platform/platform.tokens';
+import { ConsumerController } from './consumer.controller';
 import { EventingController } from './eventing.controller';
 import { EventingPersistenceModule } from './eventing-persistence.module';
 import {
@@ -38,7 +39,7 @@ import {
     AdminSessionModule,
     AdminWorkspaceSiteModule,
   ],
-  controllers: [EventingController],
+  controllers: [EventingController, ConsumerController],
   providers: [
     {
       provide: OUTBOX_ADMINISTRATION_SERVICE,

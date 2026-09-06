@@ -1,7 +1,8 @@
+import type { ConsumerLifecyclePort } from './consumer-lifecycle';
+export * from './consumer-lifecycle';
 import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../domain/scheduled-publication';
 import type {
   ContentSiteScheduleTarget,
-  EventConsumptionRecord,
   OutboxEventRecord,
   PublicationScheduleAction,
   WebhookDeliveryExecution,
@@ -14,7 +15,6 @@ import type {
 } from '../domain/eventing';
 
 import type {
-  EventConsumptionOwner,
   FinishWebhookExecutionInput,
   OutboxAttemptOwner,
   WebhookAttemptOwner,
@@ -101,7 +101,7 @@ export interface PublicationScheduleAttemptOwner {
   version: number;
 }
 
-export interface EventingRepositoryPort<TTransaction = unknown> {
+export interface EventingRepositoryPort<TTransaction = unknown> extends ConsumerLifecyclePort<TTransaction> {
   insertOutboxEvent(input: InsertOutboxEventInput, transaction: TTransaction): Promise<void>;
   listOutboxEvents(
     workspaceId: string,
@@ -136,28 +136,6 @@ export interface EventingRepositoryPort<TTransaction = unknown> {
     availableAt: Date,
     transaction: TTransaction,
   ): Promise<boolean>;
-  claimEventConsumption(
-    eventId: string,
-    consumerKey: string,
-    claimedAt: Date,
-    staleBefore: Date,
-    transaction: TTransaction,
-  ): Promise<EventConsumptionRecord | undefined>;
-  lockEventConsumption(
-    owner: Readonly<EventConsumptionOwner>,
-    transaction: TTransaction,
-  ): Promise<boolean>;
-  completeEventConsumption(
-    owner: Readonly<EventConsumptionOwner>,
-    status: 'succeeded' | 'failed',
-    input: Readonly<{
-      processedAt: Date;
-      result?: Readonly<Record<string, unknown>>;
-      errorMessage?: string;
-    }>,
-    transaction: TTransaction,
-  ): Promise<boolean>;
-
   findSite(
     workspaceId: string,
     siteId: string,

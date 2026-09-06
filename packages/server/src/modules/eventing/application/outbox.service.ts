@@ -1,5 +1,6 @@
+import type { ConsumerState, ConsumptionReplayInput } from '../ports/consumer-lifecycle';
 import type { Clock } from '../../../core';
-import { DomainError, ErrorCode, createUuidV7, requestContext, systemClock } from '../../../core';
+import { ActorType, DomainError, ErrorCode, createUuidV7, requestContext, systemClock } from '../../../core';
 import {
   EVENT_SCHEMA_VERSION,
   OutboxEventStatus,
@@ -184,6 +185,39 @@ export class OutboxAdministrationService<TTransaction> {
     return Object.freeze(records.map(freezeOutboxEvent));
   }
 
+  public listConsumptions(workspaceId: string, status?: ConsumerState, limit = 50) {
+    assertConsumptionLimit(limit);
+    return this.repository.listConsumptions(workspaceId, status, limit);
+  }
+
+  public consumptionHistory(workspaceId: string, eventId: string, limit = 50) {
+    assertConsumptionLimit(limit);
+    return this.repository.consumptionHistory(workspaceId, eventId, limit);
+  }
+
+  public async replayConsumption(workspaceId: string, input: Readonly<ConsumptionReplayInput>) {
+    const context = requestContext.require();
+    if (context.actorType !== ActorType.ADMIN || !context.actorId || context.workspaceId !== workspaceId) {
+      throw new DomainError({ code: ErrorCode.FORBIDDEN, message: 'A Workspace-scoped administrator is required.' });
+    }
+    return this.transactionRunner.run(async (tx) => {
+      const event = await this.repository.findOutboxEvent(input.eventId, tx);
+      if (!event || event.workspaceId !== workspaceId) {
+        throw new DomainError({ code: ErrorCode.NOT_FOUND, message: 'Consumer Event was not found.' });
+      }
+      // An invalid immutable contract cannot be repaired by replay. Upgrade its handler or
+      // issue a distinct, audited domain command; never rewrite the historical payload.
+      resolveEventContract(event);
+      const result = await this.repository.replayConsumption(workspaceId, context.actorId!, input, this.clock.now(), tx);
+      if (!result.replayed) await this.auditService.record({
+        action: 'outbox.consumption-replay-requested', targetType: 'outbox-event', targetId: input.eventId,
+        metadata: { replayId: input.replayId, previousAttempt: result.previousAttempt,
+          attemptLimit: result.attemptLimit, reason: input.reason },
+      }, tx);
+      return result;
+    });
+  }
+
   public async retry(workspaceId: string, eventId: string): Promise<void> {
     const retriedAt = this.clock.now();
     await this.transactionRunner.run(async (transaction) => {
@@ -209,5 +243,11 @@ export class OutboxAdministrationService<TTransaction> {
         transaction,
       );
     });
+  }
+}
+
+function assertConsumptionLimit(limit: number): void {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+    throw new DomainError({ code: ErrorCode.VALIDATION_FAILED, message: 'Consumer limit must be between 1 and 200.' });
   }
 }

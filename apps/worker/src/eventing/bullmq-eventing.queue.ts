@@ -16,27 +16,27 @@ import {
 @Injectable()
 export class BullMqEventingQueue implements EventingQueuePort, OnApplicationShutdown {
   private readonly queue: Queue;
-  private readonly outboxAttempts: number;
 
   public constructor(config: ConfigService<WorkerEnvironment, true>) {
     this.queue = new Queue(config.get('SYSTEM_QUEUE_NAME', { infer: true }), {
       connection: parseRedisUrl(config.get('REDIS_URL', { infer: true })),
     });
-    this.outboxAttempts = config.get('OUTBOX_RELAY_MAX_ATTEMPTS', { infer: true });
   }
 
   public async enqueueOutboxEvent(input: Readonly<EnqueueOutboxEventInput>): Promise<void> {
+    const generation = input.notificationVersion;
+    if (generation !== undefined && (!Number.isSafeInteger(generation) || generation < 1)) {
+      throw new Error('Consumer notification version must be a positive integer.');
+    }
     await this.queue.add(
       OUTBOX_CONSUME_JOB_NAME,
       {
         eventId: input.eventId,
         ...(input.correlationId ? { correlationId: input.correlationId } : {}),
       },
-      {
-        ...queueOptions(input.eventId, input.availableAt),
-        attempts: this.outboxAttempts,
-        backoff: { type: 'exponential', delay: 2_000 },
-      },
+      // PostgreSQL owns retry budgeting. A hint may be duplicated or lost; it never
+      // authorizes bypassing a receipt's due time, terminal status or attempt owner.
+      queueOptions(generation === undefined ? input.eventId : `outbox-${input.eventId}-${generation}`, input.availableAt),
     );
   }
 
@@ -52,9 +52,7 @@ export class BullMqEventingQueue implements EventingQueuePort, OnApplicationShut
     );
   }
 
-  public async enqueuePublicationSchedule(
-    input: Readonly<EnqueuePublicationScheduleInput>,
-  ): Promise<void> {
+  public async enqueuePublicationSchedule(input: Readonly<EnqueuePublicationScheduleInput>): Promise<void> {
     await this.queue.add(
       PUBLICATION_SCHEDULE_JOB_NAME,
       {

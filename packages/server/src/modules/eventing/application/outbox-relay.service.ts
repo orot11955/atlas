@@ -80,24 +80,29 @@ export class OutboxRelayService<TTransaction> {
     return events.length;
   }
 
-  public async recoverDueWork(): Promise<{ schedules: number; deliveries: number }> {
+  public async recoverDueWork(): Promise<{ schedules: number; deliveries: number; consumptions: number }> {
     const now = this.clock.now();
     const publicationStaleBefore = new Date(
       now.getTime() - this.options.publicationStaleMilliseconds,
     );
     const webhookStaleBefore = new Date(now.getTime() - this.options.webhookStaleMilliseconds);
-    await this.transactionRunner.run(async (transaction) => {
+    const consumptionNotifications = await this.transactionRunner.run(async (transaction) => {
       await this.repository.recoverStalePublicationSchedules(
         publicationStaleBefore,
         now,
         transaction,
       );
       await this.repository.recoverStaleWebhookDeliveries(webhookStaleBefore, now, transaction);
+      return this.repository.reserveConsumptionNotifications(now,
+        new Date(now.getTime() - this.options.outboxStaleMilliseconds), this.options.outboxBatchSize, transaction);
     });
     const [schedules, deliveries] = await Promise.all([
       this.repository.listDuePublicationSchedules(now, this.options.publicationBatchSize),
       this.repository.listDueWebhookDeliveries(now, this.options.webhookBatchSize),
     ]);
+    for (const notification of consumptionNotifications) {
+      await this.queue.enqueueOutboxEvent({ ...notification, correlationId: notification.eventId });
+    }
     for (const schedule of schedules) {
       await this.queue.enqueuePublicationSchedule({
         scheduleId: schedule.id,
@@ -114,7 +119,7 @@ export class OutboxRelayService<TTransaction> {
         correlationId: delivery.eventId,
       });
     }
-    return { schedules: schedules.length, deliveries: deliveries.length };
+    return { schedules: schedules.length, deliveries: deliveries.length, consumptions: consumptionNotifications.length };
   }
 
   private async handleFailure(
@@ -233,7 +238,7 @@ export class OutboxConsumerService<TTransaction> {
         const applied = await this.repository.completeEventConsumption(
           owner,
           'failed',
-          { processedAt: this.clock.now(), errorMessage: truncateOperationalMessage(error) },
+          { processedAt: this.clock.now(), errorMessage: truncateOperationalMessage(error), permanentFailure: error instanceof EventContractError },
           transaction,
         );
         if (!applied) return;

@@ -1080,7 +1080,7 @@ try {
       assert.deepEqual(after.attempts, before.attempts);
       assert.deepEqual(after.endpoints, before.endpoints);
       assert.equal(after.consumptions.length, 1);
-      assert.equal(after.consumptions[0].status, 'failed');
+      assert.equal(after.consumptions[0].status, 'dead');
       assert.equal(notifications, 0);
       const failures = after.logs.filter((row) => row.action === 'outbox.event-consumption-failed');
       assert.equal(failures.length, 1);

@@ -1,10 +1,10 @@
+import { claimConsumption, finishDurableConsumption, reserveNotifications, listConsumptions, readHistory, replayConsumption } from './consumer-lifecycle.persistence';
 import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../../domain/scheduled-publication';
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { createUuidV7 } from '../../../../core';
 import { SiteEntity } from '../../../site/infrastructure/persistence/site.entity';
 import {
-  EventConsumptionStatus,
   OutboxEventStatus,
   PublicationScheduleStatus,
   WebhookDeliveryAttemptStatus,
@@ -23,6 +23,9 @@ import {
 } from '../../domain/eventing';
 import type {
   EventConsumptionOwner,
+  ConsumptionCompletion,
+  ConsumerState,
+  ConsumptionReplayInput,
   FinishWebhookExecutionInput,
   OutboxAttemptOwner,
   WebhookAttemptOwner,
@@ -45,7 +48,6 @@ import {
 } from './eventing.entities';
 
 import {
-  finishConsumption,
   finishOutboxAttempt,
   finishWebhookExecution,
   lockConsumption,
@@ -68,20 +70,6 @@ interface OutboxEventRow {
   claimed_at: Date | string | null;
   dispatched_at: Date | string | null;
   attempt_count: number | string;
-  last_error: string | null;
-  created_at: Date | string;
-  updated_at: Date | string;
-}
-
-interface EventConsumptionRow {
-  id: string;
-  consumer_key: string;
-  event_id: string;
-  status: EventConsumptionStatus;
-  attempt_count: number | string;
-  claimed_at: Date | string;
-  processed_at: Date | string | null;
-  result_json: Record<string, unknown> | null;
   last_error: string | null;
   created_at: Date | string;
   updated_at: Date | string;
@@ -325,32 +313,7 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     staleBefore: Date,
     transaction: EntityManager,
   ): Promise<EventConsumptionRecord | undefined> {
-    requireEventingTransaction(transaction);
-    const id = createUuidV7(claimedAt.getTime());
-    const result = await transaction.query(
-      `
-        INSERT INTO "event_consumptions" (
-          "id", "consumer_key", "event_id", "status", "attempt_count",
-          "claimed_at", "processed_at", "result_json", "last_error", "created_at", "updated_at"
-        )
-        VALUES ($1, $2, $3, 'processing', 1, $4, NULL, NULL, NULL, $4, $4)
-        ON CONFLICT ("consumer_key", "event_id") DO UPDATE
-        SET
-          "status" = 'processing',
-          "attempt_count" = "event_consumptions"."attempt_count" + 1,
-          "claimed_at" = EXCLUDED."claimed_at",
-          "processed_at" = NULL,
-          "result_json" = NULL,
-          "last_error" = NULL,
-          "updated_at" = EXCLUDED."updated_at"
-        WHERE "event_consumptions"."status" = 'failed'
-           OR ("event_consumptions"."status" = 'processing' AND "event_consumptions"."claimed_at" < $5)
-        RETURNING *
-      `,
-      [id, consumerKey, eventId, claimedAt, staleBefore],
-    );
-    const rows = unwrapTypeOrmMutationRows<EventConsumptionRow>(result);
-    return rows[0] ? toEventConsumptionRecord(rows[0]) : undefined;
+    return claimConsumption(eventId, consumerKey, claimedAt, staleBefore, transaction);
   }
 
   public async lockEventConsumption(
@@ -363,14 +326,26 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
   public async completeEventConsumption(
     owner: Readonly<EventConsumptionOwner>,
     status: 'succeeded' | 'failed',
-    input: Readonly<{
-      processedAt: Date;
-      result?: Readonly<Record<string, unknown>>;
-      errorMessage?: string;
-    }>,
+    input: Readonly<ConsumptionCompletion>,
     transaction: EntityManager,
   ): Promise<boolean> {
-    return finishConsumption(owner, status, input, transaction);
+    return finishDurableConsumption(owner, status, input, transaction);
+  }
+
+  public reserveConsumptionNotifications(now: Date, staleBefore: Date, limit: number, transaction: EntityManager) {
+    return reserveNotifications(now, staleBefore, limit, transaction);
+  }
+
+  public listConsumptions(workspaceId: string, status: ConsumerState | undefined, limit: number) {
+    return listConsumptions(workspaceId, status, limit, this.dataSource.manager);
+  }
+
+  public consumptionHistory(workspaceId: string, eventId: string, limit: number) {
+    return readHistory(workspaceId, eventId, limit, this.dataSource.manager);
+  }
+
+  public replayConsumption(workspaceId: string, actorId: string, input: Readonly<ConsumptionReplayInput>, at: Date, transaction: EntityManager) {
+    return replayConsumption(workspaceId, actorId, input, at, transaction);
   }
 
   public async findSite(
@@ -1259,9 +1234,6 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
 }
 
 function toOutboxEventRecord(row: OutboxEventRow): OutboxEventRecord {
-  if (!row.payload_json || typeof row.payload_json !== 'object' || !row.payload_json.data) {
-    throw new Error('Outbox Event query returned an invalid payload_json value.');
-  }
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -1270,31 +1242,14 @@ function toOutboxEventRecord(row: OutboxEventRow): OutboxEventRecord {
     aggregateId: row.aggregate_id,
     eventType: row.event_type,
     schemaVersion: Number(row.schema_version),
-    payload: Object.freeze({
-      ...row.payload_json,
-      data: Object.freeze({ ...row.payload_json.data }),
-    }),
+    // Preserve malformed persisted data for validation AFTER the Consumer claim.
+    // Throwing in this mapper would evade durable retry/quarantine accounting.
+    payload: row.payload_json,
     status: row.status,
     availableAt: new Date(row.available_at),
     claimedAt: row.claimed_at ? new Date(row.claimed_at) : undefined,
     dispatchedAt: row.dispatched_at ? new Date(row.dispatched_at) : undefined,
     attemptCount: Number(row.attempt_count),
-    lastError: row.last_error ?? undefined,
-    createdAt: new Date(row.created_at),
-    updatedAt: new Date(row.updated_at),
-  };
-}
-
-function toEventConsumptionRecord(row: EventConsumptionRow): EventConsumptionRecord {
-  return {
-    id: row.id,
-    consumerKey: row.consumer_key,
-    eventId: row.event_id,
-    status: row.status,
-    attemptCount: Number(row.attempt_count),
-    claimedAt: new Date(row.claimed_at),
-    processedAt: row.processed_at ? new Date(row.processed_at) : undefined,
-    result: row.result_json ? Object.freeze({ ...row.result_json }) : undefined,
     lastError: row.last_error ?? undefined,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),

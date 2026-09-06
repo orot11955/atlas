@@ -1,7 +1,7 @@
+import type { ConsumerState } from '../../ports/consumer-lifecycle';
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
 import type {
-  EventConsumptionStatus,
   OutboxEventEnvelope,
   OutboxEventStatus,
   PublicationScheduleAction,
@@ -78,10 +78,28 @@ export class EventConsumptionEntity {
   public eventId!: string;
 
   @Column({ type: 'varchar', length: 16 })
-  public status!: EventConsumptionStatus;
+  public status!: ConsumerState;
 
   @Column({ name: 'attempt_count', type: 'integer', default: 1 })
   public attemptCount!: number;
+
+  @Column({ name: 'attempt_limit', type: 'integer', default: 5 })
+  public attemptLimit!: number;
+
+  @Column({ name: 'cycle_start_attempt', type: 'integer', default: 0 })
+  public cycleStartAttempt!: number;
+
+  @Column({ name: 'next_attempt_at', type: 'timestamptz', nullable: true })
+  public nextAttemptAt!: Date | null;
+
+  @Column({ name: 'notify_after', type: 'timestamptz' })
+  public notifyAfter!: Date;
+
+  @Column({ name: 'notification_version', type: 'integer', default: 0 })
+  public notificationVersion!: number;
+
+  @Column({ name: 'failure_code', type: 'varchar', length: 64, nullable: true })
+  public failureCode!: string | null;
 
   @Column({ name: 'claimed_at', type: 'timestamptz' })
   public claimedAt!: Date;

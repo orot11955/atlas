@@ -315,7 +315,8 @@ try {
     .filter((f) => /^\d+-.+\.js$/u.test(f))
     .sort();
   const last = '1788664800000-CreatePublicationScheduleEffects.js';
-  assert.equal(files.at(-1), last);
+  const effectIndex = files.indexOf(last);
+  assert.ok(effectIndex >= 0);
   const migrations = files.map((file) => {
     const classes = Object.values(require(resolve(directory, file))).filter(
       (v) => typeof v === 'function' && typeof v.prototype.up === 'function',
@@ -323,7 +324,7 @@ try {
     assert.equal(classes.length, 1, file);
     return new classes[0]();
   });
-  for (const migration of migrations.slice(0, -1))
+  for (const migration of migrations.slice(0, effectIndex))
     await transaction(control, () => migration.up(control));
   await control.query(
     `INSERT INTO admin_accounts (id,email,display_name,password_hash,role,password_changed_at,created_at,updated_at)
@@ -335,9 +336,9 @@ try {
   const beforeLegacy = await control.query('SELECT * FROM publication_schedules WHERE id=$1', [
     legacyRow.id,
   ]);
-  const migration = migrations.at(-1);
+  const migration = migrations[effectIndex];
   await transaction(control, () => migration.up(control));
-  console.log(`Applied ${migrations.length} actual migrations; worker sessions ${pidA}/${pidB}`);
+
 
   await scenario('migration preserves legacy intent and safe down/up before receipts', async () => {
     assert.deepEqual(
@@ -351,6 +352,10 @@ try {
       beforeLegacy,
     );
   });
+  // Preserve the historical down/up scenario, then test effects with every later migration applied.
+  for (const laterMigration of migrations.slice(effectIndex + 1))
+    await transaction(control, () => laterMigration.up(control));
+  console.log(`Applied ${migrations.length} actual migrations; worker sessions ${pidA}/${pidB}`);
   await scenario('new unpinned schedule inserts are rejected', async () => {
     const c = await makeContext();
     await assert.rejects(legacySchedule(c), /pinned target/u);
