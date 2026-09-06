@@ -9,7 +9,6 @@ import {
 import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../../domain/scheduled-publication';
 import type { DataSource, EntityManager } from 'typeorm';
 
-import { createUuidV7 } from '../../../../core';
 import { SiteEntity } from '../../../site/infrastructure/persistence/site.entity';
 import {
   OutboxEventStatus,
