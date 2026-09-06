@@ -49,7 +49,9 @@ export class AddConsumerRetryLifecycle1788672000000 implements MigrationInterfac
       reason varchar(32) NOT NULL CHECK (reason IN ('dependency-restored','handler-upgraded','operator-reviewed')),
       created_at timestamptz NOT NULL,
       CHECK (previous_limit >= previous_attempt AND next_limit = previous_attempt + 5))`);
-    await q.query(`CREATE INDEX idx_consumer_replays_history ON event_consumption_replays (consumption_id, created_at DESC, id)`);
+    await q.query(
+      `CREATE INDEX idx_consumer_replays_history ON event_consumption_replays (consumption_id, created_at DESC, id)`,
+    );
     await q.query(`CREATE FUNCTION guard_consumer_history() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN RAISE EXCEPTION 'Consumer attempt/replay history is immutable' USING ERRCODE='23514'; END; $$`);
     for (const table of ['event_consumption_attempts', 'event_consumption_replays']) {

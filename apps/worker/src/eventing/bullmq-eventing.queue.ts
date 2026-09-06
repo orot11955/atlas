@@ -36,7 +36,10 @@ export class BullMqEventingQueue implements EventingQueuePort, OnApplicationShut
       },
       // PostgreSQL owns retry budgeting. A hint may be duplicated or lost; it never
       // authorizes bypassing a receipt's due time, terminal status or attempt owner.
-      queueOptions(generation === undefined ? input.eventId : `outbox-${input.eventId}-${generation}`, input.availableAt),
+      queueOptions(
+        generation === undefined ? input.eventId : `outbox-${input.eventId}-${generation}`,
+        input.availableAt,
+      ),
     );
   }
 
@@ -52,7 +55,9 @@ export class BullMqEventingQueue implements EventingQueuePort, OnApplicationShut
     );
   }
 
-  public async enqueuePublicationSchedule(input: Readonly<EnqueuePublicationScheduleInput>): Promise<void> {
+  public async enqueuePublicationSchedule(
+    input: Readonly<EnqueuePublicationScheduleInput>,
+  ): Promise<void> {
     await this.queue.add(
       PUBLICATION_SCHEDULE_JOB_NAME,
       {

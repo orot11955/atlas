@@ -44,26 +44,63 @@ export interface ConsumptionCompletion {
   permanentFailure?: boolean;
 }
 export interface ConsumerLifecyclePort<TTransaction> {
-  claimEventConsumption(eventId: string, consumerKey: string, claimedAt: Date,
-    staleBefore: Date, transaction: TTransaction): Promise<EventConsumptionRecord | undefined>;
-  lockEventConsumption(owner: Readonly<EventConsumptionOwner>, transaction: TTransaction): Promise<boolean>;
-  completeEventConsumption(owner: Readonly<EventConsumptionOwner>, status: 'succeeded' | 'failed',
-    input: Readonly<ConsumptionCompletion>, transaction: TTransaction): Promise<boolean>;
-  reserveConsumptionNotifications(now: Date, staleBefore: Date, limit: number,
-    transaction: TTransaction): Promise<readonly ConsumptionNotification[]>;
-  listConsumptions(workspaceId: string, status: ConsumerState | undefined, limit: number): Promise<readonly ConsumptionView[]>;
-  consumptionHistory(workspaceId: string, eventId: string, limit: number): Promise<Readonly<{
-    attempts: readonly Record<string, unknown>[];
-    replays: readonly Record<string, unknown>[];
-  }>>;
-  replayConsumption(workspaceId: string, actorId: string, input: Readonly<ConsumptionReplayInput>,
-    at: Date, transaction: TTransaction): Promise<ConsumptionReplayResult>;
+  claimEventConsumption(
+    eventId: string,
+    consumerKey: string,
+    claimedAt: Date,
+    staleBefore: Date,
+    transaction: TTransaction,
+  ): Promise<EventConsumptionRecord | undefined>;
+  lockEventConsumption(
+    owner: Readonly<EventConsumptionOwner>,
+    transaction: TTransaction,
+  ): Promise<boolean>;
+  completeEventConsumption(
+    owner: Readonly<EventConsumptionOwner>,
+    status: 'succeeded' | 'failed',
+    input: Readonly<ConsumptionCompletion>,
+    transaction: TTransaction,
+  ): Promise<boolean>;
+  reserveConsumptionNotifications(
+    now: Date,
+    staleBefore: Date,
+    limit: number,
+    transaction: TTransaction,
+  ): Promise<readonly ConsumptionNotification[]>;
+  listConsumptions(
+    workspaceId: string,
+    status: ConsumerState | undefined,
+    limit: number,
+  ): Promise<readonly ConsumptionView[]>;
+  consumptionHistory(
+    workspaceId: string,
+    eventId: string,
+    limit: number,
+  ): Promise<
+    Readonly<{
+      attempts: readonly Record<string, unknown>[];
+      replays: readonly Record<string, unknown>[];
+    }>
+  >;
+  replayConsumption(
+    workspaceId: string,
+    actorId: string,
+    input: Readonly<ConsumptionReplayInput>,
+    at: Date,
+    transaction: TTransaction,
+  ): Promise<ConsumptionReplayResult>;
 }
 
 export function retryDelay(attemptNumber: number, cycleStartAttempt: number): number {
-  if (!Number.isSafeInteger(attemptNumber) || !Number.isSafeInteger(cycleStartAttempt) ||
-      cycleStartAttempt < 0 || attemptNumber <= cycleStartAttempt) {
+  if (
+    !Number.isSafeInteger(attemptNumber) ||
+    !Number.isSafeInteger(cycleStartAttempt) ||
+    cycleStartAttempt < 0 ||
+    attemptNumber <= cycleStartAttempt
+  ) {
     throw new Error('Invalid Consumer retry counters.');
   }
-  return CONSUMER_RETRY_DELAYS_MS[Math.min(attemptNumber - cycleStartAttempt - 1, CONSUMER_RETRY_DELAYS_MS.length - 1)]!;
+  return CONSUMER_RETRY_DELAYS_MS[
+    Math.min(attemptNumber - cycleStartAttempt - 1, CONSUMER_RETRY_DELAYS_MS.length - 1)
+  ]!;
 }

@@ -1,4 +1,11 @@
-import { claimConsumption, finishDurableConsumption, reserveNotifications, listConsumptions, readHistory, replayConsumption } from './consumer-lifecycle.persistence';
+import {
+  claimConsumption,
+  finishDurableConsumption,
+  reserveNotifications,
+  listConsumptions,
+  readHistory,
+  replayConsumption,
+} from './consumer-lifecycle.persistence';
 import type { TargetedPublicationScheduleRecord as PublicationScheduleRecord } from '../../domain/scheduled-publication';
 import type { DataSource, EntityManager } from 'typeorm';
 
@@ -332,7 +339,12 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     return finishDurableConsumption(owner, status, input, transaction);
   }
 
-  public reserveConsumptionNotifications(now: Date, staleBefore: Date, limit: number, transaction: EntityManager) {
+  public reserveConsumptionNotifications(
+    now: Date,
+    staleBefore: Date,
+    limit: number,
+    transaction: EntityManager,
+  ) {
     return reserveNotifications(now, staleBefore, limit, transaction);
   }
 
@@ -344,7 +356,13 @@ export class TypeOrmEventingRepository implements EventingRepositoryPort<EntityM
     return readHistory(workspaceId, eventId, limit, this.dataSource.manager);
   }
 
-  public replayConsumption(workspaceId: string, actorId: string, input: Readonly<ConsumptionReplayInput>, at: Date, transaction: EntityManager) {
+  public replayConsumption(
+    workspaceId: string,
+    actorId: string,
+    input: Readonly<ConsumptionReplayInput>,
+    at: Date,
+    transaction: EntityManager,
+  ) {
     return replayConsumption(workspaceId, actorId, input, at, transaction);
   }
 

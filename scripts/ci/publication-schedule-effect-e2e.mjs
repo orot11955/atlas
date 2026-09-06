@@ -339,7 +339,6 @@ try {
   const migration = migrations[effectIndex];
   await transaction(control, () => migration.up(control));
 
-
   await scenario('migration preserves legacy intent and safe down/up before receipts', async () => {
     assert.deepEqual(
       await control.query('SELECT * FROM publication_schedules WHERE id=$1', [legacyRow.id]),

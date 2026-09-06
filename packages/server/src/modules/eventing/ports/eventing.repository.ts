@@ -101,7 +101,9 @@ export interface PublicationScheduleAttemptOwner {
   version: number;
 }
 
-export interface EventingRepositoryPort<TTransaction = unknown> extends ConsumerLifecyclePort<TTransaction> {
+export interface EventingRepositoryPort<
+  TTransaction = unknown,
+> extends ConsumerLifecyclePort<TTransaction> {
   insertOutboxEvent(input: InsertOutboxEventInput, transaction: TTransaction): Promise<void>;
   listOutboxEvents(
     workspaceId: string,
