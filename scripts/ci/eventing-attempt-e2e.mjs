@@ -972,29 +972,108 @@ try {
     },
   );
 
-
   const invalidContracts = [
-    ['unregistered type', (r) => { r.eventType = 'content.sensitive-marker'; r.payload.eventType = r.eventType; }],
-    ['future schema', (r) => { r.schemaVersion = 2; r.payload.schemaVersion = 2; }],
-    ['envelope schema mismatch', (r) => { r.payload.schemaVersion = 2; }],
-    ['envelope event ID mismatch', (r) => { r.payload.eventId = createUuidV7(); }],
-    ['Workspace mismatch', (r) => { r.payload.workspaceId = createUuidV7(); }],
-    ['Site mismatch', (r) => { r.payload.siteId = createUuidV7(); }],
-    ['aggregate mismatch', (r) => { r.payload.aggregateId = createUuidV7(); }],
-    ['invalid aggregate kind', (r) => { r.aggregateType = 'publication-schedule'; }],
-    ['different publication target', (r) => { r.payload.data.publicationId = createUuidV7(); }],
-    ['numeric-string revision', (r) => { r.payload.data.revisionNumber = '1'; }],
-    ['array visibility', (r) => { r.payload.data.visibility = ['public']; }],
-    ['missing payload identifier', (r) => { delete r.payload.data.contentId; }],
-    ['invalid occurrence date', (r) => { r.payload.occurredAt = '2030-02-30T00:00:00.000Z'; }],
+    [
+      'unregistered type',
+      (r) => {
+        r.eventType = 'content.sensitive-marker';
+        r.payload.eventType = r.eventType;
+      },
+    ],
+    [
+      'future schema',
+      (r) => {
+        r.schemaVersion = 2;
+        r.payload.schemaVersion = 2;
+      },
+    ],
+    [
+      'envelope schema mismatch',
+      (r) => {
+        r.payload.schemaVersion = 2;
+      },
+    ],
+    [
+      'envelope event ID mismatch',
+      (r) => {
+        r.payload.eventId = createUuidV7();
+      },
+    ],
+    [
+      'Workspace mismatch',
+      (r) => {
+        r.payload.workspaceId = createUuidV7();
+      },
+    ],
+    [
+      'Site mismatch',
+      (r) => {
+        r.payload.siteId = createUuidV7();
+      },
+    ],
+    [
+      'aggregate mismatch',
+      (r) => {
+        r.payload.aggregateId = createUuidV7();
+      },
+    ],
+    [
+      'invalid aggregate kind',
+      (r) => {
+        r.aggregateType = 'publication-schedule';
+      },
+    ],
+    [
+      'different publication target',
+      (r) => {
+        r.payload.data.publicationId = createUuidV7();
+      },
+    ],
+    [
+      'numeric-string revision',
+      (r) => {
+        r.payload.data.revisionNumber = '1';
+      },
+    ],
+    [
+      'array visibility',
+      (r) => {
+        r.payload.data.visibility = ['public'];
+      },
+    ],
+    [
+      'missing payload identifier',
+      (r) => {
+        delete r.payload.data.contentId;
+      },
+    ],
+    [
+      'invalid occurrence date',
+      (r) => {
+        r.payload.occurredAt = '2030-02-30T00:00:00.000Z';
+      },
+    ],
   ];
   for (const [name, mutate] of invalidContracts) {
     await scenario(`event contract rejection preserves effects: ${name}`, async () => {
-      const context = await makeEndpoint(await makeEvent('dispatched', (record) => { mutate(record); return record; }));
+      const context = await makeEndpoint(
+        await makeEvent('dispatched', (record) => {
+          mutate(record);
+          return record;
+        }),
+      );
       const before = await snapshot(context);
       let notifications = 0;
-      const queue = { ...noQueue, enqueueWebhookDelivery: async () => { notifications += 1; } };
-      await assert.rejects(consumer(a, queue).consume(context.eventId), /Outbox Event contract rejected/u);
+      const queue = {
+        ...noQueue,
+        enqueueWebhookDelivery: async () => {
+          notifications += 1;
+        },
+      };
+      await assert.rejects(
+        consumer(a, queue).consume(context.eventId),
+        /Outbox Event contract rejected/u,
+      );
       const after = await snapshot(context);
       assert.deepEqual(after.event, before.event); // Consumer failure is not a delivery/Outbox status.
       assert.deepEqual(after.deliveries, before.deliveries);
@@ -1006,29 +1085,56 @@ try {
       const failures = after.logs.filter((row) => row.action === 'outbox.event-consumption-failed');
       assert.equal(failures.length, 1);
       assert.equal(failures[0].error_code, 'VALIDATION_FAILED');
-      assert.equal(after.logs.some((row) => row.action === 'outbox.event-consumed'), false);
-      assert.doesNotMatch(JSON.stringify({ logs: after.logs, error: after.consumptions[0].last_error }), /sensitive-marker/u);
+      assert.equal(
+        after.logs.some((row) => row.action === 'outbox.event-consumed'),
+        false,
+      );
+      assert.doesNotMatch(
+        JSON.stringify({ logs: after.logs, error: after.consumptions[0].last_error }),
+        /sensitive-marker/u,
+      );
     });
   }
-  await scenario('a valid event with zero subscriptions explicitly succeeds after poison events', async () => {
-    const context = await makeEvent();
-    assert.deepEqual(await consumer(a).consume(context.eventId), { duplicate: false, effects: 0 });
-    assert.deepEqual(await consumer(b).consume(context.eventId), { duplicate: true, effects: 0 });
-    const after = await snapshot(context);
-    assert.equal(after.consumptions[0].status, 'succeeded');
-    assert.equal(after.logs.filter((row) => row.action === 'outbox.event-consumed').length, 1);
-  });
-  await scenario('validation failure and failure Audit roll back together if Audit insertion fails', async () => {
-    const context = await makeEvent('dispatched', (record) => { record.payload.data.revisionNumber = 0; return record; });
-    const failingAudit = new AuditService({ insert: async (record, tx) => {
-      await auditRepository.insert(record, tx); throw new Error('injected contract audit failure');
-    } }, clock);
-    await assert.rejects(consumer(a, noQueue, failingAudit).consume(context.eventId), /injected contract audit failure/u);
-    const after = await snapshot(context);
-    assert.equal(after.consumptions[0].status, 'processing');
-    assert.equal(after.logs.length, 0);
-    assert.equal(after.deliveries.length, 0);
-  });
+  await scenario(
+    'a valid event with zero subscriptions explicitly succeeds after poison events',
+    async () => {
+      const context = await makeEvent();
+      assert.deepEqual(await consumer(a).consume(context.eventId), {
+        duplicate: false,
+        effects: 0,
+      });
+      assert.deepEqual(await consumer(b).consume(context.eventId), { duplicate: true, effects: 0 });
+      const after = await snapshot(context);
+      assert.equal(after.consumptions[0].status, 'succeeded');
+      assert.equal(after.logs.filter((row) => row.action === 'outbox.event-consumed').length, 1);
+    },
+  );
+  await scenario(
+    'validation failure and failure Audit roll back together if Audit insertion fails',
+    async () => {
+      const context = await makeEvent('dispatched', (record) => {
+        record.payload.data.revisionNumber = 0;
+        return record;
+      });
+      const failingAudit = new AuditService(
+        {
+          insert: async (record, tx) => {
+            await auditRepository.insert(record, tx);
+            throw new Error('injected contract audit failure');
+          },
+        },
+        clock,
+      );
+      await assert.rejects(
+        consumer(a, noQueue, failingAudit).consume(context.eventId),
+        /injected contract audit failure/u,
+      );
+      const after = await snapshot(context);
+      assert.equal(after.consumptions[0].status, 'processing');
+      assert.equal(after.logs.length, 0);
+      assert.equal(after.deliveries.length, 0);
+    },
+  );
   assert.equal(passed, 36);
 
   console.log(JSON.stringify({ result: 'success', scenarios: passed, migrations: files.length }));

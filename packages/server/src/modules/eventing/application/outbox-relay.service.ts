@@ -82,10 +82,16 @@ export class OutboxRelayService<TTransaction> {
 
   public async recoverDueWork(): Promise<{ schedules: number; deliveries: number }> {
     const now = this.clock.now();
-    const publicationStaleBefore = new Date(now.getTime() - this.options.publicationStaleMilliseconds);
+    const publicationStaleBefore = new Date(
+      now.getTime() - this.options.publicationStaleMilliseconds,
+    );
     const webhookStaleBefore = new Date(now.getTime() - this.options.webhookStaleMilliseconds);
     await this.transactionRunner.run(async (transaction) => {
-      await this.repository.recoverStalePublicationSchedules(publicationStaleBefore, now, transaction);
+      await this.repository.recoverStalePublicationSchedules(
+        publicationStaleBefore,
+        now,
+        transaction,
+      );
       await this.repository.recoverStaleWebhookDeliveries(webhookStaleBefore, now, transaction);
     });
     const [schedules, deliveries] = await Promise.all([
@@ -238,9 +244,10 @@ export class OutboxConsumerService<TTransaction> {
             targetId: event.id,
             result: AuditResult.FAILURE,
             errorCode: error instanceof EventContractError ? error.code : ErrorCode.INTERNAL_ERROR,
-            metadata: error instanceof EventContractError
-              ? { contractReason: error.reason }
-              : { eventType: event.eventType },
+            metadata:
+              error instanceof EventContractError
+                ? { contractReason: error.reason }
+                : { eventType: event.eventType },
           },
           transaction,
         );
@@ -346,4 +353,3 @@ function outboxOwner(event: Readonly<OutboxEventRecord>): Readonly<OutboxAttempt
     attemptNumber: event.attemptCount,
   });
 }
-

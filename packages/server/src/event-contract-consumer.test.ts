@@ -13,31 +13,73 @@ function invalidEvent(): OutboxEventRecord {
   const workspaceId = createUuidV7();
   const aggregateId = createUuidV7();
   return {
-    id, workspaceId, aggregateId, aggregateType: 'content-publication',
-    eventType: 'content.sensitive-marker', schemaVersion: 1, status: 'dispatched',
-    availableAt: now, attemptCount: 1, createdAt: now, updatedAt: now,
-    payload: { eventId: id, workspaceId, aggregateId, siteId: null,
-      eventType: 'content.sensitive-marker', schemaVersion: 1, occurredAt: now.toISOString(), data: {} },
+    id,
+    workspaceId,
+    aggregateId,
+    aggregateType: 'content-publication',
+    eventType: 'content.sensitive-marker',
+    schemaVersion: 1,
+    status: 'dispatched',
+    availableAt: now,
+    attemptCount: 1,
+    createdAt: now,
+    updatedAt: now,
+    payload: {
+      eventId: id,
+      workspaceId,
+      aggregateId,
+      siteId: null,
+      eventType: 'content.sensitive-marker',
+      schemaVersion: 1,
+      occurredAt: now.toISOString(),
+      data: {},
+    },
   };
 }
 
 test('producer rejects unregistered events before insertion', async () => {
   let writes = 0;
-  const repository = { insertOutboxEvent: async () => { writes += 1; } } as unknown as EventingRepositoryPort<symbol>;
+  const repository = {
+    insertOutboxEvent: async () => {
+      writes += 1;
+    },
+  } as unknown as EventingRepositoryPort<symbol>;
   const service = new OutboxService(repository, new FixedClock(now));
   const value = invalidEvent();
-  await assert.rejects(requestContext.run({ requestId: createUuidV7(), traceId: createUuidV7(),
-    actorType: ActorType.SYSTEM, workspaceId: value.workspaceId }, () => service.record({
-      workspaceId: value.workspaceId, aggregateId: value.aggregateId, aggregateType: value.aggregateType,
-      eventType: value.eventType, data: {},
-    }, Symbol('transaction'))), EventContractError);
+  await assert.rejects(
+    requestContext.run(
+      {
+        requestId: createUuidV7(),
+        traceId: createUuidV7(),
+        actorType: ActorType.SYSTEM,
+        workspaceId: value.workspaceId,
+      },
+      () =>
+        service.record(
+          {
+            workspaceId: value.workspaceId,
+            aggregateId: value.aggregateId,
+            aggregateType: value.aggregateType,
+            eventType: value.eventType,
+            data: {},
+          },
+          Symbol('transaction'),
+        ),
+    ),
+    EventContractError,
+  );
   assert.equal(writes, 0);
 });
 
 for (const current of [true, false]) {
   test(`consumer contract failure respects receipt ownership (${current})`, async () => {
     const value = invalidEvent();
-    const receipt = { id: createUuidV7(), eventId: value.id, consumerKey: 'atlas.eventing.v1', attemptCount: 1 };
+    const receipt = {
+      id: createUuidV7(),
+      eventId: value.id,
+      consumerKey: 'atlas.eventing.v1',
+      attemptCount: 1,
+    };
     const writes: Array<{ status: string; transaction: symbol }> = [];
     const audits: Array<{ input: unknown; transaction: symbol }> = [];
     let queueCalls = 0;
@@ -45,21 +87,48 @@ for (const current of [true, false]) {
     const repository = {
       findOutboxEvent: async () => value,
       claimEventConsumption: async () => receipt,
-      lockEventConsumption: async () => { locks += 1; return current; },
-      completeEventConsumption: async (_owner: unknown, status: string, _input: unknown, transaction: symbol) => {
-        writes.push({ status, transaction }); return true;
+      lockEventConsumption: async () => {
+        locks += 1;
+        return current;
       },
-      listActiveWebhookEndpointsForEvent: async () => { throw new Error('Invalid event reached effects.'); },
+      completeEventConsumption: async (
+        _owner: unknown,
+        status: string,
+        _input: unknown,
+        transaction: symbol,
+      ) => {
+        writes.push({ status, transaction });
+        return true;
+      },
+      listActiveWebhookEndpointsForEvent: async () => {
+        throw new Error('Invalid event reached effects.');
+      },
     } as unknown as EventingRepositoryPort<symbol>;
     const queue = {
-      enqueueOutboxEvent: async () => { queueCalls += 1; },
-      enqueueWebhookDelivery: async () => { queueCalls += 1; },
-      enqueuePublicationSchedule: async () => { queueCalls += 1; },
+      enqueueOutboxEvent: async () => {
+        queueCalls += 1;
+      },
+      enqueueWebhookDelivery: async () => {
+        queueCalls += 1;
+      },
+      enqueuePublicationSchedule: async () => {
+        queueCalls += 1;
+      },
     };
     const runner = { run: <T>(work: (tx: symbol) => Promise<T>) => work(Symbol('transaction')) };
-    const audit = { record: async (input: unknown, transaction: symbol) => { audits.push({ input, transaction }); } };
-    const consumer = new OutboxConsumerService(runner, repository, queue, audit as never,
-      { staleMilliseconds: 30_000 }, new FixedClock(now));
+    const audit = {
+      record: async (input: unknown, transaction: symbol) => {
+        audits.push({ input, transaction });
+      },
+    };
+    const consumer = new OutboxConsumerService(
+      runner,
+      repository,
+      queue,
+      audit as never,
+      { staleMilliseconds: 30_000 },
+      new FixedClock(now),
+    );
     if (current) {
       await assert.rejects(consumer.consume(value.id), EventContractError);
       assert.equal(writes.length, 1);
