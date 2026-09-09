@@ -61,15 +61,15 @@ Phase 9의 Schedule target 열과 Webhook 테이블 및 `atlas_migrations`가 �
 
 ## 2. 변경 창을 열기 전에 필요한 증거
 
-| 항목 | 필요한 증거 | 현재 상태 |
-|---|---|---|
-| 소스/CI | 최신 Head, 실제 develop, 동일 Head 전체 Gate, 승인된 배포 artifact 식별자 | 매 변경마다 재확인 |
-| Compose key 전달 | 정식 허용된 수정과 API/Worker 다중 키 전달 검증 | BLOCKED — 미반영 |
-| Writer inventory | 모든 API/Worker/CLI/예약 writer의 버전, 인스턴스, 종료 확인 방법 | 운영 확인 필요 |
-| 쓰기 중단 | 생성/취소/retry/replay/publish/withdraw/키 변경의 진입 경로와 중단 담당자 | 운영 확인 필요 |
-| Backup/restore | 격리 복구 결과, 보존 키 inventory, signed body/receipt/이력 보존 | 운영 확인 필요 |
-| Migration 예산 | 두 진단 테이블 크기와 변경 행 수, 복구본에서 측정한 시간, lock/중단 예산 | 운영 확인 필요 |
-| Rollback | 새 키 ciphertext 발생 이후 구버전 복귀 제한, 비가역 진단 정리의 승인 | 운영 확인 필요 |
+| 항목             | 필요한 증거                                                               | 현재 상태          |
+| ---------------- | ------------------------------------------------------------------------- | ------------------ |
+| 소스/CI          | 최신 Head, 실제 develop, 동일 Head 전체 Gate, 승인된 배포 artifact 식별자 | 매 변경마다 재확인 |
+| Compose key 전달 | 정식 허용된 수정과 API/Worker 다중 키 전달 검증                           | BLOCKED — 미반영   |
+| Writer inventory | 모든 API/Worker/CLI/예약 writer의 버전, 인스턴스, 종료 확인 방법          | 운영 확인 필요     |
+| 쓰기 중단        | 생성/취소/retry/replay/publish/withdraw/키 변경의 진입 경로와 중단 담당자 | 운영 확인 필요     |
+| Backup/restore   | 격리 복구 결과, 보존 키 inventory, signed body/receipt/이력 보존          | 운영 확인 필요     |
+| Migration 예산   | 두 진단 테이블 크기와 변경 행 수, 복구본에서 측정한 시간, lock/중단 예산  | 운영 확인 필요     |
+| Rollback         | 새 키 ciphertext 발생 이후 구버전 복귀 제한, 비가역 진단 정리의 승인      | 운영 확인 필요     |
 
 운영 담당자, 변경 창, 승인자, 근거 artifact, 중단 조건을 기록하지 않은 항목은 완료로 표시하지 않는다.
 CI에서 만든 `.next`와 fixture API가 주입된 브라우저 build는 운영 artifact로 재사용하지 않는다.

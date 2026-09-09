@@ -63,9 +63,20 @@ export async function collectEventingPreflight(connection, workspaceId) {
     );
     const diagnostics = {};
     for (const [name, from, scopeColumn, body, error] of [
-      ['deliveries', 'public.webhook_deliveries d', 'd.workspace_id', 'd.last_response_excerpt', 'd.last_error'],
-      ['attempts', 'public.webhook_delivery_attempts a JOIN public.webhook_deliveries d ON d.id=a.delivery_id',
-        'd.workspace_id', 'a.response_body_excerpt', 'a.error_message'],
+      [
+        'deliveries',
+        'public.webhook_deliveries d',
+        'd.workspace_id',
+        'd.last_response_excerpt',
+        'd.last_error',
+      ],
+      [
+        'attempts',
+        'public.webhook_delivery_attempts a JOIN public.webhook_deliveries d ON d.id=a.delivery_id',
+        'd.workspace_id',
+        'a.response_body_excerpt',
+        'a.error_message',
+      ],
     ]) {
       const [counts] = await connection.query(
         `SELECT count(*)::text AS total,
@@ -86,7 +97,9 @@ export async function collectEventingPreflight(connection, workspaceId) {
       pg_total_relation_size('public.webhook_delivery_attempts')::text AS attempts`,
     );
     for (const counts of [schedules, ...Object.values(diagnostics), tableBytes]) {
-      if (!Object.values(counts).every((value) => typeof value === 'string' && /^\d+$/u.test(value))) {
+      if (
+        !Object.values(counts).every((value) => typeof value === 'string' && /^\d+$/u.test(value))
+      ) {
         throw new Error('Invalid aggregate result.');
       }
     }
@@ -104,7 +117,13 @@ export async function collectEventingPreflight(connection, workspaceId) {
       missingTargetCountIsNotFullTargetValidation: true,
       deploymentAuthorized: false,
       keyRetirementAuthorized: false,
-      checksNotPerformed: ['compose-forwarding', 'fleet-drain', 'backup-restore', 'key-coverage', 'lock-duration'],
+      checksNotPerformed: [
+        'compose-forwarding',
+        'fleet-drain',
+        'backup-restore',
+        'key-coverage',
+        'lock-duration',
+      ],
     };
   } finally {
     // No COMMIT path. Read-only transactions still hold read locks until ended.
@@ -115,7 +134,9 @@ export async function collectEventingPreflight(connection, workspaceId) {
 export async function runEventingPreflight(args, environment = process.env) {
   const input = parsePreflightArguments(args);
   if (input.help) {
-    console.log('Read-only inventory: --workspace UUIDv7; requires ATLAS_EVENTING_PREFLIGHT_DATABASE_URL.');
+    console.log(
+      'Read-only inventory: --workspace UUIDv7; requires ATLAS_EVENTING_PREFLIGHT_DATABASE_URL.',
+    );
     return;
   }
   const databaseUrl = environment.ATLAS_EVENTING_PREFLIGHT_DATABASE_URL;
@@ -157,7 +178,9 @@ export async function runEventingPreflight(args, environment = process.env) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runEventingPreflight(process.argv.slice(2)).catch(() => {
     // Never print SQL, connection URLs, database values, keys, exception messages or stacks.
-    console.error('Eventing preflight failed. Check scope, schema, read access and timeout budgets.');
+    console.error(
+      'Eventing preflight failed. Check scope, schema, read access and timeout budgets.',
+    );
     process.exitCode = 1;
   });
 }
