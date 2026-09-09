@@ -1,5 +1,7 @@
 .page {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -41,6 +43,7 @@
 .panel,
 .editor,
 .preview {
+  min-width: 0;
   padding: 22px;
 }
 
@@ -60,6 +63,7 @@
 
 .field {
   display: grid;
+  min-width: 0;
   gap: 7px;
 }
 
@@ -256,7 +260,7 @@
 @media (max-width: 900px) {
   .editorGrid,
   .formGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .full {
@@ -273,7 +277,7 @@
   }
 
   .revision {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -291,11 +295,15 @@
 
 .publicationSites {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 .publicationSiteCard {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 18px;
   border: 1px solid #2c323b;
@@ -332,7 +340,7 @@
 
 @media (max-width: 900px) {
   .assignmentForm {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .publicationHistoryItem {
@@ -489,5 +497,12 @@
   .assetPickerList,
   .assetPickerDetail {
     max-height: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel,
+  .publicationSiteCard {
+    padding: 12px;
   }
 }

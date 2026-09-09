@@ -133,7 +133,7 @@ class SchedulerBrowserTests(unittest.TestCase):
         old = self.fixture.snapshot()["rows"][0]
         self.assertEqual([item["action"] for item in self.fixture.snapshot()["calls"]], ["cancel"])
         self.assertEqual(old["target"], {"kind": "unresolved", "reason": "missing-target"})
-        self.region.get_by_label("Action", exact=True).select_option("publish")
+        self.region.get_by_role("combobox", name="Action", exact=True).select_option("publish")
         # The server's READY changes after the form was displayed. Use its response, not editor state.
         self.fixture.advance_live_pointers()
         self.create_button().click()
@@ -154,7 +154,7 @@ class SchedulerBrowserTests(unittest.TestCase):
         self.expect(self.row().get_by_role("button")).to_have_count(0)
         self.expect(self.create_button()).to_be_enabled()
         old = self.fixture.snapshot()["rows"][0]
-        self.region.get_by_label("Action", exact=True).select_option("publish")
+        self.region.get_by_role("combobox", name="Action", exact=True).select_option("publish")
         self.create_button().click()
         self.settled()
         self.assertEqual(self.fixture.snapshot()["rows"][0], old)
@@ -163,13 +163,13 @@ class SchedulerBrowserTests(unittest.TestCase):
 
     def test_same_turn_duplicate_creation_sends_one_request(self):
         self.open("empty")
-        self.region.get_by_label("Action", exact=True).select_option("publish")
+        self.region.get_by_role("combobox", name="Action", exact=True).select_option("publish")
         self.fixture.hold_schedule = True
         self.create_button().evaluate("button => { button.click(); button.click(); }")
         self.assertTrue(self.fixture.schedule_started.wait(3))
         self.expect(self.region.get_by_role("button", name="예약 중…", exact=True)).to_be_disabled()
         self.expect(self.region.get_by_role("button", name="새로고침", exact=True)).to_be_disabled()
-        self.expect(self.region.get_by_label("Action", exact=True)).to_be_disabled()
+        self.expect(self.region.get_by_role("combobox", name="Action", exact=True)).to_be_disabled()
         self.fixture.release_schedule.set()
         self.settled()
         self.expect(self.region.locator("[data-schedule-id]")).to_have_count(1)
@@ -271,8 +271,8 @@ class SchedulerBrowserTests(unittest.TestCase):
         self.expect(self.region.get_by_role("button", name="예약 닫기", exact=True)).to_have_attribute("aria-expanded", "true")
         self.region.get_by_role("button", name="새로고침", exact=True).focus()
         self.page.keyboard.press("Tab")
-        self.expect(self.region.get_by_label("Action", exact=True)).to_be_focused()
-        self.region.get_by_label("Action", exact=True).select_option("publish")
+        self.expect(self.region.get_by_role("combobox", name="Action", exact=True)).to_be_focused()
+        self.region.get_by_role("combobox", name="Action", exact=True).select_option("publish")
         self.create_button().focus()
         self.page.keyboard.press("Enter")
         self.settled()
@@ -364,6 +364,7 @@ def main():
             name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
             for name in ["apps/admin-web/src/features/eventing/publication-scheduler.tsx",
                          "apps/admin-web/src/features/eventing/publication-scheduler.module.css",
+                         "apps/admin-web/src/features/content/content.module.css",
                          "apps/admin-web/src/features/eventing/publication-schedule-presentation.ts",
                          "scripts/testing/browser/scheduler_browser.py",
                          "scripts/testing/browser/scheduler_fixture.py"]

@@ -160,3 +160,14 @@
     flex-direction: column;
   }
 }
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 12px;
+  }
+
+  .form input,
+  .form select {
+    font-size: 0.875rem;
+  }
+}
