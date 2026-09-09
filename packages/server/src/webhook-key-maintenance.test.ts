@@ -36,7 +36,10 @@ function fixture() {
     disabled,
     updatedAt: '2026-01-01T00:00:00.000Z',
   });
-  let state: State = { rows: [row(workspace), row(workspace, true), row(otherWorkspace)], logs: [] };
+  let state: State = {
+    rows: [row(workspace), row(workspace, true), row(otherWorkspace)],
+    logs: [],
+  };
   const flags = { failAudit: false, conflict: false, badScope: false };
   let transactions = 0;
   const runner: TransactionRunner<State> = {
@@ -159,7 +162,10 @@ test('Audit failure rolls back ciphertext, key version and all Audit entries', a
   const f = fixture();
   const before = f.read();
   f.flags.failAudit = true;
-  await assert.rejects(f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')), /Injected/u);
+  await assert.rejects(
+    f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')),
+    /Injected/u,
+  );
   assert.deepEqual(f.read(), before);
 });
 
@@ -179,7 +185,10 @@ test('unknown old key fails closed without replacing any Secret', async () => {
     s.rows[0]!.keyVersion = 'unavailable';
   });
   const before = f.read();
-  await assert.rejects(f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')), /not available/u);
+  await assert.rejects(
+    f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')),
+    /not available/u,
+  );
   assert.deepEqual(f.read(), before);
 });
 
@@ -187,7 +196,10 @@ test('compare-and-swap conflict rolls back rather than claiming success', async 
   const f = fixture();
   f.flags.conflict = true;
   const before = f.read();
-  await assert.rejects(f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')), /changed/u);
+  await assert.rejects(
+    f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')),
+    /changed/u,
+  );
   assert.deepEqual(f.read(), before);
 });
 
@@ -195,7 +207,10 @@ test('unexpected cross-Workspace repository row is refused before decryption and
   const f = fixture();
   f.flags.badScope = true;
   const before = f.read();
-  await assert.rejects(f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')), /scoped/u);
+  await assert.rejects(
+    f.scoped(() => f.service.reencryptBatch(f.workspace, 'v2')),
+    /scoped/u,
+  );
   assert.deepEqual(f.read(), before);
 });
 

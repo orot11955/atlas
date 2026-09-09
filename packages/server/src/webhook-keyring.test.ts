@@ -56,7 +56,11 @@ test('new writes use only the active key and retain the legacy format', () => {
 });
 
 test('future keys can be preloaded without changing the active write key', () => {
-  const preloaded = new Cipher(oldKey, 'v1', JSON.stringify([{ version: 'v2', keyBase64: newKey }]));
+  const preloaded = new Cipher(
+    oldKey,
+    'v1',
+    JSON.stringify([{ version: 'v2', keyBase64: newKey }]),
+  );
   assert.equal(preloaded.encrypt(secret).keyVersion, 'v1');
   const next = keyring().encrypt(secret);
   assert.equal(preloaded.decrypt(next.encryptedValue, 'v2'), secret);

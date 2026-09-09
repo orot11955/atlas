@@ -42,7 +42,8 @@ export function parseWebhookKeyArguments(args) {
   }
   if (command === 'inspect') return { command, workspaceId: values.workspace };
   if (command === 'retire-check') {
-    if (!values.version || !versionPattern.test(values.version)) throw new Error('Version required.');
+    if (!values.version || !versionPattern.test(values.version))
+      throw new Error('Version required.');
     return { command, version: values.version };
   }
   if (

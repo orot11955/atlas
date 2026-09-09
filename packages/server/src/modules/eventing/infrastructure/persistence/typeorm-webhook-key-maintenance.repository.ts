@@ -7,9 +7,7 @@ import type {
 import { requireEventingTransaction } from './eventing-attempt.persistence';
 import { unwrapTypeOrmMutationRows } from './typeorm-mutation-result';
 
-export class TypeOrmWebhookKeyMaintenanceRepository
-  implements WebhookKeyMaintenanceRepositoryPort<EntityManager>
-{
+export class TypeOrmWebhookKeyMaintenanceRepository implements WebhookKeyMaintenanceRepositoryPort<EntityManager> {
   public constructor(private readonly dataSource: DataSource) {}
 
   public async usage(workspaceId?: string): Promise<readonly WebhookKeyUsage[]> {
@@ -33,13 +31,15 @@ export class TypeOrmWebhookKeyMaintenanceRepository
     transaction: EntityManager,
   ): Promise<readonly WebhookReencryptionRecord[]> {
     requireEventingTransaction(transaction);
-    const rows = await transaction.query<{
-      id: string;
-      workspace_id: string;
-      secret_ciphertext: string;
-      secret_key_version: string;
-      version: number;
-    }[]>(
+    const rows = await transaction.query<
+      {
+        id: string;
+        workspace_id: string;
+        secret_ciphertext: string;
+        secret_key_version: string;
+        version: number;
+      }[]
+    >(
       `SELECT id, workspace_id, secret_ciphertext, secret_key_version, version
        FROM webhook_endpoints WHERE workspace_id = $1 AND secret_key_version <> $2
        ORDER BY id FOR UPDATE SKIP LOCKED LIMIT $3`,

@@ -7,7 +7,9 @@ export async function runWebhookKeyMaintenance(args, environment = process.env) 
   const input = parseWebhookKeyArguments(args);
   if (input.command === 'help') {
     console.log('inspect [--workspace UUIDv7]');
-    console.log('reencrypt --workspace UUIDv7 --expected-active-version VERSION --limit 25 --apply');
+    console.log(
+      'reencrypt --workspace UUIDv7 --expected-active-version VERSION --limit 25 --apply',
+    );
     console.log('retire-check --version VERSION');
     return;
   }
@@ -96,7 +98,9 @@ export async function runWebhookKeyMaintenance(args, environment = process.env) 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runWebhookKeyMaintenance(process.argv.slice(2)).catch(() => {
     // Never echo environment, connection URL, SQL parameters, keys or raw DB errors.
-    console.error('Webhook key maintenance failed. Check arguments, key coverage and database access.');
+    console.error(
+      'Webhook key maintenance failed. Check arguments, key coverage and database access.',
+    );
     process.exitCode = 1;
   });
 }
