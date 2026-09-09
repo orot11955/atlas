@@ -1,3 +1,4 @@
+export * from './application/publication-schedule-view';
 export * from './application/webhook-key-maintenance.service';
 export * from './infrastructure/persistence/typeorm-webhook-key-maintenance.repository';
 export * from './ports/webhook-key-maintenance.port';

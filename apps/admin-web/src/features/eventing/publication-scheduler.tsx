@@ -11,6 +11,7 @@ import {
   retryPublicationSchedule,
 } from './eventing-api';
 import type { PublicationSchedule, PublicationScheduleAction } from './eventing-types';
+import { presentPublicationSchedule } from './publication-schedule-presentation';
 import styles from './publication-scheduler.module.css';
 
 export function PublicationScheduler({
@@ -67,7 +68,8 @@ export function PublicationScheduler({
         scheduledLocalAt,
         timezone: timezone.trim() || undefined,
       });
-      setMessage(`${schedule.action === 'publish' ? '발행' : '게시 중단'} 예약을 생성했습니다.`);
+      const confirmed = presentPublicationSchedule(schedule);
+      setMessage(`예약을 생성했습니다. ${confirmed.targetLabel} · ${confirmed.targetId ?? ''}`);
       setScheduledLocalAt(defaultLocalDateTime());
       await reload();
     } catch (caught) {
@@ -77,13 +79,14 @@ export function PublicationScheduler({
   }
 
   async function cancel(schedule: PublicationSchedule) {
+    if (!presentPublicationSchedule(schedule).canCancel) return;
     setWorking(`cancel-${schedule.id}`);
     setError(undefined);
     setMessage(undefined);
 
     try {
       await cancelPublicationSchedule(schedule.id, schedule.version);
-      setMessage('예약을 취소했습니다.');
+      setMessage('예약을 취소했습니다. 기존 예약 이력은 보존됩니다.');
       await reload();
     } catch (caught) {
       setError(readError(caught));
@@ -93,13 +96,14 @@ export function PublicationScheduler({
   }
 
   async function retry(schedule: PublicationSchedule) {
+    if (!presentPublicationSchedule(schedule).canRetry) return;
     setWorking(`retry-${schedule.id}`);
     setError(undefined);
     setMessage(undefined);
 
     try {
       await retryPublicationSchedule(schedule.id, schedule.version);
-      setMessage('실패한 예약의 재실행을 요청했습니다.');
+      setMessage('실패한 예약의 고정 대상을 그대로 재실행하도록 요청했습니다.');
       await reload();
     } catch (caught) {
       setError(readError(caught));
@@ -110,7 +114,12 @@ export function PublicationScheduler({
 
   return (
     <section className={styles.scheduler}>
-      <button className={styles.toggle} type="button" onClick={() => setOpen((value) => !value)}>
+      <button
+        aria-expanded={open}
+        className={styles.toggle}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+      >
         {open ? '예약 닫기' : `발행 예약${pending.length ? ` · ${pending.length}` : ''}`}
       </button>
 
@@ -119,7 +128,8 @@ export function PublicationScheduler({
           <div className={styles.header}>
             <div>
               <strong>Publication Scheduling</strong>
-              <p>Site Timezone 기준으로 Publish 또는 Withdraw를 예약합니다.</p>
+              <p>입력한 Timezone 기준으로 발행 또는 게시 중단을 예약합니다.</p>
+              <p>서버가 예약을 접수할 때 대상을 고정합니다. 생성 후 아래의 대상 ID를 확인하세요.</p>
             </div>
             <button
               className={styles.secondary}
@@ -168,6 +178,7 @@ export function PublicationScheduler({
               className={styles.primary}
               disabled={
                 working !== undefined ||
+                pending.length > 0 ||
                 !scheduledLocalAt ||
                 !timezone.trim() ||
                 (action === 'publish' && content.readyRevisionNumber === null) ||
@@ -179,45 +190,68 @@ export function PublicationScheduler({
               {working === 'create' ? '예약 중…' : '예약 생성'}
             </button>
           </div>
+          {pending.length > 0 ? (
+            <p className={styles.muted}>
+              진행 중인 예약이 있습니다. 대기 예약을 취소하거나 실행이 끝난 뒤 새로 예약하세요.
+            </p>
+          ) : null}
 
           <div className={styles.list}>
             {schedules.length === 0 ? <p className={styles.muted}>예약 이력이 없습니다.</p> : null}
-            {schedules.map((schedule) => (
-              <article key={schedule.id}>
-                <div>
-                  <strong>{schedule.action.toUpperCase()}</strong>
-                  <p>
-                    {schedule.scheduledLocalAt} · {schedule.timezone}
-                  </p>
-                  {schedule.lastError ? (
-                    <p className={styles.errorText}>{schedule.lastError}</p>
-                  ) : null}
-                </div>
-                <div className={styles.meta}>
-                  <span data-status={schedule.status}>{schedule.status}</span>
-                  {schedule.status === 'pending' ? (
-                    <button
-                      className={styles.secondary}
-                      disabled={working !== undefined}
-                      type="button"
-                      onClick={() => cancel(schedule)}
+            {schedules.map((schedule) => {
+              const presentation = presentPublicationSchedule(schedule);
+              return (
+                <article key={schedule.id} data-schedule-id={schedule.id}>
+                  <div>
+                    <strong>{schedule.action.toUpperCase()}</strong>
+                    <p>
+                      {schedule.scheduledLocalAt} · {schedule.timezone}
+                    </p>
+                    <p
+                      className={presentation.needsReview ? styles.errorText : styles.muted}
+                      data-schedule-target={schedule.target?.kind ?? 'unresolved'}
                     >
-                      취소
-                    </button>
-                  ) : null}
-                  {schedule.status === 'failed' ? (
-                    <button
-                      className={styles.secondary}
-                      disabled={working !== undefined}
-                      type="button"
-                      onClick={() => retry(schedule)}
-                    >
-                      재실행
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+                      {presentation.targetLabel}
+                    </p>
+                    {presentation.targetId ? (
+                      <p style={{ overflowWrap: 'anywhere' }}>{presentation.targetId}</p>
+                    ) : null}
+                    <p className={styles.muted}>{presentation.guidance}</p>
+                    <p className={styles.muted} style={{ overflowWrap: 'anywhere' }}>
+                      예약 ID: {schedule.id} · 실행 시도 {schedule.attemptCount}회
+                    </p>
+                    {schedule.failureCode ? (
+                      <p className={styles.errorText}>
+                        예약 실행에 실패했습니다. 예약 ID로 운영 기록을 확인하세요.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className={styles.meta}>
+                    <span data-status={schedule.status}>{schedule.status}</span>
+                    {presentation.canCancel ? (
+                      <button
+                        className={styles.secondary}
+                        disabled={working !== undefined}
+                        type="button"
+                        onClick={() => cancel(schedule)}
+                      >
+                        취소
+                      </button>
+                    ) : null}
+                    {presentation.canRetry ? (
+                      <button
+                        className={styles.secondary}
+                        disabled={working !== undefined}
+                        type="button"
+                        onClick={() => retry(schedule)}
+                      >
+                        고정 대상 재실행
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
           </div>
 
           <div aria-live="polite">

@@ -84,25 +84,36 @@ export interface OutboxEvent {
   updatedAt: string;
 }
 
+export type PublicationScheduleTarget =
+  | Readonly<{ kind: 'revision'; revisionId: string; revisionNumber: number }>
+  | Readonly<{ kind: 'publication'; publicationId: string }>
+  | Readonly<{ kind: 'unresolved'; reason: 'missing-target' | 'invalid-target' }>;
+
 export interface PublicationSchedule {
   id: string;
   workspaceId: string;
   siteId: string;
-  siteKey?: string;
-  siteName?: string;
+  siteKey?: string | null;
+  siteName?: string | null;
   contentId: string;
-  contentTitle?: string;
+  contentTitle?: string | null;
   contentSiteId: string;
   action: PublicationScheduleAction;
+  revisionId: string | null;
+  revisionNumber: number | null;
+  targetPublicationId: string | null;
+  target: PublicationScheduleTarget;
+  operations: Readonly<{ canCancel: boolean; canRetry: boolean }>;
   scheduledFor: string;
   timezone: string;
   scheduledLocalAt: string;
   status: PublicationScheduleStatus;
   attemptCount: number;
   nextAttemptAt: string;
-  lastError?: string;
-  completedAt?: string;
-  cancelledAt?: string;
+  failureCode: 'execution-failed' | null;
+  lastError?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
   version: number;
   requestedByAdminAccountId: string;
   createdAt: string;

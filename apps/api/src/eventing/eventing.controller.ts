@@ -18,6 +18,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import {
   AdminPermission,
+  toPublicationScheduleView,
   type OutboxAdministrationService,
   type OutboxEventRecord,
   type PublicationScheduleRecord,
@@ -382,13 +383,5 @@ function toWebhookDeliveryData(record: Readonly<WebhookDeliveryView>) {
 }
 
 function toPublicationScheduleData(record: Readonly<PublicationScheduleRecord>) {
-  return {
-    ...record,
-    scheduledFor: record.scheduledFor.toISOString(),
-    nextAttemptAt: record.nextAttemptAt.toISOString(),
-    completedAt: record.completedAt?.toISOString() ?? null,
-    cancelledAt: record.cancelledAt?.toISOString() ?? null,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  };
+  return toPublicationScheduleView(record);
 }
