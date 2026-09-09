@@ -25,8 +25,7 @@ export function presentPublicationSchedule(schedule: Readonly<ScheduleInput>) {
           ? '대상 없는 실패 예약은 재실행할 수 없습니다. 대상을 확인하여 새 예약을 만드세요. 기존 이력은 보존됩니다.'
           : '저장된 고정 대상이 없는 예약 이력입니다. 현재 공개본으로 대체하거나 재실행하지 않습니다.',
     canCancel: schedule.status === 'pending' && schedule.operations?.canCancel === true,
-    canRetry:
-      schedule.status === 'failed' && resolved && schedule.operations?.canRetry === true,
+    canRetry: schedule.status === 'failed' && resolved && schedule.operations?.canRetry === true,
     needsReview: !resolved,
   };
 }

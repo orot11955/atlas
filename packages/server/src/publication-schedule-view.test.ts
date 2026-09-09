@@ -53,13 +53,15 @@ test('schedule view exposes only the pinned Revision and explicit nullable targe
 
 test('withdraw view uses the exact stored Publication and never a current active pointer', () => {
   const id = createUuidV7();
-  const view = toPublicationScheduleView(fixture({
-    action: 'withdraw',
-    revisionId: undefined,
-    revisionNumber: undefined,
-    targetPublicationId: id,
-    status: 'failed',
-  }));
+  const view = toPublicationScheduleView(
+    fixture({
+      action: 'withdraw',
+      revisionId: undefined,
+      revisionNumber: undefined,
+      targetPublicationId: id,
+      status: 'failed',
+    }),
+  );
   assert.deepEqual(view.target, { kind: 'publication', publicationId: id });
   assert.equal(view.revisionId, null);
   assert.equal(view.revisionNumber, null);

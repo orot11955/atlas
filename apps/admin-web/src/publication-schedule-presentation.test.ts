@@ -47,16 +47,22 @@ for (const status of ['pending', 'processing', 'completed', 'failed', 'cancelled
 
 test('only failed resolved schedules with explicit eligibility can retry', () => {
   assert.equal(presentPublicationSchedule({ ...pending, status: 'failed' }).canRetry, false);
-  assert.equal(presentPublicationSchedule({
-    ...pending,
-    status: 'failed',
-    operations: { canCancel: false, canRetry: true },
-  }).canRetry, true);
-  assert.equal(presentPublicationSchedule({
-    ...pending,
-    status: 'completed',
-    operations: { canCancel: true, canRetry: true },
-  }).canRetry, false);
+  assert.equal(
+    presentPublicationSchedule({
+      ...pending,
+      status: 'failed',
+      operations: { canCancel: false, canRetry: true },
+    }).canRetry,
+    true,
+  );
+  assert.equal(
+    presentPublicationSchedule({
+      ...pending,
+      status: 'completed',
+      operations: { canCancel: true, canRetry: true },
+    }).canRetry,
+    false,
+  );
 });
 
 test('an older response without the contract fails closed rather than guessing eligibility', () => {
