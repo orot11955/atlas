@@ -1,0 +1,119 @@
+name: Scheduler Legacy HTTP Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, feat/outbox-webhook-scheduling]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-scheduler-legacy-http-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  legacy-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_SCHEDULER_LEGACY_HTTP_TESTS: '1'
+      PORT: '4000'
+      DATABASE_URL: postgresql://atlas:atlas-legacy-test@127.0.0.1:5432/atlas_scheduler_legacy_http_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      LOG_LEVEL: warn
+      AUTH_COOKIE_SECURE: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_MFA_ISSUER: Atlas-Legacy-Test
+      AUTH_MFA_WINDOW_STEPS: '1'
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_ACCESS_KEY: legacy-test-access
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+      SYSTEM_QUEUE_NAME: atlas-scheduler-legacy-http-test
+      MEDIA_QUEUE_NAME: atlas-scheduler-legacy-media-test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_scheduler_legacy_http_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-legacy-test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_scheduler_legacy_http_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Configure disposable test secrets
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const peppers = ['AUTH_LOGIN_FINGERPRINT_PEPPER', 'AUTH_MFA_RECOVERY_CODE_PEPPER',
+            'AUTH_SESSION_FINGERPRINT_PEPPER', 'API_KEY_PEPPER', 'MINIO_SECRET_KEY'];
+          const rows = peppers.map((name) => `${name}=${'legacy-test-only-'.repeat(4)}`);
+          for (const prefix of ['AUTH_MFA', 'WEBHOOK_SECRET']) {
+            rows.push(`${prefix}_ENCRYPTION_KEY_BASE64=${Buffer.alloc(32, 73).toString('base64')}`);
+            rows.push(`${prefix}_ENCRYPTION_KEY_VERSION=test-v1`);
+          }
+          appendFileSync(process.env.GITHUB_ENV, rows.join('\n') + '\n');
+          NODE
+      - name: Build actual packages and API
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+      - name: Verify migration-preserved legacy schedules through authenticated HTTP
+        run: node scripts/ci/scheduler-legacy-http-e2e.mjs
+      - name: Report formatting without rewriting source
+        if: always()
+        run: |
+          set -uo pipefail
+          patch="$RUNNER_TEMP/scheduler-legacy-format.patch"
+          : > "$patch"
+          status=0
+          for file in \
+            .github/workflows/scheduler-legacy-http.yml \
+            scripts/ci/scheduler-legacy-http-e2e.mjs; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/scheduler-legacy-formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/scheduler-legacy-formatted" >> "$patch" || status=1
+            else
+              status=1
+            fi
+          done
+          cat "$patch"
+          exit "$status"
+      - name: Retain acceptance result and formatting diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduler-legacy-http-${{ github.run_id }}
+          path: |
+            tmp/r05f-legacy-http/result.json
+            ${{ runner.temp }}/scheduler-legacy-format.patch
+          if-no-files-found: ignore
+          retention-days: 7
