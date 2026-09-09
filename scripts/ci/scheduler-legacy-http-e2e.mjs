@@ -31,7 +31,9 @@ const {
   requestContext,
 } = require('@atlas/server');
 const directory = resolve('packages/database/dist/migrations');
-const files = readdirSync(directory).filter((file) => /^\d+-.+\.js$/u.test(file)).sort();
+const files = readdirSync(directory)
+  .filter((file) => /^\d+-.+\.js$/u.test(file))
+  .sort();
 const boundary = files.indexOf('1788664800000-CreatePublicationScheduleEffects.js');
 assert.ok(boundary > 0, 'The real target-required migration must be present.');
 const migrations = files.map((file) => {
@@ -300,8 +302,7 @@ async function scopeSnapshot(context) {
     ),
   };
 }
-const listPath = (context) =>
-  `/admin/v1/publication-schedules?contentSiteId=${context.assignment}`;
+const listPath = (context) => `/admin/v1/publication-schedules?contentSiteId=${context.assignment}`;
 const createPath = (context) =>
   `/admin/v1/contents/${context.content}/sites/${context.assignment}/schedules`;
 const cancelPath = (context) => `/admin/v1/publication-schedules/${context.schedule}/cancel`;
@@ -331,9 +332,8 @@ async function rejectedWithoutEffects(context, path, options) {
 }
 async function cancelAndCheck(context, owner, before) {
   const body = { version: before.rows[0].version };
-  const cancelled = (
-    await http(cancelPath(context), { method: 'POST', body, session: owner })
-  ).data;
+  const cancelled = (await http(cancelPath(context), { method: 'POST', body, session: owner }))
+    .data;
   unresolved(cancelled, 'cancelled');
   const after = await legacySnapshot(context);
   const row = after.rows[0];
@@ -361,16 +361,14 @@ async function cancelAndCheck(context, owner, before) {
   );
   const transactions = await db.query(
     `SELECT s.xmin::text AS schedule_tx,a.xmin::text AS audit_tx
-    FROM publication_schedules s JOIN audit_logs a ON a.target_id=s.id
+    FROM publication_schedules s JOIN audit_logs a ON a.target_id=s.id::text
     WHERE s.id=$1 AND a.action='content.publication-schedule-cancelled'`,
     [context.schedule],
   );
   assert.equal(transactions.length, 1);
   assert.equal(transactions[0].schedule_tx, transactions[0].audit_tx);
   // The original request is idempotent; neither history nor version is rewritten a second time.
-  const repeated = (
-    await http(cancelPath(context), { method: 'POST', body, session: owner })
-  ).data;
+  const repeated = (await http(cancelPath(context), { method: 'POST', body, session: owner })).data;
   assert.equal(repeated.version, cancelled.version);
   assert.deepEqual(await legacySnapshot(context), after);
   return after;
@@ -431,36 +429,57 @@ try {
   db = connection(migrations);
   await db.initialize();
   const remaining = await db.runMigrations({ transaction: 'each' });
-  await scenario('real ordered migrations preserve all legacy rows and original Audit history', async () => {
-    assert.equal(remaining.length, migrations.length - boundary);
-    assert.equal(await db.showMigrations(), false);
-    const history = await db.query('SELECT name FROM atlas_migrations ORDER BY timestamp,id');
-    assert.deepEqual(history.map((row) => row.name), migrations.map((Migration) => (new Migration().name ?? Migration.name)));
-    assert.deepEqual(await Promise.all(contexts.map(legacySnapshot)), beforeMigration);
-    for (const snapshot of beforeMigration) {
-      assert.equal(snapshot.rows[0].revision_id, null);
-      assert.equal(snapshot.rows[0].revision_number, null);
-      assert.equal(snapshot.rows[0].target_publication_id, null);
-    }
-  });
-  await scenario('new targetless inserts remain rejected by the enabled production trigger', async () => {
-    const [trigger] = await db.query(
-      `SELECT tgenabled FROM pg_trigger WHERE tgrelid='publication_schedules'::regclass
+  await scenario(
+    'real ordered migrations preserve all legacy rows and original Audit history',
+    async () => {
+      assert.equal(remaining.length, migrations.length - boundary);
+      assert.equal(await db.showMigrations(), false);
+      const history = await db.query('SELECT name FROM atlas_migrations ORDER BY timestamp,id');
+      assert.deepEqual(
+        history.map((row) => row.name),
+        migrations.map((Migration) => new Migration().name ?? Migration.name),
+      );
+      assert.deepEqual(await Promise.all(contexts.map(legacySnapshot)), beforeMigration);
+      for (const snapshot of beforeMigration) {
+        assert.equal(snapshot.rows[0].revision_id, null);
+        assert.equal(snapshot.rows[0].revision_number, null);
+        assert.equal(snapshot.rows[0].target_publication_id, null);
+      }
+    },
+  );
+  await scenario(
+    'new targetless inserts remain rejected by the enabled production trigger',
+    async () => {
+      const [trigger] = await db.query(
+        `SELECT tgenabled FROM pg_trigger WHERE tgrelid='publication_schedules'::regclass
       AND tgname='trg_require_new_publication_schedule_target'`,
-    );
-    assert.equal(trigger.tgenabled, 'O');
-    await assert.rejects(
-      db.transaction((tx) => tx.query(
-        `INSERT INTO publication_schedules
+      );
+      assert.equal(trigger.tgenabled, 'O');
+      await assert.rejects(
+        db.transaction((tx) =>
+          tx.query(
+            `INSERT INTO publication_schedules
         (id,workspace_id,site_id,content_id,content_site_id,action,scheduled_for,timezone,
         scheduled_local_at,requested_by_admin_account_id,created_at,updated_at,next_attempt_at)
         VALUES($1,$2,$3,$4,$5,'publish',$6,'UTC','2026-01-01T00:01:00',$7,$6,$6,$6)`,
-        [createUuidV7(), workspace, failed.site, failed.content, failed.assignment, due, ownerAccount.id],
-      )),
-      (error) => (error.driverError?.code ?? error.code) === '23514' && /pinned target/u.test(error.message),
-    );
-    assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
-  });
+            [
+              createUuidV7(),
+              workspace,
+              failed.site,
+              failed.content,
+              failed.assignment,
+              due,
+              ownerAccount.id,
+            ],
+          ),
+        ),
+        (error) =>
+          (error.driverError?.code ?? error.code) === '23514' &&
+          /pinned target/u.test(error.message),
+      );
+      assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
+    },
+  );
   // Domain fixtures may advance current pointers. No historical Schedule target is ever changed.
   const currentRevision = await ready(publish, 2, ownerAccount.id);
   const failedCurrentRevision = await ready(failed, 2, ownerAccount.id);
@@ -474,117 +493,213 @@ try {
     assert.equal(api.exitCode, null, 'The isolated test API exited before becoming healthy.');
     try {
       const response = await fetch(`${base}/health/live`, { signal: AbortSignal.timeout(1_000) });
-      if (response.ok) { healthy = true; break; }
-    } catch { /* The API may still be starting. */ }
+      if (response.ok) {
+        healthy = true;
+        break;
+      }
+    } catch {
+      /* The API may still be starting. */
+    }
     await delay(500);
   }
   assert.ok(healthy, 'The isolated test API did not become healthy.');
   let owner;
   let viewer;
-  await scenario('OWNER and VIEWER authenticate through real Password, TOTP, grant and Session HTTP', async () => {
-    owner = await authenticate(ownerAccount);
-    viewer = await authenticate(viewerAccount);
-    assert.equal((await http('/admin/v1/workspace', { session: owner })).data.id, workspace);
-  });
+  await scenario(
+    'OWNER and VIEWER authenticate through real Password, TOTP, grant and Session HTTP',
+    async () => {
+      owner = await authenticate(ownerAccount);
+      viewer = await authenticate(viewerAccount);
+      assert.equal((await http('/admin/v1/workspace', { session: owner })).data.id, workspace);
+    },
+  );
   await http(`/admin/v1/contents/${withdraw.content}/sites/${withdraw.assignment}/publish`, {
-    method: 'POST', session: owner, expected: 201,
+    method: 'POST',
+    session: owner,
+    expected: 201,
   });
   const [active] = await db.query(
     "SELECT id FROM content_publications WHERE content_site_id=$1 AND status='active'",
     [withdraw.assignment],
   );
   assert.ok(active);
-  await scenario('authenticated views remain unresolved despite current READY and ACTIVE pointers', async () => {
-    for (const context of [publish, withdraw, failed]) {
-      const rows = await listed(context, viewer);
-      assert.equal(rows.length, 1);
-      unresolved(rows[0], context === failed ? 'failed' : 'pending');
-    }
-    assert.deepEqual(await Promise.all(contexts.map(legacySnapshot)), beforeMigration);
-  });
-  await scenario('anonymous, VIEWER, CSRF and version failures leave pending legacy intent unchanged', async () => {
-    await http(listPath(publish), { expected: 401 });
-    const body = { version: beforeMigration[0].rows[0].version };
-    for (const options of [
-      { expected: 401 },
-      { session: viewer, expected: 403 },
-      { session: owner, csrf: false, expected: 403 },
-      { session: owner, csrf: 'wrong-token', expected: 403 },
-      { session: owner, body: { version: body.version + 1 }, expected: 409 },
-      { session: owner, body: { version: '1' }, expected: 400 },
-    ]) {
-      await rejectedWithoutEffects(publish, cancelPath(publish), { method: 'POST', body, ...options });
-    }
-  });
-  await scenario('Workspace and ContentSite boundaries reject reads, cancellation and creation', async () => {
-    assert.deepEqual(await listed(foreign, owner), []);
-    await rejectedWithoutEffects(foreign, cancelPath(foreign), {
-      method: 'POST', body: { version: 1 }, session: owner, expected: 404,
-    });
-    await rejectedWithoutEffects(foreign, createPath(foreign), {
-      method: 'POST', body: creation('publish'), session: owner, expected: 404,
-    });
-    await rejectedWithoutEffects(publish,
-      `/admin/v1/contents/${failed.content}/sites/${publish.assignment}/schedules`, {
-        method: 'POST', body: creation('publish'), session: owner, expected: 404,
+  await scenario(
+    'authenticated views remain unresolved despite current READY and ACTIVE pointers',
+    async () => {
+      for (const context of [publish, withdraw, failed]) {
+        const rows = await listed(context, viewer);
+        assert.equal(rows.length, 1);
+        unresolved(rows[0], context === failed ? 'failed' : 'pending');
+      }
+      assert.deepEqual(await Promise.all(contexts.map(legacySnapshot)), beforeMigration);
+    },
+  );
+  await scenario(
+    'anonymous, VIEWER, CSRF and version failures leave pending legacy intent unchanged',
+    async () => {
+      await http(listPath(publish), { expected: 401 });
+      const body = { version: beforeMigration[0].rows[0].version };
+      for (const options of [
+        { expected: 401 },
+        { session: viewer, expected: 403 },
+        { session: owner, csrf: false, expected: 403 },
+        { session: owner, csrf: 'wrong-token', expected: 403 },
+        { session: owner, body: { version: body.version + 1 }, expected: 409 },
+        { session: owner, body: { version: '1' }, expected: 400 },
+      ]) {
+        await rejectedWithoutEffects(publish, cancelPath(publish), {
+          method: 'POST',
+          body,
+          ...options,
+        });
+      }
+    },
+  );
+  await scenario(
+    'Workspace and ContentSite boundaries reject reads, cancellation and creation',
+    async () => {
+      assert.deepEqual(await listed(foreign, owner), []);
+      await rejectedWithoutEffects(foreign, cancelPath(foreign), {
+        method: 'POST',
+        body: { version: 1 },
+        session: owner,
+        expected: 404,
       });
-    assert.deepEqual(await legacySnapshot(foreign), beforeMigration[3]);
-  });
-  await scenario('an open legacy reservation blocks replacement until explicit cancellation', async () => {
-    await rejectedWithoutEffects(publish, createPath(publish), {
-      method: 'POST', body: creation('publish'), session: owner, expected: 409,
-    });
-  });
-  let cancelledPublish;
-  await scenario('authorized legacy cancellation and one Audit commit atomically and idempotently', async () => {
-    cancelledPublish = await cancelAndCheck(publish, owner, beforeMigration[0]);
-  });
-  await scenario('new reservations still require authentication, write permission and matching CSRF', async () => {
-    for (const options of [
-      { expected: 401 },
-      { session: viewer, expected: 403 },
-      { session: owner, csrf: false, expected: 403 },
-      { session: owner, csrf: 'wrong-token', expected: 403 },
-    ]) {
+      await rejectedWithoutEffects(foreign, createPath(foreign), {
+        method: 'POST',
+        body: creation('publish'),
+        session: owner,
+        expected: 404,
+      });
+      await rejectedWithoutEffects(
+        publish,
+        `/admin/v1/contents/${failed.content}/sites/${publish.assignment}/schedules`,
+        {
+          method: 'POST',
+          body: creation('publish'),
+          session: owner,
+          expected: 404,
+        },
+      );
+      assert.deepEqual(await legacySnapshot(foreign), beforeMigration[3]);
+    },
+  );
+  await scenario(
+    'an open legacy reservation blocks replacement until explicit cancellation',
+    async () => {
       await rejectedWithoutEffects(publish, createPath(publish), {
-        method: 'POST', body: creation('publish'), ...options,
+        method: 'POST',
+        body: creation('publish'),
+        session: owner,
+        expected: 409,
       });
-    }
-  });
-  await scenario('explicit recreation gets a new ID and the current READY while old history stays immutable', async () => {
-    await recreate(publish, owner, {
-      kind: 'revision', revisionId: currentRevision, revisionNumber: 2,
-    }, cancelledPublish);
-  });
-  await scenario('legacy withdrawal cancellation and recreation pin the actual ACTIVE Publication', async () => {
-    const cancelledWithdraw = await cancelAndCheck(withdraw, owner, beforeMigration[1]);
-    await recreate(withdraw, owner, {
-      kind: 'publication', publicationId: active.id,
-    }, cancelledWithdraw);
-  });
-  await scenario('failed legacy cancellation and retry are rejected without rewriting the failed attempt', async () => {
-    const body = { version: beforeMigration[2].rows[0].version };
-    for (const action of ['cancel', 'retry']) {
-      await rejectedWithoutEffects(failed, `/admin/v1/publication-schedules/${failed.schedule}/${action}`, {
-        method: 'POST', body, session: owner, expected: 409,
-      });
-    }
-    assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
-  });
-  await scenario('new scheduling after a failed legacy record preserves failure, attempts and original Audit', async () => {
-    await recreate(failed, owner, {
-      kind: 'revision', revisionId: failedCurrentRevision, revisionNumber: 2,
-    }, beforeMigration[2]);
-    const rows = await listed(failed, owner);
-    unresolved(rows.find((row) => row.id === failed.schedule), 'failed');
-    assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
-  });
+    },
+  );
+  let cancelledPublish;
+  await scenario(
+    'authorized legacy cancellation and one Audit commit atomically and idempotently',
+    async () => {
+      cancelledPublish = await cancelAndCheck(publish, owner, beforeMigration[0]);
+    },
+  );
+  await scenario(
+    'new reservations still require authentication, write permission and matching CSRF',
+    async () => {
+      for (const options of [
+        { expected: 401 },
+        { session: viewer, expected: 403 },
+        { session: owner, csrf: false, expected: 403 },
+        { session: owner, csrf: 'wrong-token', expected: 403 },
+      ]) {
+        await rejectedWithoutEffects(publish, createPath(publish), {
+          method: 'POST',
+          body: creation('publish'),
+          ...options,
+        });
+      }
+    },
+  );
+  await scenario(
+    'explicit recreation gets a new ID and the current READY while old history stays immutable',
+    async () => {
+      await recreate(
+        publish,
+        owner,
+        {
+          kind: 'revision',
+          revisionId: currentRevision,
+          revisionNumber: 2,
+        },
+        cancelledPublish,
+      );
+    },
+  );
+  await scenario(
+    'legacy withdrawal cancellation and recreation pin the actual ACTIVE Publication',
+    async () => {
+      const cancelledWithdraw = await cancelAndCheck(withdraw, owner, beforeMigration[1]);
+      await recreate(
+        withdraw,
+        owner,
+        {
+          kind: 'publication',
+          publicationId: active.id,
+        },
+        cancelledWithdraw,
+      );
+    },
+  );
+  await scenario(
+    'failed legacy cancellation and retry are rejected without rewriting the failed attempt',
+    async () => {
+      const body = { version: beforeMigration[2].rows[0].version };
+      for (const action of ['cancel', 'retry']) {
+        await rejectedWithoutEffects(
+          failed,
+          `/admin/v1/publication-schedules/${failed.schedule}/${action}`,
+          {
+            method: 'POST',
+            body,
+            session: owner,
+            expected: 409,
+          },
+        );
+      }
+      assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
+    },
+  );
+  await scenario(
+    'new scheduling after a failed legacy record preserves failure, attempts and original Audit',
+    async () => {
+      await recreate(
+        failed,
+        owner,
+        {
+          kind: 'revision',
+          revisionId: failedCurrentRevision,
+          revisionNumber: 2,
+        },
+        beforeMigration[2],
+      );
+      const rows = await listed(failed, owner);
+      unresolved(
+        rows.find((row) => row.id === failed.schedule),
+        'failed',
+      );
+      assert.deepEqual(await legacySnapshot(failed), beforeMigration[2]);
+    },
+  );
   assert.equal(passed.length, 13);
   const result = {
-    result: 'success', scenarios: passed.length, requests, migrations: migrations.length,
+    result: 'success',
+    scenarios: passed.length,
+    requests,
+    migrations: migrations.length,
     authentication: 'password+totp+session+csrf',
     coverage: 'migration-preservation+authenticated-http-cancel-create',
-    workerExecution: false, productionChanges: false, passed,
+    workerExecution: false,
+    productionChanges: false,
+    passed,
   };
   writeFileSync(resolve(output, 'result.json'), JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result));
