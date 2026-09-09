@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { AtlasApiError } from '../../lib/api';
 import type { Content, ContentSiteAssignment } from '../content/content-types';
@@ -14,10 +14,19 @@ import type { PublicationSchedule, PublicationScheduleAction } from './eventing-
 import { presentPublicationSchedule } from './publication-schedule-presentation';
 import styles from './publication-scheduler.module.css';
 
-export function PublicationScheduler({
-  content,
-  assignment,
-}: Readonly<{ content: Content; assignment: ContentSiteAssignment }>) {
+type SchedulerProps = Readonly<{ content: Content; assignment: ContentSiteAssignment }>;
+
+export function PublicationScheduler(props: SchedulerProps) {
+  // A different scope must never reuse a previous scope's rows, messages or request lock.
+  return (
+    <SchedulerPanel
+      key={`${props.content.workspaceId}:${props.content.id}:${props.assignment.id}`}
+      {...props}
+    />
+  );
+}
+
+function SchedulerPanel({ content, assignment }: SchedulerProps) {
   const [schedules, setSchedules] = useState<readonly PublicationSchedule[]>([]);
   const [action, setAction] = useState<PublicationScheduleAction>(
     assignment.activePublication ? 'withdraw' : 'publish',
@@ -25,98 +34,140 @@ export function PublicationScheduler({
   const [scheduledLocalAt, setScheduledLocalAt] = useState(defaultLocalDateTime());
   const [timezone, setTimezone] = useState(defaultTimezone());
   const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [working, setWorking] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
+  const requestInFlight = useRef(false);
+  const panelId = useId();
 
   const pending = useMemo(
     () => schedules.filter((schedule) => ['pending', 'processing'].includes(schedule.status)),
     [schedules],
   );
+  const canCreate =
+    loaded &&
+    pending.length === 0 &&
+    Boolean(scheduledLocalAt && timezone.trim()) &&
+    (action === 'publish'
+      ? content.readyRevisionNumber !== null
+      : Boolean(assignment.activePublication));
 
   useEffect(() => {
     if (open) void reload();
-  }, [open, assignment.id]);
+  }, [open]);
+
+  function begin(operation: string): boolean {
+    // React state alone cannot reject two handlers invoked in the same event turn.
+    if (requestInFlight.current) return false;
+    requestInFlight.current = true;
+    setWorking(operation);
+    setLoaded(false);
+    setError(undefined);
+    return true;
+  }
+
+  function finish() {
+    requestInFlight.current = false;
+    setWorking(undefined);
+  }
+
+  async function refreshSchedules() {
+    const rows = await loadPublicationSchedules({
+      contentId: content.id,
+      contentSiteId: assignment.id,
+      limit: 100,
+    });
+    setSchedules(rows);
+    setLoaded(true);
+  }
 
   async function reload() {
-    setWorking('load');
-    setError(undefined);
-
+    if (!begin('load')) return;
     try {
-      setSchedules(
-        await loadPublicationSchedules({
-          contentId: content.id,
-          contentSiteId: assignment.id,
-          limit: 100,
-        }),
-      );
+      await refreshSchedules();
     } catch (caught) {
-      setError(readError(caught));
+      setError(`${readError(caught)} 목록을 확인한 뒤 작업하세요. 새로고침으로 다시 시도하세요.`);
     } finally {
-      setWorking(undefined);
+      finish();
+    }
+  }
+
+  async function mutate(
+    operation: string,
+    command: () => Promise<PublicationSchedule>,
+    successMessage: (schedule: PublicationSchedule) => string,
+  ) {
+    if (!loaded || !begin(operation)) return;
+    setMessage(undefined);
+    try {
+      try {
+        const schedule = await command();
+        setMessage(successMessage(schedule));
+        if (operation === 'create') setScheduledLocalAt(defaultLocalDateTime());
+      } catch (caught) {
+        const guidance =
+          caught instanceof AtlasApiError && caught.status === 409
+            ? ' 예약 상태가 변경되었습니다. 갱신된 목록을 확인한 뒤 다시 시도하세요.'
+            : '';
+        setError(`${readError(caught)}${guidance}`);
+      }
+      // Also refresh after a rejected or ambiguous request. Never automatically repeat a write.
+      try {
+        await refreshSchedules();
+      } catch (caught) {
+        setError(
+          (previous) =>
+            `${previous ? `${previous} ` : ''}${readError(caught)} 목록을 확인하지 못했습니다. 새로고침으로 다시 확인하세요.`,
+        );
+      }
+    } finally {
+      finish();
     }
   }
 
   async function create() {
-    setWorking('create');
-    setError(undefined);
-    setMessage(undefined);
-
-    try {
-      const schedule = await createPublicationSchedule(content.id, assignment.id, {
-        action,
-        scheduledLocalAt,
-        timezone: timezone.trim() || undefined,
-      });
-      const confirmed = presentPublicationSchedule(schedule);
-      setMessage(`예약을 생성했습니다. ${confirmed.targetLabel} · ${confirmed.targetId ?? ''}`);
-      setScheduledLocalAt(defaultLocalDateTime());
-      await reload();
-    } catch (caught) {
-      setError(readError(caught));
-      setWorking(undefined);
-    }
+    if (!canCreate) return;
+    await mutate(
+      'create',
+      () =>
+        createPublicationSchedule(content.id, assignment.id, {
+          action,
+          scheduledLocalAt,
+          timezone: timezone.trim() || undefined,
+        }),
+      (schedule) => {
+        const confirmed = presentPublicationSchedule(schedule);
+        return `예약을 생성했습니다. ${confirmed.targetLabel} · ${confirmed.targetId ?? ''}`;
+      },
+    );
   }
 
   async function cancel(schedule: PublicationSchedule) {
     if (!presentPublicationSchedule(schedule).canCancel) return;
-    setWorking(`cancel-${schedule.id}`);
-    setError(undefined);
-    setMessage(undefined);
-
-    try {
-      await cancelPublicationSchedule(schedule.id, schedule.version);
-      setMessage('예약을 취소했습니다. 기존 예약 이력은 보존됩니다.');
-      await reload();
-    } catch (caught) {
-      setError(readError(caught));
-    } finally {
-      setWorking(undefined);
-    }
+    await mutate(
+      `cancel-${schedule.id}`,
+      () => cancelPublicationSchedule(schedule.id, schedule.version),
+      () => '예약을 취소했습니다. 기존 예약 이력은 보존됩니다.',
+    );
   }
 
   async function retry(schedule: PublicationSchedule) {
     if (!presentPublicationSchedule(schedule).canRetry) return;
-    setWorking(`retry-${schedule.id}`);
-    setError(undefined);
-    setMessage(undefined);
-
-    try {
-      await retryPublicationSchedule(schedule.id, schedule.version);
-      setMessage('실패한 예약의 고정 대상을 그대로 재실행하도록 요청했습니다.');
-      await reload();
-    } catch (caught) {
-      setError(readError(caught));
-    } finally {
-      setWorking(undefined);
-    }
+    await mutate(
+      `retry-${schedule.id}`,
+      () => retryPublicationSchedule(schedule.id, schedule.version),
+      () => '실패한 예약의 고정 대상을 그대로 재실행하도록 요청했습니다.',
+    );
   }
 
   return (
-    <section className={styles.scheduler}>
+    <section aria-label="발행 예약" className={styles.scheduler}>
       <button
+        aria-controls={panelId}
         aria-expanded={open}
         className={styles.toggle}
+        disabled={working !== undefined}
         type="button"
         onClick={() => setOpen((value) => !value)}
       >
@@ -124,7 +175,7 @@ export function PublicationScheduler({
       </button>
 
       {open ? (
-        <div className={styles.panel}>
+        <div aria-busy={working !== undefined} className={styles.panel} id={panelId}>
           <div className={styles.header}>
             <div>
               <strong>Publication Scheduling</strong>
@@ -145,6 +196,7 @@ export function PublicationScheduler({
             <label>
               <span>Action</span>
               <select
+                disabled={working !== undefined}
                 value={action}
                 onChange={(event) => setAction(event.target.value as PublicationScheduleAction)}
               >
@@ -159,6 +211,7 @@ export function PublicationScheduler({
             <label>
               <span>Local Date/Time</span>
               <input
+                disabled={working !== undefined}
                 min={minimumLocalDateTime()}
                 type="datetime-local"
                 value={scheduledLocalAt}
@@ -168,6 +221,7 @@ export function PublicationScheduler({
             <label>
               <span>Timezone</span>
               <input
+                disabled={working !== undefined}
                 maxLength={64}
                 placeholder="Asia/Seoul"
                 value={timezone}
@@ -176,20 +230,16 @@ export function PublicationScheduler({
             </label>
             <button
               className={styles.primary}
-              disabled={
-                working !== undefined ||
-                pending.length > 0 ||
-                !scheduledLocalAt ||
-                !timezone.trim() ||
-                (action === 'publish' && content.readyRevisionNumber === null) ||
-                (action === 'withdraw' && !assignment.activePublication)
-              }
+              disabled={working !== undefined || !canCreate}
               type="button"
               onClick={create}
             >
               {working === 'create' ? '예약 중…' : '예약 생성'}
             </button>
           </div>
+          {!loaded ? (
+            <p className={styles.muted}>예약 목록을 확인하기 전에는 변경할 수 없습니다.</p>
+          ) : null}
           {pending.length > 0 ? (
             <p className={styles.muted}>
               진행 중인 예약이 있습니다. 대기 예약을 취소하거나 실행이 끝난 뒤 새로 예약하세요.
@@ -197,7 +247,9 @@ export function PublicationScheduler({
           ) : null}
 
           <div className={styles.list}>
-            {schedules.length === 0 ? <p className={styles.muted}>예약 이력이 없습니다.</p> : null}
+            {loaded && schedules.length === 0 ? (
+              <p className={styles.muted}>예약 이력이 없습니다.</p>
+            ) : null}
             {schedules.map((schedule) => {
               const presentation = presentPublicationSchedule(schedule);
               return (
@@ -213,11 +265,9 @@ export function PublicationScheduler({
                     >
                       {presentation.targetLabel}
                     </p>
-                    {presentation.targetId ? (
-                      <p style={{ overflowWrap: 'anywhere' }}>{presentation.targetId}</p>
-                    ) : null}
+                    {presentation.targetId ? <p>{presentation.targetId}</p> : null}
                     <p className={styles.muted}>{presentation.guidance}</p>
-                    <p className={styles.muted} style={{ overflowWrap: 'anywhere' }}>
+                    <p className={styles.muted}>
                       예약 ID: {schedule.id} · 실행 시도 {schedule.attemptCount}회
                     </p>
                     {schedule.failureCode ? (
@@ -231,7 +281,7 @@ export function PublicationScheduler({
                     {presentation.canCancel ? (
                       <button
                         className={styles.secondary}
-                        disabled={working !== undefined}
+                        disabled={working !== undefined || !loaded}
                         type="button"
                         onClick={() => cancel(schedule)}
                       >
@@ -241,7 +291,7 @@ export function PublicationScheduler({
                     {presentation.canRetry ? (
                       <button
                         className={styles.secondary}
-                        disabled={working !== undefined}
+                        disabled={working !== undefined || !loaded}
                         type="button"
                         onClick={() => retry(schedule)}
                       >
@@ -254,7 +304,7 @@ export function PublicationScheduler({
             })}
           </div>
 
-          <div aria-live="polite">
+          <div aria-atomic="true" aria-live="polite" role="status">
             {message ? <p className={styles.success}>{message}</p> : null}
             {error ? <p className={styles.error}>{error}</p> : null}
           </div>

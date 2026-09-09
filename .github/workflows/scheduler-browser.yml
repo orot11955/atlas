@@ -1,0 +1,75 @@
+name: Scheduler Focused Browser Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-scheduler-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scheduler-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared packages
+        run: pnpm build:packages
+      - name: Reuse the existing pinned browser toolchain
+        run: |
+          python3 -m venv "$RUNNER_TEMP/atlas-browser-venv"
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" -m pip install -r scripts/testing/browser/requirements.txt
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" -m playwright install --with-deps chromium
+      - name: Validate Scheduler HTTP-boundary fixtures
+        run: |
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" -m unittest discover \
+            -s scripts/testing/browser -p test_scheduler_fixture.py -v
+      - name: Inspect the actual production Scheduler in Chromium
+        run: |
+          "$RUNNER_TEMP/atlas-browser-venv/bin/python" scripts/testing/browser/scheduler_browser.py
+      - name: Report formatting without rewriting source
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p tmp/r05f-scheduler-browser
+          patch="tmp/r05f-scheduler-browser/format.patch"
+          : > "$patch"
+          status=0
+          for file in \
+            .github/workflows/scheduler-browser.yml \
+            apps/admin-web/src/features/eventing/publication-scheduler.tsx \
+            apps/admin-web/src/features/eventing/publication-scheduler.module.css; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/scheduler-formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/scheduler-formatted" >> "$patch" || status=1
+            else
+              status=1
+            fi
+          done
+          cat "$patch"
+          exit "$status"
+      - name: Retain screenshots, DOM, traces and explicit fixture scope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduler-focused-browser-${{ github.run_id }}
+          path: tmp/r05f-scheduler-browser
+          if-no-files-found: error
+          retention-days: 7
