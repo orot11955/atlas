@@ -53,6 +53,10 @@ jobs:
         run: pnpm --filter @atlas/server test
       - name: Verify diagnostic migration, persistence and Audit boundaries
         run: node scripts/ci/webhook-diagnostics-e2e.mjs
+      - name: Verify Webhook key maintenance argument guards
+        run: node --test scripts/operations/webhook-key-arguments.test.mjs
+      - name: Verify Webhook storage-key rotation against PostgreSQL
+        run: node scripts/ci/webhook-key-rotation-e2e.mjs
       - name: Report formatting without rewriting source
         if: always()
         run: |
@@ -64,13 +68,29 @@ jobs:
           for file in \
             .github/workflows/webhook-transport-safety.yml \
             docs/implementation/r05c-webhook-transport-safety.md \
+            docs/implementation/r05d-webhook-key-rotation.md \
             packages/database/src/migrations/1788696000000-EnforceWebhookDiagnosticPolicy.ts \
             packages/server/src/modules/eventing/domain/webhook-diagnostics.ts \
             packages/server/src/modules/eventing/infrastructure/http/node-webhook-sender.ts \
             packages/server/src/modules/eventing/application/webhook-delivery.service.ts \
             packages/server/src/webhook-diagnostics.test.ts \
             packages/server/src/webhook-transport.test.ts \
-            scripts/ci/webhook-diagnostics-e2e.mjs; do
+            scripts/ci/webhook-diagnostics-e2e.mjs \
+            packages/server/src/modules/eventing/infrastructure/crypto/aes256-gcm-webhook-secret-cipher.ts \
+            packages/server/src/modules/eventing/infrastructure/persistence/typeorm-webhook-key-maintenance.repository.ts \
+            packages/server/src/modules/eventing/application/webhook-key-maintenance.service.ts \
+            packages/server/src/modules/eventing/ports/webhook-key-maintenance.port.ts \
+            packages/server/src/modules/eventing/index.ts \
+            packages/server/src/webhook-keyring.test.ts \
+            packages/server/src/webhook-key-maintenance.test.ts \
+            scripts/operations/webhook-encryption-key.mjs \
+            scripts/operations/webhook-key-arguments.mjs \
+            scripts/operations/webhook-key-arguments.test.mjs \
+            scripts/ci/webhook-key-rotation-e2e.mjs \
+            apps/api/src/eventing/eventing-persistence.module.ts \
+            apps/worker/src/worker.module.ts \
+            packages/config/src/index.ts \
+            compose.yml; do
             if pnpm exec prettier "$file" > "$RUNNER_TEMP/webhook-safety/formatted"; then
               diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/webhook-safety/formatted" >> "$patch" || status=1
             else

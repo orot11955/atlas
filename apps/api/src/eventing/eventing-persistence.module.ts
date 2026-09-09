@@ -6,6 +6,8 @@ import { DataSource } from 'typeorm';
 import type { ApiEnvironment } from '@atlas/config';
 import {
   Aes256GcmWebhookSecretCipher,
+  TypeOrmWebhookKeyMaintenanceRepository,
+  assertWebhookKeyCoverage,
   EventConsumptionEntity,
   NodeWebhookSecretGenerator,
   OutboxEventEntity,
@@ -48,12 +50,19 @@ import {
     },
     {
       provide: WEBHOOK_SECRET_CIPHER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<ApiEnvironment, true>) =>
-        new Aes256GcmWebhookSecretCipher(
+      inject: [ConfigService, DataSource],
+      useFactory: async (config: ConfigService<ApiEnvironment, true>, dataSource: DataSource) => {
+        const cipher = new Aes256GcmWebhookSecretCipher(
           config.get('WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64', { infer: true }),
           config.get('WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION', { infer: true }),
-        ),
+          config.get('WEBHOOK_SECRET_DECRYPT_KEYS_JSON', { infer: true }),
+        );
+        await assertWebhookKeyCoverage(
+          new TypeOrmWebhookKeyMaintenanceRepository(dataSource),
+          cipher,
+        );
+        return cipher;
+      },
     },
     {
       provide: WEBHOOK_SECRET_GENERATOR,

@@ -12,6 +12,8 @@ import {
 import {
   ATLAS_LOGGER,
   Aes256GcmWebhookSecretCipher,
+  TypeOrmWebhookKeyMaintenanceRepository,
+  assertWebhookKeyCoverage,
   AssetProcessingService,
   AuditService,
   ContentPublicationService,
@@ -148,12 +150,23 @@ import { SystemQueueWorker } from './processors/system-queue.worker';
     },
     {
       provide: WORKER_WEBHOOK_SECRET_CIPHER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<WorkerEnvironment, true>): WebhookSecretCipherPort =>
-        new Aes256GcmWebhookSecretCipher(
+      inject: [ConfigService, WorkerDatabaseService],
+      useFactory: async (
+        config: ConfigService<WorkerEnvironment, true>,
+        database: WorkerDatabaseService,
+      ): Promise<WebhookSecretCipherPort> => {
+        const cipher = new Aes256GcmWebhookSecretCipher(
           config.get('WEBHOOK_SECRET_ENCRYPTION_KEY_BASE64', { infer: true }),
           config.get('WEBHOOK_SECRET_ENCRYPTION_KEY_VERSION', { infer: true }),
-        ),
+          config.get('WEBHOOK_SECRET_DECRYPT_KEYS_JSON', { infer: true }),
+        );
+        await database.ready();
+        await assertWebhookKeyCoverage(
+          new TypeOrmWebhookKeyMaintenanceRepository(database.dataSource),
+          cipher,
+        );
+        return cipher;
+      },
     },
     {
       provide: WORKER_WEBHOOK_SENDER,

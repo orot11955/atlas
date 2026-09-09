@@ -67,6 +67,7 @@ const eventingSecuritySchema = z.object({
     .string()
     .regex(/^[A-Za-z0-9._-]{1,64}$/u)
     .default('v1'),
+  WEBHOOK_SECRET_DECRYPT_KEYS_JSON: z.string().max(8_192).default('[]'),
   WEBHOOK_ALLOW_HTTP: environmentBoolean.default(false),
   WEBHOOK_ALLOW_PRIVATE_NETWORK: environmentBoolean.default(false),
   WEBHOOK_DELIVERY_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(10_000),

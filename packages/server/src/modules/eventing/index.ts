@@ -1,3 +1,6 @@
+export * from './application/webhook-key-maintenance.service';
+export * from './infrastructure/persistence/typeorm-webhook-key-maintenance.repository';
+export * from './ports/webhook-key-maintenance.port';
 export * from './application/outbox-relay.service';
 export * from './application/outbox.service';
 export * from './application/publication-scheduling.service';
