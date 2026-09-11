@@ -48,10 +48,12 @@ export async function canonicalizeSchema(database, state) {
       }
       for (const row of state.indexes) {
         const [catalog] = await connection.query(
-          `SELECT pg_get_expr(indpred,indrelid,false) AS expression FROM pg_index
-          WHERE indexrelid=$1::regclass`,
-          [`public.${row.indexname}`],
+          `SELECT pg_get_expr(i.indpred,i.indrelid,false) AS expression FROM pg_index i
+          JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relname=$1`,
+          [row.indexname],
         );
+        assert.ok(catalog, 'The exact case-sensitive index identity must exist.');
         if (catalog.expression === null) continue;
         const suffix = ` WHERE ${catalog.expression}`;
         assert.ok(row.indexdef.endsWith(suffix), 'Unexpected partial index reconstruction.');

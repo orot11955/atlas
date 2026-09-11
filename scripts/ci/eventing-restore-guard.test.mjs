@@ -7,6 +7,7 @@ import {
   snapshotDifferences,
   validateRestoreEnvironment,
 } from './eventing-restore-e2e.mjs';
+import { canonicalizeSchema } from './eventing-restore-schema.mjs';
 
 const environment = {
   NODE_ENV: 'test',
@@ -179,4 +180,25 @@ test('snapshot diagnostics retain missing objects and numeric differences', () =
   assert.equal(report.length, 2);
   assert.ok(report.some((row) => row.actual.type === 'undefined'));
   assert.ok(report.some((row) => row.expected.type === 'undefined'));
+});
+
+test('schema lookup preserves quoted mixed-case index identity and always rolls back', async () => {
+  const calls = [];
+  const row = { tablename: 'fixture', indexname: 'PK_MixedCase', indexdef: 'preserved-definition' };
+  const connection = {
+    connect: async () => calls.push('connect'),
+    startTransaction: async () => calls.push('begin'),
+    rollbackTransaction: async () => calls.push('rollback'),
+    release: async () => calls.push('release'),
+    async query(sql, parameters) {
+      assert.ok(sql.includes('c.relname=$1'));
+      assert.ok(sql.includes("n.nspname='public'"));
+      assert.deepEqual(parameters, ['PK_MixedCase']);
+      return [{ expression: null }];
+    },
+  };
+  const state = { constraints: [], indexes: [row] };
+  assert.deepEqual(await canonicalizeSchema({ createQueryRunner: () => connection }, state), state);
+  assert.equal(row.indexdef, 'preserved-definition');
+  assert.deepEqual(calls, ['connect', 'begin', 'rollback', 'release']);
 });
