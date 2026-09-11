@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { canonicalizeSchema, verifySchemaOracle } from './eventing-restore-schema.mjs';
 
 const SOURCE = 'atlas_eventing_preflight_test';
 const DESTINATION = 'atlas_eventing_restore_test';
@@ -143,7 +144,8 @@ async function snapshot(database) {
     );
   }
   state.constraints = await database.query(`SELECT c.conrelid::regclass::text AS relation,
-    c.conname, c.contype, c.convalidated, pg_get_constraintdef(c.oid) AS definition
+    c.conname, c.contype, c.convalidated, c.condeferrable, c.condeferred, c.connoinherit,
+    pg_get_constraintdef(c.oid) AS definition
     FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
     WHERE n.nspname='public' ORDER BY c.conrelid::regclass::text COLLATE "C", c.conname COLLATE "C"`);
   state.triggers = await database.query(`SELECT c.relname, t.tgname, t.tgenabled,
@@ -152,7 +154,7 @@ async function snapshot(database) {
     ORDER BY c.relname COLLATE "C", t.tgname COLLATE "C"`);
   state.indexes = await database.query(`SELECT tablename,indexname,indexdef FROM pg_indexes
     WHERE schemaname='public' ORDER BY tablename COLLATE "C",indexname COLLATE "C"`);
-  return state;
+  return canonicalizeSchema(database, state);
 }
 
 function services(database, server, clock) {
@@ -451,7 +453,14 @@ export async function runRestoreRehearsal(environment = process.env, args = []) 
         assert.equal(count, 2);
       },
     );
-    temporary = mkdtempSync(join(tmpdir(), 'atlas-r05h-'));
+    await scenario(
+      'native schema comparison preserves literals and operators while normalizing parser roundtrips',
+      async () => {
+        await verifySchemaOracle(source);
+        assert.deepEqual(await snapshot(source), baseline);
+      },
+    );
+    temporary = mkdtempSync(join(tmpdir(), 'atlas-r05h'));
     archive = join(temporary, 'fixture.dump');
     await scenario(
       'custom-format pg_dump preserves the source and keeps the archive private',
@@ -635,7 +644,7 @@ export async function runRestoreRehearsal(environment = process.env, args = []) 
         assert.deepEqual(await snapshot(destination), baseline);
       },
     );
-    assert.equal(passed.length, 8);
+    assert.equal(passed.length, 9);
     const result = {
       result: 'success',
       scenarios: passed.length,
@@ -651,6 +660,7 @@ export async function runRestoreRehearsal(environment = process.env, args = []) 
       archiveBytes: statSync(archive).size,
       archiveSha256: createHash('sha256').update(readFileSync(archive)).digest('hex'),
       scope: 'synthetic-isolated-postgresql-logical-restore',
+      schemaComparison: 'postgresql-native-expression-reparse-fixed-point',
       productionChanges: false,
       redisWorkerOrExternalHttp: false,
       operationalBackupVerified: false,

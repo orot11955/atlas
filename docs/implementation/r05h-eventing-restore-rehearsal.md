@@ -80,3 +80,25 @@ Owner/ACL/global role/tablespace 복구, WAL/PITR, Redis·MinIO 복구, 운영 �
 PostgreSQL 17 공식 동작:
 https://www.postgresql.org/docs/17/app-pgdump.html
 https://www.postgresql.org/docs/17/app-pgrestore.html
+
+## 비교 기준의 보정과 실패 이력
+
+첫 fixture의 disabled Endpoint INSERT는 기존 Repository가 disabledAt을 null로 저장하므로
+DB 제약에서 거절됐다. 같은 트랜잭션 안에서 active 생성 후 기존 versioned 상태 변경 메서드로
+disabled 전환하도록 수정했다. 제품 코드·DB 제약·trigger는 변경하지 않았다.
+
+실제 논리 복구에서 전체 테이블/sequence/trigger는 일치했으나 72 CHECK 정의와
+4 partial index 정의의 문자열 비교가 달랐다. role/status의 기존 배열 전체 캐스트는
+복구 후 원소별 캐스트로 역변환됐으며 공개 Migration의 문자열과 해시로 이를 확인했다.
+pg_get_constraintdef/pg_get_indexdef는 원래 SQL이 아니라 내부 식을 역변환한 텍스트다.
+
+`scripts/ci/eventing-restore-schema.mjs`는 PostgreSQL이 반환한 CHECK/partial predicate를
+동일 DB의 임시 view에서 PostgreSQL 자체로 재파싱한다. 두 번 역변환한 결과의 고정점을 확인하고
+이를 비교한다. 정규식으로 cast/literal/operator를 삭제하거나 DB 객체를 변경하지 않는다.
+임시 view만 생성하며 SELECT를 실행하지 않고, 별도 트랜잭션은 항상 ROLLBACK한다.
+제약의 나머지 정의, validation/deferrability/no-inherit와 인덱스의 나머지 정의는 그대로 비교한다.
+실제 DB에서 허용값이나 연산자가 달라지면 비교 결과도 달라지는 대조 검사를 추가했다.
+
+진단 artifact `restore-comparison.json`은 차이가 난 경로와 문자열 해시만 보존하며
+테이블 원문이나 schema 표현식 원문을 기록하지 않는다. 비교가 실패하면 Gate도 계속 실패한다.
+공식 함수 계약: https://www.postgresql.org/docs/17/functions-info.html

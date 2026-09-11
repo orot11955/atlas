@@ -74,6 +74,7 @@ jobs:
             scripts/ci/eventing-preflight-e2e.mjs \
             scripts/ci/eventing-restore-e2e.mjs \
             scripts/ci/eventing-restore-guard.test.mjs \
+            scripts/ci/eventing-restore-schema.mjs \
             docs/implementation/r05h-eventing-restore-rehearsal.md \
             .github/workflows/eventing-rollout-preflight.yml \
             docs/operations/eventing-rollout-runbook.md; do
