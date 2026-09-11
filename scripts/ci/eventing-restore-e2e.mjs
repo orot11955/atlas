@@ -200,6 +200,26 @@ function services(database, server, clock) {
   };
 }
 
+export async function insertDisabledEndpointFixture(repository, input, transaction) {
+  await repository.insertWebhookEndpoint({ ...input, status: 'active' }, transaction);
+  assert.equal(
+    await repository.setWebhookEndpointStatus(
+      input.workspaceId,
+      input.id,
+      {
+        expectedVersion: input.version,
+        nextVersion: input.version + 1,
+        status: 'disabled',
+        disabledAt: input.createdAt,
+        updatedAt: input.updatedAt,
+      },
+      transaction,
+    ),
+    true,
+    'The disabled endpoint fixture must use the existing versioned status transition.',
+  );
+}
+
 async function completedFixture(database, server, at) {
   const c = Object.fromEntries(
     ['workspace', 'site', 'content', 'assignment', 'revision', 'endpoint'].map((key) => [
@@ -290,15 +310,14 @@ async function completedFixture(database, server, at) {
     c.secret,
   );
   await database.transaction((tx) =>
-    live.repository.insertWebhookEndpoint(
+    insertDisabledEndpointFixture(
+      live.repository,
       {
         id: c.endpoint,
         workspaceId: c.workspace,
         siteId: c.site,
         name: 'Restore key fixture',
         url: 'https://hooks.example.test',
-        status: 'disabled',
-        disabledAt: at,
         secretCiphertext: encrypted.encryptedValue,
         secretKeyVersion: encrypted.keyVersion,
         subscribedEvents: ['content.published'],

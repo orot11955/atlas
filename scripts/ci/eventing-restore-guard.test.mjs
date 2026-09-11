@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   assertEmptyRestoreTarget,
+  insertDisabledEndpointFixture,
   postgresArguments,
   validateRestoreEnvironment,
 } from './eventing-restore-e2e.mjs';
@@ -118,4 +119,37 @@ test('wrong destination fails before object enumeration', async () => {
   };
   await assert.rejects(assertEmptyRestoreTarget(database), /fixed disposable destination/u);
   assert.equal(queries, 1);
+});
+
+test('disabled fixtures use active creation and versioned disable in the same transaction', async () => {
+  const transaction = {};
+  const at = new Date('2030-01-01T00:00:00Z');
+  const input = { id: 'endpoint', workspaceId: 'workspace', version: 1, createdAt: at, updatedAt: at };
+  const calls = [];
+  const repository = {
+    async insertWebhookEndpoint(row, tx) {
+      assert.equal(tx, transaction);
+      calls.push(row);
+    },
+    async setWebhookEndpointStatus(workspaceId, endpointId, update, tx) {
+      assert.equal(tx, transaction);
+      assert.equal(workspaceId, input.workspaceId);
+      assert.equal(endpointId, input.id);
+      calls.push(update);
+      return true;
+    },
+  };
+  await insertDisabledEndpointFixture(repository, input, transaction);
+  assert.deepEqual(calls, [
+    { ...input, status: 'active' },
+    { expectedVersion: 1, nextVersion: 2, status: 'disabled', disabledAt: at, updatedAt: at },
+  ]);
+  await assert.rejects(
+    insertDisabledEndpointFixture(
+      { ...repository, setWebhookEndpointStatus: async () => false },
+      input,
+      transaction,
+    ),
+    /versioned status transition/u,
+  );
 });
