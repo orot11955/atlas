@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { verifyAssetUploadFoundation } from './asset-upload-e2e.mjs';
 import { verifyApiClientLifecycle } from './api-client-lifecycle-e2e.mjs';
 import { verifyContentPublicationDelivery } from './content-publication-delivery-e2e.mjs';
+import { verifyEventing } from './eventing-e2e.mjs';
 import { verifyProjectDeploymentReadModel } from './project-deployment-e2e.mjs';
 
 const baseUrl = process.env.ATLAS_API_BASE_URL ?? 'http://localhost:4000/api';
@@ -239,6 +240,10 @@ await verifyContentPublicationDelivery({
   readyAsset,
   assertEqual,
 });
+
+if (process.env.ATLAS_VERIFY_EVENTING === '1') {
+  await verifyEventing({ request, session, mainBlog, assertEqual });
+}
 
 mainBlog = (await transitionSite(mainBlog, 'maintenance', 'maintenance', session)).data;
 

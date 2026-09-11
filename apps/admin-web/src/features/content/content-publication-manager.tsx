@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { AtlasApiError } from '../../lib/api';
+import { PublicationScheduler } from '../eventing/publication-scheduler';
 import { loadSites } from '../sites/site-api';
 import type { Site } from '../sites/site-types';
 import {
@@ -427,6 +428,8 @@ function ContentSiteCard({
           {working === 'history' ? '불러오는 중…' : history ? '이력 닫기' : '발행 이력'}
         </button>
       </div>
+
+      <PublicationScheduler assignment={assignment} content={content} />
 
       {history ? (
         <div className={styles.publicationHistory}>

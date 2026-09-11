@@ -1,0 +1,66 @@
+name: Publication Schedule Effects Gate
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [feat/outbox-webhook-scheduling, develop]
+permissions:
+  contents: read
+concurrency:
+  group: schedule-effects-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  publication-schedule-effects:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_schedule_effect_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-effect-test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_schedule_effect_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_SCHEDULE_EFFECT_TESTS: '1'
+      ATLAS_SCHEDULE_EFFECT_TEST_DATABASE_URL: postgresql://atlas:atlas-effect-test@127.0.0.1:5432/atlas_schedule_effect_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Enable locked pnpm
+        run: corepack enable && corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build actual packages
+        run: pnpm build:packages
+      - name: Verify server unit regressions
+        run: pnpm --filter @atlas/server test
+      - name: Verify real Publication effects, pinned targets and PostgreSQL recovery
+        run: node scripts/ci/publication-schedule-effect-e2e.mjs
+      - name: Report formatting without rewriting product source
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/schedule-effects"
+          status=0
+          while IFS= read -r file; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/schedule-effects/formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/schedule-effects/formatted" >> "$RUNNER_TEMP/schedule-effects/format.patch" || status=1
+            else
+              status=1
+            fi
+          done < docs/implementation/r03-reviewed-files.txt
+          cat "$RUNNER_TEMP/schedule-effects/format.patch"
+          exit "$status"
+      - name: Retain read-only formatting diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-effects-format-${{ github.run_id }}
+          path: ${{ runner.temp }}/schedule-effects/format.patch
+          retention-days: 7

@@ -1,0 +1,78 @@
+name: Publication Schedule Schema Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, feat/outbox-webhook-scheduling]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-schedule-schema-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publication-schedule-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_SCHEMA_TESTS: '1'
+      ATLAS_SCHEMA_TEST_DATABASE_URL: postgresql://atlas:atlas-schema-test@127.0.0.1:5432/atlas_schedule_schema_test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_schedule_schema_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-schema-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_schedule_schema_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm version
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Reject tracked one-time product writers
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0');
+          const bad = paths.filter((path) => path.startsWith('tmp/') ||
+            ((path.startsWith('.github/workflows/') || path.startsWith('scripts/')) &&
+            (/(?:^|[-_/])once(?:[./-]|$)/u.test(path) ||
+            /(?:^|\/)(?:apply|repair|finalize)-.*\.py$/u.test(path))));
+          if (bad.length) throw new Error(`Tracked transient writers: ${bad.join(', ')}`);
+          console.log('Tracked source tree contains no one-time product writers.');
+          JS
+      - name: Build actual server and database packages
+        run: pnpm build:packages
+      - name: Test historical upgrade, ownership, immutability and rollback on PostgreSQL
+        run: node scripts/ci/publication-schedule-schema-e2e.mjs
+      - name: Show formatting differences without rewriting source
+        if: always()
+        run: |
+          set -uo pipefail
+          status=0
+          for file in \
+            packages/database/src/migrations/1788652800000-ExpandPublicationScheduleTargets.ts \
+            scripts/ci/publication-schedule-schema-e2e.mjs; do
+            pnpm exec prettier "$file" | diff -u "$file" - || status=1
+          done
+          exit "$status"

@@ -1,0 +1,138 @@
+name: Eventing Operator HTTP Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, feat/outbox-webhook-scheduling]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-operator-http-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  operator-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      ATLAS_ALLOW_OPERATOR_HTTP_TESTS: '1'
+      ATLAS_OPERATOR_API_URL: http://127.0.0.1:4000/api
+      PORT: '4000'
+      DATABASE_URL: postgresql://atlas:atlas-operator-test@127.0.0.1:5432/atlas_operator_http_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: 'false'
+      LOG_LEVEL: warn
+      AUTH_COOKIE_SECURE: 'false'
+      AUTH_SESSION_COOKIE_NAME: atlas_admin_session
+      AUTH_CSRF_COOKIE_NAME: atlas_admin_csrf
+      AUTH_MFA_ISSUER: Atlas-Operator-Test
+      AUTH_MFA_WINDOW_STEPS: '1'
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_ACCESS_KEY: operator-test-access
+      MINIO_PRIVATE_BUCKET: atlas-private
+      MINIO_PROCESSING_BUCKET: atlas-processing
+      MINIO_PUBLIC_BUCKET: atlas-public
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/atlas-public
+      SYSTEM_QUEUE_NAME: atlas-operator-http-test
+      MEDIA_QUEUE_NAME: atlas-operator-media-test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: atlas_operator_http_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas-operator-test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_operator_http_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Checkout workflow revision
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Enable repository pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Configure disposable test secrets
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const peppers = ['AUTH_LOGIN_FINGERPRINT_PEPPER', 'AUTH_MFA_RECOVERY_CODE_PEPPER',
+            'AUTH_SESSION_FINGERPRINT_PEPPER', 'API_KEY_PEPPER', 'MINIO_SECRET_KEY'];
+          const rows = peppers.map((name) => `${name}=${'operator-test-only-'.repeat(4)}`);
+          for (const prefix of ['AUTH_MFA', 'WEBHOOK_SECRET']) {
+            rows.push(`${prefix}_ENCRYPTION_KEY_BASE64=${Buffer.alloc(32, 71).toString('base64')}`);
+            rows.push(`${prefix}_ENCRYPTION_KEY_VERSION=test-v1`);
+          }
+          appendFileSync(process.env.GITHUB_ENV, rows.join('\n') + '\n');
+          NODE
+      - name: Build actual packages and API; apply migrations
+        run: |
+          pnpm build:packages
+          pnpm --filter @atlas/api build
+          pnpm db:migration:run
+          pnpm db:migration:show | grep -F 'No pending migrations.'
+      - name: Verify real password, TOTP, Session, CSRF and operator routes
+        run: |
+          set -euo pipefail
+          node apps/api/dist/main.js > "$RUNNER_TEMP/operator-api.log" 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4000/api/health/live > /dev/null; then break; fi
+            if [ "$attempt" = '40' ]; then cat "$RUNNER_TEMP/operator-api.log"; exit 1; fi
+            sleep 1
+          done
+          node scripts/ci/eventing-operator-http-e2e.mjs
+      - name: Report operator source formatting without rewriting files
+        if: always()
+        run: |
+          set -uo pipefail
+          patch="$RUNNER_TEMP/operator-format.patch"
+          : > "$patch"
+          status=0
+          for file in \
+            .github/workflows/eventing-operator-http.yml \
+            scripts/ci/eventing-operator-http-e2e.mjs \
+            docs/implementation/r05e-schedule-operator-view.md \
+            apps/admin-web/src/features/eventing/publication-schedule-presentation.ts \
+            apps/admin-web/src/features/eventing/publication-scheduler.tsx \
+            apps/admin-web/src/features/eventing/eventing-types.ts \
+            apps/admin-web/src/publication-schedule-presentation.test.ts \
+            apps/api/src/eventing/eventing.controller.ts \
+            packages/server/src/modules/eventing/application/publication-schedule-view.ts \
+            packages/server/src/publication-schedule-view.test.ts; do
+            if pnpm exec prettier "$file" > "$RUNNER_TEMP/operator-formatted"; then
+              diff -u --label "a/$file" --label "b/$file" "$file" "$RUNNER_TEMP/operator-formatted" >> "$patch" || status=1
+            else
+              status=1
+            fi
+          done
+          cat "$patch"
+          exit "$status"
+      - name: Retain source formatting diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-format-${{ github.run_id }}
+          path: ${{ runner.temp }}/operator-format.patch
+          if-no-files-found: ignore
+          retention-days: 7
