@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 const SOURCE = 'atlas_eventing_preflight_test';
 const DESTINATION = 'atlas_eventing_restore_test';
@@ -96,6 +97,31 @@ export async function assertEmptyRestoreTarget(database) {
     JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema')
     AND n.nspname NOT LIKE 'pg_toast%' AND n.nspname NOT LIKE 'pg_temp%'`);
   assert.equal(count, 0, 'Refusing a populated restore destination; never clean or overwrite it.');
+}
+
+export function snapshotDifferences(actual, expected) {
+  const differences = [];
+  const describe = (value) => {
+    if (value === null || ['boolean', 'number', 'undefined'].includes(typeof value)) {
+      return { type: typeof value, value: value ?? null };
+    }
+    return {
+      type: typeof value,
+      sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex'),
+    };
+  };
+  const visit = (left, right, path) => {
+    if (isDeepStrictEqual(left, right)) return;
+    if (left && right && typeof left === 'object' && typeof right === 'object') {
+      for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+        visit(left[key], right[key], `${path}.${key}`);
+      }
+      return;
+    }
+    differences.push({ path, actual: describe(left), expected: describe(right) });
+  };
+  visit(actual, expected, 'snapshot');
+  return differences;
 }
 
 async function snapshot(database) {
@@ -474,7 +500,18 @@ export async function runRestoreRehearsal(environment = process.env, args = []) 
         } finally {
           closeSync(fd);
         }
-        assert.deepEqual(await snapshot(destination), baseline);
+        console.log('# pg_restore completed without client diagnostics');
+        const restoredSnapshot = await snapshot(destination);
+        const comparison = {
+          matches: isDeepStrictEqual(restoredSnapshot, baseline),
+          differences: snapshotDifferences(restoredSnapshot, baseline),
+        };
+        writeFileSync(
+          'tmp/r05g-preflight/restore-comparison.json',
+          JSON.stringify(comparison, null, 2) + '\n',
+        );
+        assert.deepEqual(restoredSnapshot, baseline);
+        console.log('# restored metadata and table digests match');
         assert.deepEqual(await snapshot(source), sourceAfterBackup);
         assert.equal(await destination.showMigrations(), false);
       },

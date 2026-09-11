@@ -4,6 +4,7 @@ import {
   assertEmptyRestoreTarget,
   insertDisabledEndpointFixture,
   postgresArguments,
+  snapshotDifferences,
   validateRestoreEnvironment,
 } from './eventing-restore-e2e.mjs';
 
@@ -124,7 +125,13 @@ test('wrong destination fails before object enumeration', async () => {
 test('disabled fixtures use active creation and versioned disable in the same transaction', async () => {
   const transaction = {};
   const at = new Date('2030-01-01T00:00:00Z');
-  const input = { id: 'endpoint', workspaceId: 'workspace', version: 1, createdAt: at, updatedAt: at };
+  const input = {
+    id: 'endpoint',
+    workspaceId: 'workspace',
+    version: 1,
+    createdAt: at,
+    updatedAt: at,
+  };
   const calls = [];
   const repository = {
     async insertWebhookEndpoint(row, tx) {
@@ -152,4 +159,24 @@ test('disabled fixtures use active creation and versioned disable in the same tr
     ),
     /versioned status transition/u,
   );
+});
+
+test('snapshot diagnostics identify metadata drift without exposing string values', () => {
+  const expected = { table: { sha256: 'secret-sentinel' }, constraint: { validated: false } };
+  const actual = { table: { sha256: 'changed-sentinel' }, constraint: { validated: true } };
+  const report = snapshotDifferences(actual, expected);
+  assert.equal(report.length, 2);
+  assert.equal(report[0].path, 'snapshot.table.sha256');
+  assert.match(report[0].actual.sha256, /^[a-f0-9]{64}$/u);
+  assert.equal(report[1].actual.value, true);
+  assert.equal(report[1].expected.value, false);
+  assert.ok(!JSON.stringify(report).includes('sentinel'));
+  assert.deepEqual(snapshotDifferences(expected, expected), []);
+});
+
+test('snapshot diagnostics retain missing objects and numeric differences', () => {
+  const report = snapshotDifferences({ tables: { actual: 2 } }, { tables: { expected: 1 } });
+  assert.equal(report.length, 2);
+  assert.ok(report.some((row) => row.actual.type === 'undefined'));
+  assert.ok(report.some((row) => row.expected.type === 'undefined'));
 });
