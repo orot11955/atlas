@@ -48,10 +48,18 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify preflight argument, transaction and redaction regressions
         run: node --test scripts/operations/eventing-rollout-preflight.test.mjs
+      - name: Verify isolated restore safety guards
+        run: node --test scripts/ci/eventing-restore-guard.test.mjs
       - name: Build actual migrations and repositories
         run: pnpm build:packages
       - name: Inspect real pre-policy and post-policy schemas without modifying them
         run: node scripts/ci/eventing-preflight-e2e.mjs
+      - name: Rehearse native logical backup and restore without production access
+        env:
+          ATLAS_ALLOW_EVENTING_RESTORE_TESTS: '1'
+          ATLAS_EVENTING_RESTORE_SOURCE_URL: ${{ env.DATABASE_URL }}
+          ATLAS_EVENTING_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: node scripts/ci/eventing-restore-e2e.mjs
       - name: Report formatting without rewriting source
         if: always()
         run: |
@@ -64,6 +72,9 @@ jobs:
             scripts/operations/eventing-rollout-preflight.mjs \
             scripts/operations/eventing-rollout-preflight.test.mjs \
             scripts/ci/eventing-preflight-e2e.mjs \
+            scripts/ci/eventing-restore-e2e.mjs \
+            scripts/ci/eventing-restore-guard.test.mjs \
+            docs/implementation/r05h-eventing-restore-rehearsal.md \
             .github/workflows/eventing-rollout-preflight.yml \
             docs/operations/eventing-rollout-runbook.md; do
             if pnpm exec prettier "$file" > "$RUNNER_TEMP/preflight-formatted"; then
