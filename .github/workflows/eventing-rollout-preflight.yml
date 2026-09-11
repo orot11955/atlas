@@ -50,9 +50,13 @@ jobs:
         run: node --test scripts/operations/eventing-rollout-preflight.test.mjs
       - name: Verify isolated restore safety guards
         run: node --test scripts/ci/eventing-restore-guard.test.mjs
+      - name: Verify diagnostic Migration rehearsal safety guards
+        run: node --test scripts/ci/eventing-diagnostic-migration.test.mjs
       - name: Build actual migrations and repositories
         run: pnpm build:packages
-      - name: Inspect real pre-policy and post-policy schemas without modifying them
+      - name: Verify preflight and diagnostic Migration rollback on isolated fixtures
+        env:
+          ATLAS_ALLOW_DIAGNOSTIC_MIGRATION_TESTS: '1'
         run: node scripts/ci/eventing-preflight-e2e.mjs
       - name: Rehearse native logical backup and restore without production access
         env:
@@ -72,10 +76,13 @@ jobs:
             scripts/operations/eventing-rollout-preflight.mjs \
             scripts/operations/eventing-rollout-preflight.test.mjs \
             scripts/ci/eventing-preflight-e2e.mjs \
+            scripts/ci/eventing-diagnostic-migration.mjs \
+            scripts/ci/eventing-diagnostic-migration.test.mjs \
             scripts/ci/eventing-restore-e2e.mjs \
             scripts/ci/eventing-restore-guard.test.mjs \
             scripts/ci/eventing-restore-schema.mjs \
             docs/implementation/r05h-eventing-restore-rehearsal.md \
+            docs/implementation/r05i-diagnostic-migration-rehearsal.md \
             .github/workflows/eventing-rollout-preflight.yml \
             docs/operations/eventing-rollout-runbook.md; do
             if pnpm exec prettier "$file" > "$RUNNER_TEMP/preflight-formatted"; then

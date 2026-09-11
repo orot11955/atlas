@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { collectEventingPreflight } from '../operations/eventing-rollout-preflight.mjs';
+import { verifyDiagnosticMigrationRehearsal } from './eventing-diagnostic-migration.mjs';
 
 assert.equal(process.env.NODE_ENV, 'test');
 assert.equal(process.env.ATLAS_ALLOW_EVENTING_PREFLIGHT_TESTS, '1');
@@ -276,6 +277,7 @@ try {
   await db.destroy();
   db = database(migrations);
   await db.initialize();
+  await verifyDiagnosticMigrationRehearsal(db);
   await db.runMigrations({ transaction: 'each' });
   assert.equal(await db.showMigrations(), false);
   reader = db.createQueryRunner();
