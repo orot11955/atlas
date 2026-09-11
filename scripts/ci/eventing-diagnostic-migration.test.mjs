@@ -19,7 +19,10 @@ const policy = { name: 'EnforceWebhookDiagnosticPolicy1788696000000', instance: 
 
 test('explicit isolated pre-policy database is accepted without issuing queries', () => {
   validateDiagnosticRehearsal(database, environment);
-  validateDiagnosticRehearsal({ ...database, options: { ...options, schema: 'public' } }, environment);
+  validateDiagnosticRehearsal(
+    { ...database, options: { ...options, schema: 'public' } },
+    environment,
+  );
 });
 
 test('test authorization, initialized state and disabled automatic writes are mandatory', () => {
@@ -33,9 +36,13 @@ test('test authorization, initialized state and disabled automatic writes are ma
     { schema: 'production' },
     { migrationsTableName: 'other_history' },
   ]) {
-    assert.throws(() => validateDiagnosticRehearsal({ ...database, options: { ...options, ...change } }, environment));
+    assert.throws(() =>
+      validateDiagnosticRehearsal({ ...database, options: { ...options, ...change } }, environment),
+    );
   }
-  assert.throws(() => validateDiagnosticRehearsal({ ...database, isInitialized: false }, environment));
+  assert.throws(() =>
+    validateDiagnosticRehearsal({ ...database, isInitialized: false }, environment),
+  );
 });
 
 test('non-loopback hosts, other databases and URL options are rejected', () => {
@@ -45,13 +52,20 @@ test('non-loopback hosts, other databases and URL options are rejected', () => {
     'postgresql://atlas:test-only@127.0.0.1:5432/atlas_eventing_restore_test',
     options.url + '?options=-csearch_path=other',
     options.url + '#fragment',
-  ]) assert.throws(() => validateDiagnosticRehearsal({ ...database, options: { ...options, url } }, environment));
+  ])
+    assert.throws(() =>
+      validateDiagnosticRehearsal({ ...database, options: { ...options, url } }, environment),
+    );
 });
 
 test('only the real remaining diagnostic migration may execute or revert', () => {
   requireOnlyDiagnosticMigration([policy]);
-  for (const pending of [[], [{ name: 'OtherMigration' }], [policy, { name: 'LaterMigration' }],
-    [{ ...policy, instance: { transaction: false } }]]) {
+  for (const pending of [
+    [],
+    [{ name: 'OtherMigration' }],
+    [policy, { name: 'LaterMigration' }],
+    [{ ...policy, instance: { transaction: false } }],
+  ]) {
     assert.throws(() => requireOnlyDiagnosticMigration(pending));
   }
 });
